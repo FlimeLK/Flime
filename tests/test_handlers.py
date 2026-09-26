@@ -10,6 +10,7 @@ import pytest
 from aiogram import Bot
 from aiogram.client.default import DefaultBotProperties
 from aiogram.client.session.base import BaseSession
+from aiogram.exceptions import TelegramForbiddenError
 from aiogram.methods import GetChatMember, GetMe, TelegramMethod
 from aiogram.types import (
     CallbackQuery,
@@ -48,6 +49,8 @@ class MockSession(BaseSession):
     def __init__(self):
         super().__init__()
         self.calls: list[TelegramMethod] = []
+        # Кому бот не може писати (людина не натискала «Почати»).
+        self.unreachable: set[int] = set()
 
     async def close(self):
         pass
@@ -65,6 +68,8 @@ class MockSession(BaseSession):
             if method.user_id in (OWNER, ADMIN):
                 return ChatMemberOwner(user=user, is_anonymous=False)
             return ChatMemberMember(user=user)
+        if name == "SendMessage" and method.chat_id in self.unreachable:
+            raise TelegramForbiddenError(method=method, message="bot can't initiate conversation with a user")
         if name in ("SendMessage", "SendInvoice"):
             chat_type = "private" if method.chat_id > 0 else "supergroup"
             return Message(message_id=next(ids), date=datetime.now(UTC),
@@ -225,12 +230,18 @@ async def test_settings_admin_only(env):
     feed, s, _, pool = env
     await feed(msg(13, "/settings", GROUP))
     assert "лише адміністратор" in s.last_text(GROUP)
+    # Панель приходить адміну в особисті, у групі — лише підтвердження.
     await feed(msg(ADMIN, "/settings", GROUP))
-    assert "Налаштування гри" in s.last_text(GROUP)
-    await feed(cb(ADMIN, SetCb(action="toggle", key="secret_vote").pack(), GROUP))
-    await feed(cb(ADMIN, SetCb(action="timer", key="night_time", delta=15).pack(), GROUP))
-    await feed(cb(ADMIN, SetCb(action="role", key="mavka").pack(), GROUP))
-    await feed(cb(13, SetCb(action="toggle", key="items_enabled").pack(), GROUP))  # не адмін
+    assert "в особисті" in s.last_text(GROUP)
+    assert "Налаштування гри" in s.last_text(ADMIN)
+    panel = next(c for c in reversed(s.calls) if type(c).__name__ == "SendMessage" and c.chat_id == ADMIN)
+    labels = [b.text for row in panel.reply_markup.inline_keyboard for b in row]
+    assert "Створення ролей" in labels
+
+    await feed(cb(ADMIN, SetCb(action="toggle", chat=GROUP, key="secret_vote").pack()))
+    await feed(cb(ADMIN, SetCb(action="timer", chat=GROUP, key="night_time", delta=15).pack()))
+    await feed(cb(ADMIN, SetCb(action="role", chat=GROUP, key="mavka").pack()))
+    await feed(cb(13, SetCb(action="toggle", chat=GROUP, key="items_enabled").pack()))  # не адмін
     row = await pool.fetchrow("SELECT * FROM group_settings WHERE chat_id = $1", GROUP)
     assert row["secret_vote"] and row["night_time"] == 75 and list(row["disabled_roles"]) == ["mavka"]
     assert row["items_enabled"]
@@ -284,8 +295,9 @@ async def test_custom_roles_builder(env):
     feed, s, manager, pool = env
     from bot.db import custom_roles as roles_db
 
-    await feed(msg(ADMIN, "/roles", GROUP))
-    assert "особистих" in s.last_text(GROUP)
+    await feed(msg(ADMIN, "/role", GROUP))
+    assert "в особисті" in s.last_text(GROUP)
+    assert "Своїх ролей ще немає" in s.last_text(ADMIN)
     await feed(msg(40, "/start roles-1001"))
     assert "лише адміністратори" in s.last_text(40)
     await feed(msg(ADMIN, "/start roles-1001"))
@@ -332,3 +344,16 @@ async def test_custom_roles_builder(env):
     await press("del")
     await press("delok")
     assert await roles_db.list_for_chat(pool, GROUP) == []
+
+
+async def test_settings_fallback_link_when_pm_closed(env):
+    feed, s, _, _ = env
+    s.unreachable.add(ADMIN)
+    await feed(msg(ADMIN, "/settings", GROUP))
+    reply = next(c for c in reversed(s.calls) if type(c).__name__ == "SendMessage" and c.chat_id == GROUP)
+    assert reply.reply_markup.inline_keyboard[0][0].url == "https://t.me/test_bot?start=settings-1001"
+    s.unreachable.clear()
+    await feed(msg(ADMIN, "/start settings-1001"))
+    assert "Налаштування гри" in s.last_text(ADMIN)
+    await feed(msg(13, "/start settings-1001"))
+    assert "лише адміністратори" in s.last_text(13)

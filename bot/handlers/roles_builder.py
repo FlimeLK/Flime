@@ -21,7 +21,7 @@ from bot.db import groups
 from bot.db.custom_roles import MAX_PER_CHAT, CustomRole
 from bot.engine.models import MAX_PLAYERS, MIN_PLAYERS
 from bot.engine.roles import CUSTOM_ABILITIES, CUSTOM_TEAMS, ROLES, TEAM_TITLES, Team
-from bot.handlers.common import is_chat_admin, is_group
+from bot.handlers.common import SetCb, is_chat_admin, is_group, send_admin_panel
 
 router = Router(name="roles_builder")
 
@@ -41,16 +41,6 @@ class RoleInput(StatesGroup):
     desc = State()
 
 
-def open_url(bot_username: str, chat_id: int) -> str:
-    return f"https://t.me/{bot_username}?start=roles{chat_id}"
-
-
-def open_keyboard(bot_username: str, chat_id: int) -> InlineKeyboardMarkup:
-    return InlineKeyboardMarkup(inline_keyboard=[[
-        InlineKeyboardButton(text=texts.RB_OPEN_BUTTON, url=open_url(bot_username, chat_id)),
-    ]])
-
-
 # ---------- екрани ----------
 
 def list_keyboard(chat_id: int, roles: list[CustomRole]) -> InlineKeyboardMarkup:
@@ -61,6 +51,8 @@ def list_keyboard(chat_id: int, roles: list[CustomRole]) -> InlineKeyboardMarkup
     kb.adjust(2)
     if len(roles) < MAX_PER_CHAT:
         kb.row(InlineKeyboardButton(text=texts.RB_CREATE, callback_data=RoleCb(action="new", chat=chat_id).pack()))
+    kb.row(InlineKeyboardButton(text=texts.SETTINGS_TO_PANEL,
+                                callback_data=SetCb(action="menu", chat=chat_id).pack()))
     return kb.as_markup()
 
 
@@ -112,17 +104,16 @@ def valid_name(name: str) -> bool:
 
 # ---------- вхід ----------
 
-@router.message(Command("roles"))
+@router.message(Command("roles", "role"))
 async def cmd_roles(message: Message, bot: Bot, pool: asyncpg.Pool, config: Settings) -> None:
     if not is_group(message):
-        await message.answer(texts.GROUP_ONLY)
+        await message.answer(texts.SETTINGS_IN_GROUP)
         return
     if not await is_chat_admin(bot, message.chat.id, message.from_user.id, config):
         await message.answer(texts.ADMIN_ONLY)
         return
     await groups.get(pool, message.chat.id, message.chat.title or "")
-    me = await bot.me()
-    await message.answer(texts.RB_OPEN_IN_PM, reply_markup=open_keyboard(me.username, message.chat.id))
+    await send_admin_panel(message, bot, f"roles{message.chat.id}", *await list_screen(pool, message.chat.id))
 
 
 @router.message(CommandStart(deep_link=True, magic=F.args.regexp(r"^roles-?\d+$")), F.chat.type == "private")

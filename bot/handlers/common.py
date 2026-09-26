@@ -4,9 +4,9 @@ from __future__ import annotations
 
 from aiogram import Bot
 from aiogram.enums import ChatMemberStatus, ChatType
-from aiogram.exceptions import TelegramBadRequest
+from aiogram.exceptions import TelegramAPIError, TelegramBadRequest
 from aiogram.filters.callback_data import CallbackData
-from aiogram.types import CallbackQuery, InlineKeyboardButton, Message
+from aiogram.types import CallbackQuery, InlineKeyboardButton, InlineKeyboardMarkup, Message
 
 from bot import texts
 from bot.config import Settings
@@ -17,6 +17,32 @@ GROUP_TYPES = {ChatType.GROUP, ChatType.SUPERGROUP}
 
 class MenuCb(CallbackData, prefix="menu"):
     action: str  # home | profile | shop | daily | vip | rules
+
+
+class SetCb(CallbackData, prefix="set"):
+    """Панель налаштувань чату (в особистих). chat — чат, який налаштовують."""
+
+    action: str   # menu | roles | timer | toggle | role | close | noop
+    chat: int
+    key: str = ""
+    delta: int = 0
+
+
+async def send_admin_panel(message: Message, bot: Bot, deep_link: str,
+                           text: str, markup: InlineKeyboardMarkup) -> None:
+    """Надсилає адмінську панель в особисті; у групі — коротке підтвердження.
+
+    Якщо бот ще не може писати людині (не натискала «Почати»), даємо кнопку-посилання.
+    """
+    try:
+        await bot.send_message(message.from_user.id, text, reply_markup=markup)
+    except TelegramAPIError:
+        me = await bot.me()
+        await message.reply(texts.PANEL_OPEN_PM, reply_markup=InlineKeyboardMarkup(inline_keyboard=[[
+            InlineKeyboardButton(text=texts.PANEL_OPEN_BUTTON, url=f"https://t.me/{me.username}?start={deep_link}"),
+        ]]))
+        return
+    await message.reply(texts.PANEL_SENT)
 
 
 def back_button() -> InlineKeyboardButton:

@@ -466,10 +466,15 @@ PAYMENT_UNKNOWN = "Невідомий товар. Спробуй ще раз ч�
 
 # ---------- налаштування чату ----------
 
-SETTINGS_HEAD = (
-    "<b>Налаштування гри</b>\n"
-    "<i>Зміни діють з наступної гри.</i>"
-)
+def settings_head(chat_title: str) -> str:
+    return (f"<b>Налаштування гри</b> · {escape(chat_title)}\n"
+            "<i>Зміни діють з наступної гри.</i>")
+
+
+PANEL_SENT = "Надіслав налаштування тобі в особисті."
+PANEL_OPEN_PM = "Не можу написати тобі в особисті — спершу відкрий бота."
+PANEL_OPEN_BUTTON = "Відкрити налаштування"
+SETTINGS_IN_GROUP = "Напиши /settings у групі, яку хочеш налаштувати, — я надішлю панель сюди."
 SETTINGS_ROLES_HEAD = (
     "<b>Ролі</b>\n"
     "<i>Вимкнені ролі не роздаються. Відьма, Упир і Селянин — обов'язкові.</i>"
@@ -486,7 +491,8 @@ TOGGLE_LABELS = {
     "secret_vote": ("Голосування: відкрите", "Голосування: таємне"),
     "items_enabled": ("Предмети: вимкнені", "Предмети: увімкнені"),
 }
-SETTINGS_ROLES_BUTTON = "Ролі"
+SETTINGS_ROLES_BUTTON = "Стандартні ролі"
+SETTINGS_TO_PANEL = "‹ Налаштування"
 SETTINGS_CLOSE = "Закрити"
 SETTINGS_BACK = "‹ Назад"
 SETTINGS_CLOSED = "Налаштування збережено."
@@ -533,8 +539,7 @@ _ABILITY_KINDS = {
     "compare": NightKind.COMPARE, "block": NightKind.LURE, "kill": NightKind.SABER,
 }
 
-RB_OPEN_BUTTON = "Свої ролі"
-RB_OPEN_IN_PM = "Свої ролі редагуються в особистих з ботом."
+RB_OPEN_BUTTON = "Створення ролей"
 RB_NO_RIGHTS = "Редагувати ролі можуть лише адміністратори цього чату."
 RB_CREATE = "Створити роль"
 RB_BACK_TO_LIST = "‹ До списку"
