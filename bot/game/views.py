@@ -14,7 +14,16 @@ from bot.game.callbacks import ConfirmCb, HoneyCb, NightCb, VoteCb
 
 def join_keyboard(bot_username: str, chat_id: int) -> InlineKeyboardMarkup:
     url = f"https://t.me/{bot_username}?start=join{chat_id}"
-    return InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text=texts.JOIN_BUTTON, url=url)]])
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text=texts.JOIN_BUTTON, url=url)],
+        [InlineKeyboardButton(text=texts.RULES_BUTTON, url=f"https://t.me/{bot_username}?start=rules")],
+    ])
+
+
+def to_bot_keyboard(bot_username: str) -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(inline_keyboard=[[
+        InlineKeyboardButton(text=texts.TO_BOT_BUTTON, url=f"https://t.me/{bot_username}"),
+    ]])
 
 
 def night_targets(game: Game, actor: int, kind: NightKind, exclude: int | None = None) -> InlineKeyboardMarkup:

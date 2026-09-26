@@ -10,8 +10,10 @@ import asyncpg
 from aiogram import Bot, Dispatcher
 from aiogram.client.default import DefaultBotProperties
 from aiogram.enums import ParseMode
+from aiogram.exceptions import TelegramAPIError
 from aiogram.types import BotCommand, BotCommandScopeAllGroupChats, BotCommandScopeAllPrivateChats
 
+from bot import texts
 from bot.config import Settings, load_settings
 from bot.db.pool import create_pool
 from bot.game.manager import GameManager
@@ -51,6 +53,17 @@ def build_dispatcher(pool: asyncpg.Pool, manager: GameManager, config: Settings)
     return dp
 
 
+async def set_descriptions(bot: Bot) -> None:
+    """Опис у порожньому чаті з ботом і в його профілі. Оновлюємо лише за зміни (ліміти Telegram)."""
+    try:
+        if (await bot.get_my_description()).description != texts.BOT_DESCRIPTION:
+            await bot.set_my_description(texts.BOT_DESCRIPTION)
+        if (await bot.get_my_short_description()).short_description != texts.BOT_SHORT_DESCRIPTION:
+            await bot.set_my_short_description(texts.BOT_SHORT_DESCRIPTION)
+    except TelegramAPIError as e:
+        log.warning("Could not set bot description: %s", e)
+
+
 def setup_logging() -> None:
     fmt = logging.Formatter("%(asctime)s %(levelname)s %(name)s: %(message)s")
     root = logging.getLogger()
@@ -75,6 +88,7 @@ async def main() -> None:
 
     await bot.set_my_commands(PRIVATE_COMMANDS, scope=BotCommandScopeAllPrivateChats())
     await bot.set_my_commands(GROUP_COMMANDS, scope=BotCommandScopeAllGroupChats())
+    await set_descriptions(bot)
 
     restored = await manager.restore()
     log.info("Bot @%s started, restored games: %d", me.username, restored)

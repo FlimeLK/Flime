@@ -229,7 +229,7 @@ class GameRunner:
                 p.pocket = await shop_db.take_for_game(self.pool, p.user_id, slots, it.POCKET_ORDER)
 
         teams = Counter(p.team for p in g.players.values())
-        composition = " · ".join(f"{TEAM_TITLES[t]}: {teams[t]}" for t in Team if teams[t])
+        composition = "\n".join(f"{TEAM_TITLES[t]}: <b>{teams[t]}</b>" for t in Team if teams[t])
         await self.m.send(self.chat_id, texts.GAME_STARTED.format(n=len(g.players), composition=composition))
 
         evil = [p for p in g.players.values() if p.team == Team.EVIL]
@@ -249,7 +249,7 @@ class GameRunner:
         self._pending.clear()
 
         alive = [(p.user_id, p.name) for p in g.alive()]
-        await self.m.send(self.chat_id, texts.night_start(g.day, alive))
+        await self.m.send(self.chat_id, texts.night_start(g.day, alive), views.to_bot_keyboard(self.bot_username))
 
         for p in g.alive():
             for kind in g.night_kinds(p):
@@ -388,7 +388,8 @@ class GameRunner:
         g.candidate = None
         self._pending.clear()
         seconds = int(g.settings.get("vote_time", 45))
-        await self.m.send(self.chat_id, texts.VOTE_START.format(time=texts.fmt_seconds(seconds)))
+        await self.m.send(self.chat_id, texts.VOTE_START.format(time=texts.fmt_seconds(seconds)),
+                          views.to_bot_keyboard(self.bot_username))
         for p in g.alive():
             mid = await self.m.send(p.user_id, texts.VOTE_PROMPT, views.vote_keyboard(g, p.user_id))
             if mid:
@@ -397,11 +398,11 @@ class GameRunner:
         await self._clear_pending(texts.VOTE_EXPIRED)
 
         candidate, counts = tally(g)
-        lines = []
+        rows = []
         for target, count in counts.most_common():
             label = "🚫 Нікого" if target == SKIP else texts.mention(target, g.players[target].name)
-            lines.append(f"{label} — {count}")
-        await self.m.send(self.chat_id, texts.vote_results(lines))
+            rows.append((label, count))
+        await self.m.send(self.chat_id, texts.vote_results(rows))
         if candidate is None:
             await self.m.send(self.chat_id, texts.VOTE_NOBODY)
             self._next_night()
@@ -464,7 +465,7 @@ class GameRunner:
                 await self.m.send(self.chat_id, texts.HORSESHOE_SAVED.format(name=cand_name))
             else:
                 hide = g.settings.get("hide_dead_roles", False)
-                role = "" if hide else f" Роль: {cand.role_obj.title}."
+                role = "" if hide else f"\n<i>Роль: {cand.role_obj.title}</i>"
                 await self.m.send(self.chat_id, texts.LYNCHED.format(name=cand_name, role=role))
                 if result.fool:
                     await self.m.send(self.chat_id, texts.FOOL_WON)
@@ -510,16 +511,16 @@ class GameRunner:
         g = self.game
         g.winner = winner
         win_ids = winners(g, winner)
-        lines = []
+        win_lines, lose_lines = [], []
         results = []
         for p in g.players.values():
             won = p.user_id in win_ids
             reward = economy.game_reward(won, p.vip)
             results.append((p.user_id, p.role, won, reward))
-            mark = "🏆" if won else "▫️"
-            dead = "" if p.alive else " 💀"
-            lines.append(f"{mark} {texts.mention(p.user_id, p.name)} — {ROLES[p.role].title}{dead}")
-        await self.m.send(self.chat_id, texts.game_over(winner, lines, g.day))
+            dead = " 💀" if not p.alive else ""
+            line = f"{texts.mention(p.user_id, p.name)} — {ROLES[p.role].title}{dead}"
+            (win_lines if won else lose_lines).append(line)
+        await self.m.send(self.chat_id, texts.game_over(winner, win_lines, lose_lines, g.day))
         await games_db.record_result(self.pool, self.chat_id, str(winner), g.day, results)
         for uid, _, won, reward in results:
             await self.m.send(uid, texts.REWARD_PM.format(

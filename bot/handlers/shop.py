@@ -14,6 +14,7 @@ from bot import texts
 from bot.db import shop, users
 from bot.db.users import User
 from bot.engine import items as it
+from bot.handlers.common import back_button
 
 router = Router(name="shop")
 
@@ -25,8 +26,9 @@ class BuyCb(CallbackData, prefix="buy"):
 def shop_keyboard() -> InlineKeyboardMarkup:
     kb = InlineKeyboardBuilder()
     for item in it.ITEMS.values():
-        kb.button(text=f"{item.emoji} {item.price}", callback_data=BuyCb(item=item.key))
-    kb.adjust(4)
+        kb.button(text=f"{item.title} · {item.price}{texts.SHAGY}", callback_data=BuyCb(item=item.key))
+    kb.adjust(2)
+    kb.row(back_button())
     return kb.as_markup()
 
 

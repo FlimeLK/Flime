@@ -15,6 +15,7 @@ from aiogram.utils.keyboard import InlineKeyboardBuilder
 from bot import economy, texts
 from bot.db import payments, users
 from bot.db.users import User
+from bot.handlers.common import back_button
 from bot.handlers.profile import fmt_date
 
 router = Router(name="payments")
@@ -47,6 +48,7 @@ def vip_keyboard() -> InlineKeyboardMarkup:
         kb.button(text=f"🔄 {amount}{texts.CHERV} → {amount * economy.EXCHANGE_RATE}{texts.SHAGY}",
                   callback_data=ExchangeCb(amount=amount))
     kb.adjust(1, 1, 3, 3)
+    kb.row(back_button())
     return kb.as_markup()
 
 

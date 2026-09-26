@@ -5,12 +5,22 @@ from __future__ import annotations
 from aiogram import Bot
 from aiogram.enums import ChatMemberStatus, ChatType
 from aiogram.exceptions import TelegramBadRequest
-from aiogram.types import CallbackQuery, Message
+from aiogram.filters.callback_data import CallbackData
+from aiogram.types import CallbackQuery, InlineKeyboardButton, Message
 
+from bot import texts
 from bot.config import Settings
 from bot.game.runner import Reply
 
 GROUP_TYPES = {ChatType.GROUP, ChatType.SUPERGROUP}
+
+
+class MenuCb(CallbackData, prefix="menu"):
+    action: str  # home | profile | shop | daily | vip | rules
+
+
+def back_button() -> InlineKeyboardButton:
+    return InlineKeyboardButton(text=texts.MENU_BACK, callback_data=MenuCb(action="home").pack())
 
 
 def is_group(message: Message) -> bool:

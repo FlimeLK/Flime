@@ -32,6 +32,7 @@ from bot.engine.models import Phase
 from bot.game.callbacks import NightCb
 from bot.game.manager import GameManager
 from bot.game.messenger import Messenger
+from bot.handlers.common import MenuCb
 from bot.handlers.payments import StarsCb
 from bot.handlers.settings import SetCb
 from bot.handlers.shop import BuyCb
@@ -138,6 +139,35 @@ async def test_private_commands(env):
     assert (await users_db.get(pool, 10)).shagy == 150 - 120
     await feed(cb(10, BuyCb(item="obereg").pack()))  # не вистачає
     assert await shop_db.inventory(pool, 10) == {"obereg": 1}
+
+
+async def test_main_menu(env):
+    feed, s, _, pool = env
+    await feed(msg(12, "/start"))
+    start = next(c for c in reversed(s.calls) if type(c).__name__ == "SendMessage" and c.chat_id == 12)
+    buttons = [b for row in start.reply_markup.inline_keyboard for b in row]
+    assert buttons[0].url == "https://t.me/test_bot?startgroup=true"
+
+    def last_edit() -> str:
+        return next(c for c in reversed(s.calls) if type(c).__name__ == "EditMessageText").text
+
+    await feed(cb(12, MenuCb(action="profile").pack()))
+    assert "Шаги: <b>100</b>" in last_edit()
+    await feed(cb(12, MenuCb(action="shop").pack()))
+    assert "Ярмарок" in last_edit()
+    await feed(cb(12, MenuCb(action="vip").pack()))
+    assert "VIP на хуторі" in last_edit()
+    await feed(cb(12, MenuCb(action="rules").pack()))
+    assert "Характерник" in last_edit()
+    await feed(cb(12, MenuCb(action="home").pack()))
+    assert "Як почати" in last_edit()
+    await feed(cb(12, MenuCb(action="daily").pack()))
+    alert = next(c for c in reversed(s.calls) if type(c).__name__ == "AnswerCallbackQuery")
+    assert "+50" in alert.text and alert.show_alert
+    assert (await users_db.get(pool, 12)).shagy == 150
+
+    await feed(msg(12, "/start rules"))
+    assert "Правила" in s.last_text(12)
 
 
 async def test_owner_and_promo(env):
