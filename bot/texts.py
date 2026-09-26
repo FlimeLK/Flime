@@ -264,3 +264,65 @@ def game_over(winner: str, lines: list[str], days: int) -> str:
 REWARD_PM = "🏁 Гра завершилась. {result} Нагорода: +{amount} {shagy}."
 RESULT_WIN = "🏆 Перемога!"
 RESULT_LOSE = "Цього разу не пощастило."
+
+
+# ---------- профіль ----------
+
+def profile(name: str, shagy: int, cherv: int, vip_until: str | None, games: int, wins: int,
+            inventory: list[str]) -> str:
+    rate = f"{round(wins * 100 / games)}%" if games else "—"
+    lines = [
+        f"🏡 <b>Хата: {escape(name)}</b>" + (" 👑" if vip_until else ""),
+        "",
+        f"{SHAGY} Шаги: <b>{shagy}</b>",
+        f"{CHERV} Червінці: <b>{cherv}</b>",
+        f"👑 VIP до: {vip_until}" if vip_until else "👑 VIP: немає (/vip)",
+        "",
+        f"🎲 Ігор: {games} · 🏆 Перемог: {wins} ({rate})",
+        "",
+        "🎒 <b>Скриня:</b> " + (", ".join(inventory) if inventory else "порожньо — зазирни на /shop"),
+    ]
+    return "\n".join(lines)
+
+
+DAILY_OK = "🎁 Кума передала гостинця: +{amount} {shagy}! Приходь завтра."
+DAILY_WAIT = "⏳ Гостинець уже отримано. Наступний — через {left}."
+TOP_HEAD = "🏆 <b>Найкращі гравці цього хутора</b>\n"
+TOP_EMPTY = "Тут ще ніхто не грав. Почніть з /game!"
+PROMO_USAGE = "Напиши так: <code>/promo КОД</code>"
+PROMO_ERRORS = {
+    "not_found": "❌ Такого промокоду немає.",
+    "used": "Ти вже активував цей промокод.",
+    "exhausted": "😔 Промокод уже вичерпано.",
+}
+
+
+def promo_ok(shagy: int, cherv: int, vip_days: int) -> str:
+    parts = []
+    if shagy:
+        parts.append(f"+{shagy} {SHAGY}")
+    if cherv:
+        parts.append(f"+{cherv} {CHERV}")
+    if vip_days:
+        parts.append(f"👑 VIP +{vip_days} дн.")
+    return "🎉 Промокод активовано: " + (", ".join(parts) or "нічого 🙃")
+
+
+# ---------- ярмарок ----------
+
+def shop(balance: int, inventory: dict[str, int], slots: int) -> str:
+    lines = [
+        "🛒 <b>Ярмарок</b>",
+        f"Твій гаманець: <b>{balance}</b> {SHAGY}",
+        f"На гру береш із собою до {slots} різних предметів (VIP — більше).",
+        "",
+    ]
+    for item in ITEMS.values():
+        have = inventory.get(item.key, 0)
+        own = f" · у скрині: {have}" if have else ""
+        lines.append(f"{item.title} — <b>{item.price}</b> {SHAGY}{own}\n<i>{item.description}</i>")
+    return "\n".join(lines)
+
+
+SHOP_BOUGHT = "✅ Куплено: {item}. Залишок: {balance} {shagy}"
+SHOP_NO_MONEY = "Не вистачає шагів. Зіграй ще кілька ігор або візьми /daily."
