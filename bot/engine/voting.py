@@ -13,7 +13,7 @@ SKIP = 0
 
 def vote_weight(game: Game, uid: int) -> int:
     weight = 1
-    if game.players[uid].role == "otaman":
+    if "vote2" in game.players[uid].role_obj.passives:
         weight += 1
     if uid in game.honey_voters:
         weight += 1

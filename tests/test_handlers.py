@@ -34,6 +34,7 @@ from bot.game.manager import GameManager
 from bot.game.messenger import Messenger
 from bot.handlers.common import MenuCb
 from bot.handlers.payments import StarsCb
+from bot.handlers.roles_builder import RoleCb
 from bot.handlers.settings import SetCb
 from bot.handlers.shop import BuyCb
 
@@ -107,7 +108,7 @@ async def env(pool):
     # Роутери модульні: від'єднуємо їх від диспетчера попереднього тесту.
     from bot import handlers
 
-    for mod in (handlers.lobby, handlers.start, handlers.profile, handlers.shop, handlers.payments,
+    for mod in (handlers.lobby, handlers.roles_builder, handlers.start, handlers.profile, handlers.shop, handlers.payments,
                 handlers.settings, handlers.owner, handlers.play):
         mod.router._parent_router = None
     dp = build_dispatcher(pool, manager, config)
@@ -277,3 +278,57 @@ async def test_game_via_handlers(env):
     await feed(msg(ADMIN, "/stop", GROUP))
     assert manager.get(GROUP) is None
     assert "зупинено" in s.last_text(GROUP)
+
+
+async def test_custom_roles_builder(env):
+    feed, s, manager, pool = env
+    from bot.db import custom_roles as roles_db
+
+    await feed(msg(ADMIN, "/roles", GROUP))
+    assert "особистих" in s.last_text(GROUP)
+    await feed(msg(40, "/start roles-1001"))
+    assert "лише адміністратори" in s.last_text(40)
+    await feed(msg(ADMIN, "/start roles-1001"))
+    assert "Своїх ролей ще немає" in s.last_text(ADMIN)
+
+    await feed(cb(ADMIN, RoleCb(action="new", chat=GROUP).pack()))
+    await feed(msg(ADMIN, "Відьма"))  # назва стандартної ролі
+    assert "не підходить" in s.last_text(ADMIN)
+    await feed(msg(ADMIN, "Мольфар"))
+    assert "Мольфар" in s.last_text(ADMIN)
+    [role] = await roles_db.list_for_chat(pool, GROUP)
+
+    async def press(action: str, val: str = "") -> None:
+        await feed(cb(ADMIN, RoleCb(action=action, chat=GROUP, role=role.id, val=val).pack()))
+
+    await press("team")
+    assert (await roles_db.get(pool, role.id)).team == "evil"
+    await press("team")
+    await press("setab", "kill")
+    await press("plus")
+    await press("minus")
+    await press("desc")
+    await feed(msg(ADMIN, "Карпатський чаклун."))
+    r = await roles_db.get(pool, role.id)
+    assert (r.team, r.ability, r.min_players, r.description) == ("village", "kill", 4, "Карпатський чаклун.")
+    await feed(cb(40, RoleCb(action="toggle", chat=GROUP, role=role.id).pack()))  # не адмін
+    assert (await roles_db.get(pool, role.id)).enabled
+
+    # Роль роздається в грі.
+    await feed(msg(ADMIN, "/game", GROUP))
+    for uid in (41, 42, 43, 44):
+        await feed(msg(uid, "/start join-1001"))
+    await feed(msg(ADMIN, "/start_now", GROUP))
+    runner = manager.get(GROUP)
+    for _ in range(100):
+        if runner.game.phase == Phase.NIGHT and runner._pending:
+            break
+        await asyncio.sleep(0.02)
+    holder = next(p for p in runner.game.players.values() if p.role == r.key)
+    assert any("Мольфар" in t for t in s.texts_to(holder.user_id))
+    assert any("раз за гру" in t for t in s.texts_to(holder.user_id))
+    await feed(msg(ADMIN, "/stop", GROUP))
+
+    await press("del")
+    await press("delok")
+    assert await roles_db.list_for_chat(pool, GROUP) == []

@@ -16,12 +16,13 @@ import asyncpg
 from aiogram.types import InlineKeyboardMarkup
 
 from bot import economy, texts
+from bot.db import custom_roles as custom_roles_db
 from bot.db import games as games_db
 from bot.db import shop as shop_db
 from bot.engine import items as it
 from bot.engine.models import MAX_PLAYERS, MIN_PLAYERS, Action, Game, Phase, Player
 from bot.engine.night import can_target, resolve_night
-from bot.engine.roles import ROLES, TEAM_TITLES, NightKind, Team
+from bot.engine.roles import TEAM_TITLES, NightKind, Team
 from bot.engine.setup import assign_roles
 from bot.engine.voting import SKIP, can_vote, confirm_result, lynch, tally, use_honey
 from bot.engine.win import check_winner, winners
@@ -222,6 +223,8 @@ class GameRunner:
 
     async def _start_game(self) -> None:
         g = self.game
+        customs = await custom_roles_db.list_for_chat(self.pool, self.chat_id)
+        g.settings["custom_roles"] = [r.to_engine() for r in customs if r.enabled]
         assign_roles(g)
         if g.settings.get("items_enabled", True):
             for p in g.players.values():
@@ -254,7 +257,8 @@ class GameRunner:
         for p in g.alive():
             for kind in g.night_kinds(p):
                 slot = ITEM_SLOT if kind == NightKind.PITCHFORK else ROLE_SLOT
-                mid = await self.m.send(p.user_id, texts.NIGHT_PROMPTS[kind.value],
+                prompt = texts.NIGHT_PROMPTS["shot" if kind == NightKind.SABER and p.role_obj.custom else kind.value]
+                mid = await self.m.send(p.user_id, prompt,
                                         views.night_targets(g, p.user_id, kind))
                 if mid:
                     self._pending.setdefault((p.user_id, slot), []).append(mid)
@@ -518,7 +522,7 @@ class GameRunner:
             reward = economy.game_reward(won, p.vip)
             results.append((p.user_id, p.role, won, reward))
             name = texts.mention(p.user_id, p.name)
-            line = f"{name if p.alive else f'<s>{name}</s>'} — {ROLES[p.role].title}"
+            line = f"{name if p.alive else f'<s>{name}</s>'} — {p.role_obj.title}"
             (win_lines if won else lose_lines).append(line)
         await self.m.send(self.chat_id, texts.game_over(winner, win_lines, lose_lines, g.day))
         await games_db.record_result(self.pool, self.chat_id, str(winner), g.day, results)

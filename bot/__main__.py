@@ -38,6 +38,7 @@ GROUP_COMMANDS = [
     BotCommand(command="leave", description="Вийти з реєстрації"),
     BotCommand(command="stop", description="Зупинити гру (адмін)"),
     BotCommand(command="settings", description="Налаштування гри (адмін)"),
+    BotCommand(command="roles", description="Свої ролі чату (адмін)"),
     BotCommand(command="top", description="Найкращі гравці чату"),
     BotCommand(command="rules", description="Правила та ролі"),
 ]

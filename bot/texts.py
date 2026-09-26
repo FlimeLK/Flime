@@ -10,7 +10,7 @@ from html import escape
 from bot.economy import DAILY, DAILY_VIP
 from bot.engine.items import ITEMS
 from bot.engine.models import MIN_PLAYERS
-from bot.engine.roles import ROLES, TEAM_TITLES, Team
+from bot.engine.roles import ROLES, TEAM_TITLES, NightKind, Role, Team, custom_role, role
 
 GAME_NAME = "Мафія: Хутір"
 
@@ -183,13 +183,21 @@ GAME_STARTED = (
 )
 
 
+def describe(r: Role) -> str:
+    if not r.custom:
+        return ROLE_DESCRIPTIONS[r.key]
+    ability = ability_hint(r)
+    own = escape(r.description)
+    return f"{own}\n\n<i>{ability}</i>" if own else ability
+
+
 def role_card(role_key: str, pocket: list[str], allies: list[str]) -> str:
-    r = ROLES[role_key]
+    r = role(role_key)
     text = [
         f"Твоя роль — <b>{r.title}</b>",
         f"Сторона: {TEAM_TITLES[r.team]}",
         "",
-        quote(ROLE_DESCRIPTIONS[role_key]),
+        quote(describe(r)),
         f"<b>Мета:</b> {TEAM_GOALS[r.team]}",
     ]
     if allies:
@@ -223,6 +231,7 @@ NIGHT_PROMPTS = {
     "lure": "Кого заманиш до ставка?",
     "wolf": "Кого вовкулака розірве цієї ночі?",
     "pitchfork": "У тебе є вила. Кого проштрикнеш? (необов'язково)",
+    "shot": "Кого вб'єш цієї ночі? Це можна зробити лише раз за гру.",
 }
 
 NIGHT_CHOSEN = "Обрано: <b>{target}</b>"
@@ -242,6 +251,7 @@ DEATH_CAUSES = {
     "wolf": "не пережили зустрічі з вовкулакою",
     "saber": "впали від шаблі характерника",
     "pitchfork": "наткнулись на вила",
+    "shot": "не пережили нічного візиту",
 }
 
 
@@ -263,6 +273,7 @@ YOU_SAVED = {
     "heal": "На тебе напали, але знахарка встигла тебе вилікувати.",
     "obereg": "На тебе напали, але оберіг захистив. Він розсипався на порох.",
     "kum": "На тебе напали, але ти, кум, як завжди, викрутився.",
+    "lucky": "На тебе напали, але тобі пощастило вижити.",
 }
 YOU_LURED = "Мавка заманила тебе до ставка — цієї ночі ти нічого не встиг."
 GARLIC_WORKED = "Мавка кликала тебе до ставка, але від часнику аж скривилась."
@@ -479,3 +490,102 @@ SETTINGS_ROLES_BUTTON = "Ролі"
 SETTINGS_CLOSE = "Закрити"
 SETTINGS_BACK = "‹ Назад"
 SETTINGS_CLOSED = "Налаштування збережено."
+
+
+# ---------- конструктор своїх ролей ----------
+
+ABILITY_LABELS = {
+    "none": "Без здібності",
+    "heal": "Лікує",
+    "check": "Перевіряє сторону",
+    "watch": "Стереже хату",
+    "compare": "Порівнює двох",
+    "block": "Блокує дію",
+    "kill": "Вбиває",
+    "lucky": "Переживає напад",
+    "vote2": "Подвійний голос",
+}
+ABILITY_HINTS = {
+    "none": "Нічних дій немає — лише обговорення і голос.",
+    "heal": "Щоночі лікує одного гравця від смерті.",
+    "check": "Щоночі дізнається, чи гравець із Громади.",
+    "watch": "Стереже чиюсь хату і зранку знає, хто туди приходив.",
+    "compare": "Дізнається, чи двоє гравців з одного боку.",
+    "block": "Щоночі скасовує дію обраного гравця.",
+    "kill_evil": "Щоночі разом з нечистю обирає жертву.",
+    "kill": "Один раз за гру може вбити будь-кого вночі.",
+    "lucky": "Переживає перший напад уночі.",
+    "vote2": "Голос на денному голосуванні важить подвійно.",
+}
+
+
+def ability_hint(r: Role) -> str:
+    if NightKind.KILL in r.night:
+        return ABILITY_HINTS["kill_evil"]
+    for key, kind in _ABILITY_KINDS.items():
+        if kind in r.night:
+            return ABILITY_HINTS[key]
+    return ABILITY_HINTS[r.passives[0] if r.passives else "none"]
+
+
+_ABILITY_KINDS = {
+    "heal": NightKind.HEAL, "check": NightKind.CHECK, "watch": NightKind.WATCH,
+    "compare": NightKind.COMPARE, "block": NightKind.LURE, "kill": NightKind.SABER,
+}
+
+RB_OPEN_BUTTON = "Свої ролі"
+RB_OPEN_IN_PM = "Свої ролі редагуються в особистих з ботом."
+RB_NO_RIGHTS = "Редагувати ролі можуть лише адміністратори цього чату."
+RB_CREATE = "Створити роль"
+RB_BACK_TO_LIST = "‹ До списку"
+RB_BACK = "‹ Назад"
+RB_CANCEL = "Скасувати"
+RB_NAME = "Назва"
+RB_DESC = "Опис"
+RB_DELETE = "Видалити"
+RB_DELETE_CONFIRM = "Так, видалити"
+RB_ENABLE = "Увімкнути"
+RB_DISABLE = "Вимкнути"
+RB_ASK_NAME = "Напиши назву ролі — від 2 до 24 символів: літери, цифри, пробіл, дефіс, апостроф."
+RB_ASK_DESC = "Напиши опис ролі — до 300 символів. Його гравець побачить разом з роллю."
+RB_BAD_NAME = "Така назва не підходить. Від 2 до 24 символів: літери, цифри, пробіл, дефіс, апостроф."
+RB_BAD_DESC = "Опис задовгий — до 300 символів."
+RB_EXISTS = "Роль з такою назвою вже є."
+RB_LIMIT = "У чаті вже максимум своїх ролей ({max})."
+RB_DELETED = "Роль видалено."
+RB_NOT_FOUND = "Цю роль уже видалено."
+
+
+def rb_list(chat_title: str, roles: list, limit: int) -> str:
+    lines = [f"<b>Свої ролі</b> · {escape(chat_title)}",
+             "<i>Нові ролі роздаються з наступної гри замість звичайних селян чи упирів.</i>", ""]
+    if not roles:
+        lines.append("Своїх ролей ще немає.")
+    for r in roles:
+        state = "" if r.enabled else " <i>(вимкнена)</i>"
+        lines.append(f"<b>{escape(r.name)}</b> — {TEAM_TITLES[Team(r.team)]}, "
+                     f"{ABILITY_LABELS[r.ability].lower()}, від {r.min_players}{state}")
+    lines.append(f"\n{len(roles)} з {limit}")
+    return "\n".join(lines)
+
+
+def rb_role(r) -> str:
+    engine = custom_role(r.to_engine())
+    return "\n".join([
+        f"<b>{escape(r.name)}</b>" + ("" if r.enabled else " <i>(вимкнена)</i>"),
+        "",
+        f"Сторона: {TEAM_TITLES[Team(r.team)]}",
+        f"Здібність: {ABILITY_LABELS[r.ability]}",
+        f"З'являється від {r.min_players} гравців",
+        "",
+        "<b>Як бачить гравець</b>",
+        quote(describe(engine)),
+    ])
+
+
+def rb_abilities(r) -> str:
+    lines = [f"<b>Здібність ролі {escape(r.name)}</b>", ""]
+    for key, label in ABILITY_LABELS.items():
+        hint = ability_hint(custom_role({**r.to_engine(), "ability": key}))
+        lines.append(f"<b>{label}</b> — {hint}")
+    return "\n".join(lines)

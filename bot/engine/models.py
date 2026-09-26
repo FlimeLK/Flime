@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import asdict, dataclass, field
 from enum import StrEnum
 
-from bot.engine.roles import ROLES, NightKind, Role, Team
+from bot.engine.roles import NightKind, Role, Team, register_custom, role
 
 MIN_PLAYERS = 4
 MAX_PLAYERS = 30
@@ -34,11 +34,11 @@ class Player:
 
     @property
     def role_obj(self) -> Role:
-        return ROLES[self.role]
+        return role(self.role)
 
     @property
     def team(self) -> Team:
-        return ROLES[self.role].team
+        return role(self.role).team
 
     def has(self, item: str) -> bool:
         return item in self.pocket
@@ -96,12 +96,13 @@ class Game:
         return [p for p in self.alive() if p.team == team]
 
     def evil_leader(self) -> Player | None:
-        """Ватажок нечисті: жива Відьма, інакше перший живий Упир, інакше Мавка."""
+        """Ватажок нечисті: жива Відьма, інакше перший живий Упир, інакше Мавка, інакше будь-хто з нечисті."""
         for key in ("vidma", "upyr", "mavka"):
             found = self.by_role(key)
             if found:
                 return found[0]
-        return None
+        evil = self.team_alive(Team.EVIL)
+        return evil[0] if evil else None
 
     def evil_voters(self) -> list[Player]:
         return [p for p in self.alive() if NightKind.KILL in self.night_kinds(p)]
@@ -149,6 +150,7 @@ class Game:
         g.winner = d["winner"]
         g.fool_won = d["fool_won"]
         g.settings = d["settings"]
+        register_custom(g.settings.get("custom_roles", []))
         g.lobby_message_id = d.get("lobby_message_id")
         g.starter_id = d.get("starter_id")
         return g

@@ -24,9 +24,9 @@ KILL_KINDS = (NightKind.KILL, NightKind.WOLF_KILL, NightKind.SABER, NightKind.PI
 
 @dataclass
 class NightResult:
-    # (жертва, причина) — причина: evil | wolf | saber | pitchfork
+    # (жертва, причина) — причина: evil | wolf | saber | shot | pitchfork
     deaths: list[tuple[int, str]] = field(default_factory=list)
-    # (врятований, чим) — heal | obereg | kum
+    # (врятований, чим) — heal | obereg | kum | lucky
     saved: list[tuple[int, str]] = field(default_factory=list)
     # кого заманила мавка (їхня дія скасована)
     lured: list[int] = field(default_factory=list)
@@ -126,6 +126,8 @@ def resolve_night(game: Game) -> NightResult:
             NightKind.KILL: "evil", NightKind.WOLF_KILL: "wolf",
             NightKind.SABER: "saber", NightKind.PITCHFORK: "pitchfork",
         }[a.kind]
+        if a.kind == NightKind.SABER and game.players[a.actor].role_obj.custom:
+            cause = "shot"
         if a.kind == NightKind.SABER:
             game.players[a.actor].flags["saber_used"] = True
         if a.kind == NightKind.PITCHFORK:
@@ -138,9 +140,9 @@ def resolve_night(game: Game) -> NightResult:
             res.saved.append((victim_id, "heal"))
         elif victim.use(it.OBEREG):
             res.saved.append((victim_id, "obereg"))
-        elif victim.role == "kum" and not victim.flags.get("kum_saved"):
+        elif "lucky" in victim.role_obj.passives and not victim.flags.get("kum_saved"):
             victim.flags["kum_saved"] = True
-            res.saved.append((victim_id, "kum"))
+            res.saved.append((victim_id, "lucky" if victim.role_obj.custom else "kum"))
         else:
             res.deaths.append((victim_id, causes[0]))
 
@@ -157,9 +159,9 @@ def resolve_night(game: Game) -> NightResult:
             p.use(it.CANDLE)
             res.candles[uid] = list(visits[uid])
 
-    # Знахарка, яка цієї ночі не лікувала, може знову лікувати будь-кого.
-    for p in game.by_role("znaharka"):
-        if not any(a.actor == p.user_id and a.kind == NightKind.HEAL for a in actions):
+    # Цілитель, який цієї ночі не лікував, може знову лікувати будь-кого.
+    for p in game.alive():
+        if NightKind.HEAL in p.role_obj.night and not any(a.actor == p.user_id and a.kind == NightKind.HEAL for a in actions):
             p.flags.pop("last_heal", None)
 
     return res
@@ -182,6 +184,6 @@ def can_target(game: Game, actor_id: int, kind: NightKind, target_id: int) -> bo
     if kind in (NightKind.KILL,):
         return target.team != Team.EVIL
     if kind == NightKind.LURE:
-        return target_id != actor_id and target.team != Team.EVIL
+        return target_id != actor_id and (actor.team != Team.EVIL or target.team != Team.EVIL)
     # Решта дій — будь-хто, крім себе.
     return target_id != actor_id

@@ -17,6 +17,7 @@ from bot.db.groups import TIMER_LIMITS, TOGGLES, GroupSettings
 from bot.db.users import User
 from bot.engine.roles import ROLES
 from bot.handlers.common import is_chat_admin, is_group
+from bot.handlers.roles_builder import open_url
 
 router = Router(name="settings")
 
@@ -27,7 +28,7 @@ class SetCb(CallbackData, prefix="set"):
     delta: int = 0
 
 
-def main_keyboard(s: GroupSettings) -> InlineKeyboardMarkup:
+def main_keyboard(s: GroupSettings, bot_username: str) -> InlineKeyboardMarkup:
     kb = InlineKeyboardBuilder()
     for key, label in texts.TIMER_NAMES.items():
         step = TIMER_LIMITS[key][2]
@@ -37,8 +38,9 @@ def main_keyboard(s: GroupSettings) -> InlineKeyboardMarkup:
     for key in TOGGLES:
         kb.button(text=texts.TOGGLE_LABELS[key][int(getattr(s, key))], callback_data=SetCb(action="toggle", key=key))
     kb.button(text=texts.SETTINGS_ROLES_BUTTON, callback_data=SetCb(action="roles"))
+    kb.button(text=texts.RB_OPEN_BUTTON, url=open_url(bot_username, s.chat_id))
     kb.button(text=texts.SETTINGS_CLOSE, callback_data=SetCb(action="close"))
-    kb.adjust(*([3] * len(texts.TIMER_NAMES)), *([1] * len(TOGGLES)), 2)
+    kb.adjust(*([3] * len(texts.TIMER_NAMES)), *([1] * len(TOGGLES)), 2, 1)
     return kb.as_markup()
 
 
@@ -63,7 +65,7 @@ async def cmd_settings(message: Message, bot: Bot, pool: asyncpg.Pool, config: S
         await message.answer(texts.ADMIN_ONLY)
         return
     s = await groups.get(pool, message.chat.id, message.chat.title or "")
-    await message.answer(texts.SETTINGS_HEAD, reply_markup=main_keyboard(s))
+    await message.answer(texts.SETTINGS_HEAD, reply_markup=main_keyboard(s, (await bot.me()).username))
 
 
 @router.callback_query(SetCb.filter())
@@ -94,7 +96,7 @@ async def on_settings(cb: CallbackQuery, callback_data: SetCb, bot: Bot, pool: a
     if action in ("roles", "role"):
         text, markup = texts.SETTINGS_ROLES_HEAD, roles_keyboard(s)
     else:
-        markup = main_keyboard(s)
+        markup = main_keyboard(s, (await bot.me()).username)
     await cb.answer()
     try:
         await cb.message.edit_text(text, reply_markup=markup)
