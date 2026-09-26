@@ -67,7 +67,7 @@ def role_keyboard(r: CustomRole) -> InlineKeyboardMarkup:
         [btn(texts.RB_NAME, "name"), btn(texts.RB_DESC, "desc")],
         [btn(f"Сторона: {TEAM_TITLES[Team(r.team)]}", "team")],
         [btn(f"Здібність: {texts.ABILITY_LABELS[r.ability]}", "abil")],
-        [btn("−", "minus"), btn(f"Від {r.min_players} гравців", "open"), btn("+", "plus")],
+        [btn("➖", "minus"), btn(f"👥 Від {r.min_players} гравців", "open"), btn("➕", "plus")],
         [btn(texts.RB_DISABLE if r.enabled else texts.RB_ENABLE, "toggle"), btn(texts.RB_DELETE, "del")],
         [btn(texts.RB_BACK_TO_LIST, "list")],
     ])
@@ -76,7 +76,7 @@ def role_keyboard(r: CustomRole) -> InlineKeyboardMarkup:
 def abilities_keyboard(r: CustomRole) -> InlineKeyboardMarkup:
     kb = InlineKeyboardBuilder()
     for key in CUSTOM_ABILITIES:
-        mark = "● " if key == r.ability else ""
+        mark = "✅ " if key == r.ability else ""
         kb.button(text=mark + texts.ABILITY_LABELS[key],
                   callback_data=RoleCb(action="setab", chat=r.chat_id, role=r.id, val=key))
     kb.adjust(2)

@@ -20,7 +20,7 @@ router = Router(name="owner")
 log = logging.getLogger(__name__)
 
 HELP = (
-    "<b>Панель власника</b>\n\n"
+    "🛠 <b>Панель власника</b>\n\n"
     "{stats}\n\n"
     "<code>/give ID shagy|cherv СУМА</code> — видати (або мінус — забрати)\n"
     "<code>/vip_give ID ДНІВ</code> — подарувати VIP\n"
@@ -55,9 +55,9 @@ def ints(args: str | None, count: int) -> list[int] | None:
 async def cmd_owner(message: Message, pool: asyncpg.Pool, manager: GameManager) -> None:
     s = await users.stats(pool)
     stats = (
-        f"Гравців: {s['users']} (VIP: {s['vips']})\n"
-        f"Ігор: {s['games']} (за добу: {s['games_day']}) · зараз іде: {len(manager.runners)}\n"
-        f"Зароблено зірок: {s['stars']}"
+        f"👥 Гравців: {s['users']} (VIP: {s['vips']})\n"
+        f"🎲 Ігор: {s['games']} (за добу: {s['games_day']}) · зараз іде: {len(manager.runners)}\n"
+        f"⭐ Зароблено зірок: {s['stars']}"
     )
     await message.answer(HELP.format(stats=stats))
 
@@ -143,7 +143,7 @@ async def cmd_promo_list(message: Message, pool: asyncpg.Pool) -> None:
         await message.answer("Промокодів немає.")
         return
     lines = [
-        f"<code>{texts.escape(r['code'])}</code>: {r['shagy']} ш. · {r['chervintsi']} черв. · "
+        f"<code>{texts.escape(r['code'])}</code>: {r['shagy']} {texts.SHAGY} · {r['chervintsi']} {texts.CHERV} · "
         f"VIP {r['vip_days']}д · {r['uses']}/{r['max_uses']}"
         for r in rows
     ]

@@ -28,9 +28,9 @@ def main_keyboard(s: GroupSettings) -> InlineKeyboardMarkup:
     kb = InlineKeyboardBuilder()
     for key, label in texts.TIMER_NAMES.items():
         step = TIMER_LIMITS[key][2]
-        kb.button(text="−", callback_data=SetCb(action="timer", chat=chat, key=key, delta=-step))
+        kb.button(text="➖", callback_data=SetCb(action="timer", chat=chat, key=key, delta=-step))
         kb.button(text=f"{label}: {texts.fmt_seconds(getattr(s, key))}", callback_data=SetCb(action="noop", chat=chat))
-        kb.button(text="+", callback_data=SetCb(action="timer", chat=chat, key=key, delta=step))
+        kb.button(text="➕", callback_data=SetCb(action="timer", chat=chat, key=key, delta=step))
     for key in TOGGLES:
         kb.button(text=texts.TOGGLE_LABELS[key][int(getattr(s, key))],
                   callback_data=SetCb(action="toggle", chat=chat, key=key))
@@ -46,7 +46,7 @@ def roles_keyboard(s: GroupSettings) -> InlineKeyboardMarkup:
     for r in ROLES.values():
         if not r.optional:
             continue
-        mark = "○" if r.key in s.disabled_roles else "●"
+        mark = "❌" if r.key in s.disabled_roles else "✅"
         kb.button(text=f"{mark} {r.title} ({r.min_players}+)",
                   callback_data=SetCb(action="role", chat=s.chat_id, key=r.key))
     kb.adjust(2)

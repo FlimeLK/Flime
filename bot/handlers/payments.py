@@ -39,13 +39,14 @@ class ExchangeCb(CallbackData, prefix="exch"):
 def vip_keyboard() -> InlineKeyboardMarkup:
     kb = InlineKeyboardBuilder()
     vip = economy.PRODUCTS["vip_30"]
-    kb.button(text=f"{vip.title} — {vip.stars} ⭐", callback_data=StarsCb(product=vip.key))
-    kb.button(text=f"VIP за {texts.cherv(economy.VIP_PRICE_CHERV)}", callback_data=VipChervCb())
+    kb.button(text=f"👑 {vip.title} — {vip.stars} ⭐", callback_data=StarsCb(product=vip.key))
+    kb.button(text=f"👑 VIP за {texts.cherv(economy.VIP_PRICE_CHERV)}", callback_data=VipChervCb())
     for p in economy.PRODUCTS.values():
         if p.chervintsi:
-            kb.button(text=f"{p.chervintsi} черв. — {p.stars} ⭐", callback_data=StarsCb(product=p.key))
+            kb.button(text=f"{texts.cherv(p.chervintsi)} — {p.stars} ⭐", callback_data=StarsCb(product=p.key))
     for amount in EXCHANGE_AMOUNTS:
-        kb.button(text=f"{amount} → {amount * economy.EXCHANGE_RATE} ш.", callback_data=ExchangeCb(amount=amount))
+        kb.button(text=f"🔄 {texts.cherv(amount)} → {texts.shagy(amount * economy.EXCHANGE_RATE)}",
+                  callback_data=ExchangeCb(amount=amount))
     kb.adjust(1, 1, 3, 3)
     kb.row(back_button())
     return kb.as_markup()

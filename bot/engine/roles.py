@@ -48,7 +48,7 @@ class Role:
 
     @property
     def title(self) -> str:
-        return self.name
+        return f"{self.emoji} {self.name}" if self.emoji else self.name
 
 
 ROLES: dict[str, Role] = {
@@ -70,10 +70,10 @@ ROLES: dict[str, Role] = {
 }
 
 TEAM_TITLES = {
-    Team.VILLAGE: "Громада",
-    Team.EVIL: "Нечисть",
-    Team.WOLF: "Вовкулака",
-    Team.FOOL: "Іван-дурень",
+    Team.VILLAGE: "🌾 Громада",
+    Team.EVIL: "🌑 Нечисть",
+    Team.WOLF: "🐺 Вовкулака",
+    Team.FOOL: "🤪 Іван-дурень",
 }
 
 
@@ -103,7 +103,7 @@ def custom_role(d: dict) -> Role:
             "heal": NightKind.HEAL, "check": NightKind.CHECK, "watch": NightKind.WATCH,
             "compare": NightKind.COMPARE, "block": NightKind.LURE,
         }[ability],)
-    return Role(d["key"], d["name"], "", team, night, min_players=int(d["min_players"]),
+    return Role(d["key"], d["name"], "🎭", team, night, min_players=int(d["min_players"]),
                 passives=passives, custom=True, description=d.get("description", ""))
 
 

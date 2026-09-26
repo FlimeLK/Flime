@@ -26,7 +26,7 @@ class BuyCb(CallbackData, prefix="buy"):
 def shop_keyboard() -> InlineKeyboardMarkup:
     kb = InlineKeyboardBuilder()
     for item in it.ITEMS.values():
-        kb.button(text=f"{item.title} · {item.price}", callback_data=BuyCb(item=item.key))
+        kb.button(text=f"{item.title} · {item.price} {texts.SHAGY}", callback_data=BuyCb(item=item.key))
     kb.adjust(2)
     kb.row(back_button())
     return kb.as_markup()

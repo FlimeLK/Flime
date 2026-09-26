@@ -70,10 +70,12 @@ async def cmd_top(message: Message, pool: asyncpg.Pool) -> None:
     if not rows:
         await message.answer(texts.TOP_EMPTY)
         return
+    medals = ["🥇", "🥈", "🥉"]
     lines = []
     for i, r in enumerate(rows, start=1):
         title, _ = texts.rank(r["wins"])
-        lines.append(f"{i}. <b>{texts.escape(r['name'])}</b> — {r['wins']} з {r['games']} · <i>{title}</i>")
+        mark = medals[i - 1] if i <= 3 else f"{i}."
+        lines.append(f"{mark} <b>{texts.escape(r['name'])}</b> — 🏆 {r['wins']} з {r['games']} · <i>{title}</i>")
     await message.answer(texts.TOP_HEAD + "\n" + texts.quote("\n".join(lines)))
 
 

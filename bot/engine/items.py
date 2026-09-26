@@ -17,7 +17,7 @@ class Item:
 
     @property
     def title(self) -> str:
-        return self.name
+        return f"{self.emoji} {self.name}"
 
 
 OBEREG = "obereg"

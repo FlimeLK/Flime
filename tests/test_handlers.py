@@ -25,6 +25,7 @@ from aiogram.types import (
     User,
 )
 
+from bot import texts
 from bot.__main__ import build_dispatcher
 from bot.config import Settings
 from bot.db import shop as shop_db
@@ -236,7 +237,7 @@ async def test_settings_admin_only(env):
     assert "Налаштування гри" in s.last_text(ADMIN)
     panel = next(c for c in reversed(s.calls) if type(c).__name__ == "SendMessage" and c.chat_id == ADMIN)
     labels = [b.text for row in panel.reply_markup.inline_keyboard for b in row]
-    assert "Створення ролей" in labels
+    assert texts.RB_OPEN_BUTTON in labels
 
     await feed(cb(ADMIN, SetCb(action="toggle", chat=GROUP, key="secret_vote").pack()))
     await feed(cb(ADMIN, SetCb(action="timer", chat=GROUP, key="night_time", delta=15).pack()))
