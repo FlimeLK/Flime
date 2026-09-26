@@ -1,7 +1,0 @@
-# Allow only strict bot service control commands for web panel user.
-# Replace "mafia" with your runtime user if needed.
-mafia ALL=(root) NOPASSWD: /bin/systemctl start mafia-bot.service
-mafia ALL=(root) NOPASSWD: /bin/systemctl stop mafia-bot.service
-mafia ALL=(root) NOPASSWD: /bin/systemctl restart mafia-bot.service
-mafia ALL=(root) NOPASSWD: /bin/systemctl status mafia-bot.service
-

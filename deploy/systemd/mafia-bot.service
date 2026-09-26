@@ -1,12 +1,12 @@
 [Unit]
-Description=Mafia Telegram Bot
+Description=Mafia Hutir Telegram Bot
 After=network.target
 
 [Service]
 Type=simple
 WorkingDirectory=/opt/mafia-bot
 EnvironmentFile=/opt/mafia-bot/.env
-ExecStart=/opt/mafia-bot/venv/bin/python /opt/mafia-bot/run.py
+ExecStart=/opt/mafia-bot/venv/bin/python -m bot
 Restart=always
 RestartSec=3
 User=mafia
