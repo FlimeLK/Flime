@@ -117,20 +117,6 @@ class Game:
             kinds.append(NightKind.PITCHFORK)
         return kinds
 
-    def expected_actions(self) -> int:
-        """Скільки нічних «слотів» очікуємо, щоб завершити ніч достроково."""
-        total = 0
-        for p in self.alive():
-            kinds = self.night_kinds(p)
-            if any(k != NightKind.PITCHFORK for k in kinds):
-                total += 1
-        return total
-
-    def submitted_role_actions(self) -> int:
-        role_actors = {a.actor for key, a in self.actions.items() if key.endswith(":role")}
-        role_actors |= set(self.evil_votes)
-        return len(role_actors & set(self.alive_ids()))
-
     # ---- серіалізація ----
     def to_dict(self) -> dict:
         d = asdict(self)
