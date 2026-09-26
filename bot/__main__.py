@@ -6,12 +6,13 @@ import asyncio
 import logging
 from logging.handlers import RotatingFileHandler
 
+import asyncpg
 from aiogram import Bot, Dispatcher
 from aiogram.client.default import DefaultBotProperties
 from aiogram.enums import ParseMode
 from aiogram.types import BotCommand, BotCommandScopeAllGroupChats, BotCommandScopeAllPrivateChats
 
-from bot.config import load_settings
+from bot.config import Settings, load_settings
 from bot.db.pool import create_pool
 from bot.game.manager import GameManager
 from bot.game.messenger import Messenger
@@ -40,6 +41,16 @@ GROUP_COMMANDS = [
 ]
 
 
+def build_dispatcher(pool: asyncpg.Pool, manager: GameManager, config: Settings) -> Dispatcher:
+    dp = Dispatcher(pool=pool, manager=manager, config=config)
+    user_mw = UserMiddleware(pool)
+    dp.message.outer_middleware(user_mw)
+    dp.callback_query.outer_middleware(user_mw)
+    dp.pre_checkout_query.outer_middleware(user_mw)
+    dp.include_router(build_router())
+    return dp
+
+
 def setup_logging() -> None:
     fmt = logging.Formatter("%(asctime)s %(levelname)s %(name)s: %(message)s")
     root = logging.getLogger()
@@ -60,12 +71,7 @@ async def main() -> None:
     me = await bot.get_me()
 
     manager = GameManager(Messenger(bot), pool, me.username)
-    dp = Dispatcher(pool=pool, manager=manager, config=config)
-    user_mw = UserMiddleware(pool)
-    dp.message.outer_middleware(user_mw)
-    dp.callback_query.outer_middleware(user_mw)
-    dp.pre_checkout_query.outer_middleware(user_mw)
-    dp.include_router(build_router())
+    dp = build_dispatcher(pool, manager, config)
 
     await bot.set_my_commands(PRIVATE_COMMANDS, scope=BotCommandScopeAllPrivateChats())
     await bot.set_my_commands(GROUP_COMMANDS, scope=BotCommandScopeAllGroupChats())

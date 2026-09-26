@@ -24,3 +24,7 @@ async def mark_refunded(pool: asyncpg.Pool | asyncpg.Connection, charge_id: str)
         "UPDATE purchases SET refunded = TRUE WHERE charge_id = $1 AND NOT refunded", charge_id
     )
     return res.endswith(" 1")
+
+
+async def recent(pool: asyncpg.Pool, limit: int = 15) -> list[asyncpg.Record]:
+    return await pool.fetch("SELECT * FROM purchases ORDER BY created_at DESC LIMIT $1", limit)

@@ -7,9 +7,6 @@
 from __future__ import annotations
 
 import asyncio
-import os
-
-import pytest
 
 from bot.db import games as games_db
 from bot.db import shop as shop_db
@@ -20,7 +17,7 @@ from bot.engine.night import can_target
 from bot.engine.roles import NightKind, Team
 from bot.game.runner import ITEM_SLOT, ROLE_SLOT, GameRunner
 
-DSN = os.getenv("HUTIR_TEST_DSN", "postgresql://postgres:postgres@localhost:5432/hutir_test")
+from .conftest import DSN  # noqa: F401
 
 
 class FakeMessenger:
@@ -38,22 +35,6 @@ class FakeMessenger:
 
     async def clear_markup(self, chat_id, message_id):
         pass
-
-
-@pytest.fixture
-async def pool():
-    asyncpg = pytest.importorskip("asyncpg")
-    try:
-        conn = await asyncpg.connect(DSN, timeout=3)
-    except Exception:
-        pytest.skip("test database is not available")
-    await conn.execute("DROP SCHEMA IF EXISTS hutir CASCADE")
-    await conn.close()
-    from bot.db.pool import create_pool
-
-    p = await create_pool(DSN)
-    yield p
-    await p.close()
 
 
 async def wait_phase(runner: GameRunner, *phases: Phase, timeout: float = 5) -> None:
