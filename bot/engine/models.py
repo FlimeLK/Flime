@@ -96,21 +96,24 @@ class Game:
         return [p for p in self.alive() if p.team == team]
 
     def evil_leader(self) -> Player | None:
-        """Ватажок нечисті: живa Відьма, інакше перший живий Упир."""
-        for key in ("vidma", "upyr"):
+        """Ватажок нечисті: жива Відьма, інакше перший живий Упир, інакше Мавка."""
+        for key in ("vidma", "upyr", "mavka"):
             found = self.by_role(key)
             if found:
                 return found[0]
         return None
 
     def evil_voters(self) -> list[Player]:
-        return [p for p in self.alive() if NightKind.KILL in p.role_obj.night]
+        return [p for p in self.alive() if NightKind.KILL in self.night_kinds(p)]
 
     def night_kinds(self, player: Player) -> list[NightKind]:
         """Які нічні дії доступні гравцю саме цієї ночі."""
         if not player.alive:
             return []
         kinds = list(player.role_obj.night)
+        if player.role == "mavka" and not self.by_role("vidma") and not self.by_role("upyr"):
+            # Остання з нечисті — сама обирає жертву замість заманювання.
+            kinds = [NightKind.KILL]
         if NightKind.SABER in kinds and player.flags.get("saber_used"):
             kinds.remove(NightKind.SABER)
         if player.has("pitchfork"):

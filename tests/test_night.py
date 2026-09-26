@@ -164,3 +164,14 @@ def test_heal_same_target_allowed_after_skip_night():
     g.actions.clear()
     resolve_night(g)  # знахарка пропустила ніч
     assert can_target(g, 4, K.HEAL, 9)
+
+
+def test_lone_mavka_becomes_killer():
+    g = make_game(ROLES)
+    g.players[1].alive = False
+    g.players[2].alive = False
+    assert g.night_kinds(g.players[3]) == [K.KILL]
+    assert g.evil_leader().user_id == 3
+    assert can_target(g, 3, K.KILL, 9)
+    g.evil_votes = {3: 9}
+    assert resolve_night(g).deaths == [(9, "evil")]

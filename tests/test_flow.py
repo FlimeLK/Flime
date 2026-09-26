@@ -52,7 +52,7 @@ def play_night(runner: GameRunner) -> None:
             runner.night_action(uid, NightKind.PITCHFORK.value, 0)
             continue
         p = g.players[uid]
-        kind = p.role_obj.night[0]
+        kind = next(k for k in g.night_kinds(p) if k != NightKind.PITCHFORK)
         targets = [t for t in g.alive_ids() if can_target(g, uid, kind, t)]
         if kind == NightKind.COMPARE:
             runner.night_action(uid, kind.value, targets[0])
