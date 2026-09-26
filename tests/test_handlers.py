@@ -193,9 +193,8 @@ async def test_owner_and_promo(env):
     await feed(msg(11, "/promo hutir"))
     assert "вже активував" in s.last_text(11)
     await feed(msg(OWNER, "/block 11"))
-    before = len(s.calls)
     await feed(msg(11, "/profile"))
-    assert len(s.calls) == before  # заблокованим не відповідаємо
+    assert s.last_text(11) == texts.BLOCKED  # заблокованим — лише повідомлення про блок
 
 
 async def test_payments(env):

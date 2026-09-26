@@ -188,7 +188,7 @@ class GameRunner:
                 await self._task
             except asyncio.CancelledError:
                 pass
-        await self._clear_pending(texts.NIGHT_NOT_NOW)
+        await self._clear_pending(texts.GAME_STOPPED)
         await self._return_pockets()
         await self.m.send(self.chat_id, texts.GAME_STOPPED)
 

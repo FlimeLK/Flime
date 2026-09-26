@@ -9,6 +9,7 @@ import asyncpg
 from aiogram import BaseMiddleware
 from aiogram.types import CallbackQuery, Message, PreCheckoutQuery, TelegramObject
 
+from bot import texts
 from bot.db import users
 
 
@@ -30,7 +31,9 @@ class UserMiddleware(BaseMiddleware):
         user = await users.upsert(self.pool, tg_user.id, tg_user.full_name, tg_user.username)
         if user.blocked:
             if isinstance(event, CallbackQuery):
-                await event.answer("⛔ Тебе заблоковано.", show_alert=True)
+                await event.answer(texts.BLOCKED, show_alert=True)
+            elif isinstance(event, Message) and event.chat.type == "private":
+                await event.answer(texts.BLOCKED)
             return None
         data["user"] = user
         return await handler(event, data)
