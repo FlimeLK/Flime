@@ -31,13 +31,13 @@ def main_keyboard(s: GroupSettings) -> InlineKeyboardMarkup:
     kb = InlineKeyboardBuilder()
     for key, label in texts.TIMER_NAMES.items():
         step = TIMER_LIMITS[key][2]
-        kb.button(text="➖", callback_data=SetCb(action="timer", key=key, delta=-step))
+        kb.button(text="−", callback_data=SetCb(action="timer", key=key, delta=-step))
         kb.button(text=f"{label}: {texts.fmt_seconds(getattr(s, key))}", callback_data=SetCb(action="noop"))
-        kb.button(text="➕", callback_data=SetCb(action="timer", key=key, delta=step))
+        kb.button(text="+", callback_data=SetCb(action="timer", key=key, delta=step))
     for key in TOGGLES:
         kb.button(text=texts.TOGGLE_LABELS[key][int(getattr(s, key))], callback_data=SetCb(action="toggle", key=key))
-    kb.button(text="🎭 Ролі", callback_data=SetCb(action="roles"))
-    kb.button(text="✖️ Закрити", callback_data=SetCb(action="close"))
+    kb.button(text=texts.SETTINGS_ROLES_BUTTON, callback_data=SetCb(action="roles"))
+    kb.button(text=texts.SETTINGS_CLOSE, callback_data=SetCb(action="close"))
     kb.adjust(*([3] * len(texts.TIMER_NAMES)), *([1] * len(TOGGLES)), 2)
     return kb.as_markup()
 
@@ -47,9 +47,9 @@ def roles_keyboard(s: GroupSettings) -> InlineKeyboardMarkup:
     for r in ROLES.values():
         if not r.optional:
             continue
-        mark = "❌" if r.key in s.disabled_roles else "✅"
+        mark = "○" if r.key in s.disabled_roles else "●"
         kb.button(text=f"{mark} {r.title} ({r.min_players}+)", callback_data=SetCb(action="role", key=r.key))
-    kb.button(text="⬅️ Назад", callback_data=SetCb(action="menu"))
+    kb.button(text=texts.SETTINGS_BACK, callback_data=SetCb(action="menu"))
     kb.adjust(2)
     return kb.as_markup()
 

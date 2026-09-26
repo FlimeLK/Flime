@@ -26,7 +26,7 @@ class BuyCb(CallbackData, prefix="buy"):
 def shop_keyboard() -> InlineKeyboardMarkup:
     kb = InlineKeyboardBuilder()
     for item in it.ITEMS.values():
-        kb.button(text=f"{item.title} · {item.price}{texts.SHAGY}", callback_data=BuyCb(item=item.key))
+        kb.button(text=f"{item.title} · {item.price}", callback_data=BuyCb(item=item.key))
     kb.adjust(2)
     kb.row(back_button())
     return kb.as_markup()
@@ -56,7 +56,7 @@ async def on_buy(cb: CallbackQuery, callback_data: BuyCb, pool: asyncpg.Pool, us
     if balance is None:
         await cb.answer(texts.SHOP_NO_MONEY, show_alert=True)
         return
-    await cb.answer(texts.SHOP_BOUGHT.format(item=item.title, balance=balance, shagy=texts.SHAGY))
+    await cb.answer(texts.SHOP_BOUGHT.format(item=item.title, balance=texts.shagy(balance)))
     fresh = await users.get(pool, user.id)
     try:
         await cb.message.edit_text(await shop_text(pool, fresh), reply_markup=shop_keyboard())

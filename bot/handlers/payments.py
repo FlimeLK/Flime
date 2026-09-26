@@ -39,14 +39,13 @@ class ExchangeCb(CallbackData, prefix="exch"):
 def vip_keyboard() -> InlineKeyboardMarkup:
     kb = InlineKeyboardBuilder()
     vip = economy.PRODUCTS["vip_30"]
-    kb.button(text=f"👑 {vip.title} — {vip.stars}⭐", callback_data=StarsCb(product=vip.key))
-    kb.button(text=f"👑 VIP за {economy.VIP_PRICE_CHERV} {texts.CHERV}", callback_data=VipChervCb())
+    kb.button(text=f"{vip.title} — {vip.stars} ⭐", callback_data=StarsCb(product=vip.key))
+    kb.button(text=f"VIP за {texts.cherv(economy.VIP_PRICE_CHERV)}", callback_data=VipChervCb())
     for p in economy.PRODUCTS.values():
         if p.chervintsi:
-            kb.button(text=f"{texts.CHERV} {p.chervintsi} — {p.stars}⭐", callback_data=StarsCb(product=p.key))
+            kb.button(text=f"{p.chervintsi} черв. — {p.stars} ⭐", callback_data=StarsCb(product=p.key))
     for amount in EXCHANGE_AMOUNTS:
-        kb.button(text=f"🔄 {amount}{texts.CHERV} → {amount * economy.EXCHANGE_RATE}{texts.SHAGY}",
-                  callback_data=ExchangeCb(amount=amount))
+        kb.button(text=f"{amount} → {amount * economy.EXCHANGE_RATE} ш.", callback_data=ExchangeCb(amount=amount))
     kb.adjust(1, 1, 3, 3)
     kb.row(back_button())
     return kb.as_markup()
@@ -117,7 +116,7 @@ async def on_paid(message: Message, pool: asyncpg.Pool, user: User) -> None:
     if until:
         await message.answer(texts.VIP_BOUGHT.format(until=fmt_date(until)))
     else:
-        await message.answer(texts.CHERV_BOUGHT.format(amount=product.chervintsi))
+        await message.answer(texts.CHERV_BOUGHT.format(amount=texts.cherv(product.chervintsi)))
 
 
 @router.callback_query(VipChervCb.filter())
@@ -146,6 +145,5 @@ async def on_exchange(cb: CallbackQuery, callback_data: ExchangeCb, pool: asyncp
     if left is None:
         await cb.answer(texts.VIP_NO_CHERV, show_alert=True)
         return
-    await cb.answer(texts.EXCHANGED.format(cherv=amount, cherv_icon=texts.CHERV, shagy=shagy,
-                                           shagy_icon=texts.SHAGY))
+    await cb.answer(texts.EXCHANGED.format(cherv=texts.cherv(amount), shagy=texts.shagy(shagy)))
     await refresh(cb, pool, user.id)

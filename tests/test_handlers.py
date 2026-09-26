@@ -156,7 +156,7 @@ async def test_main_menu(env):
     await feed(cb(12, MenuCb(action="shop").pack()))
     assert "Ярмарок" in last_edit()
     await feed(cb(12, MenuCb(action="vip").pack()))
-    assert "VIP на хуторі" in last_edit()
+    assert "<b>VIP</b>" in last_edit()
     await feed(cb(12, MenuCb(action="rules").pack()))
     assert "Характерник" in last_edit()
     await feed(cb(12, MenuCb(action="home").pack()))

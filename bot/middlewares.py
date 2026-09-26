@@ -30,7 +30,7 @@ class UserMiddleware(BaseMiddleware):
         user = await users.upsert(self.pool, tg_user.id, tg_user.full_name, tg_user.username)
         if user.blocked:
             if isinstance(event, CallbackQuery):
-                await event.answer("⛔ Тебе заблоковано.", show_alert=True)
+                await event.answer("Тебе заблоковано.", show_alert=True)
             return None
         data["user"] = user
         return await handler(event, data)

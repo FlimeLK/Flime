@@ -20,7 +20,7 @@ router = Router(name="owner")
 log = logging.getLogger(__name__)
 
 HELP = (
-    "🛠 <b>Панель власника</b>\n\n"
+    "<b>Панель власника</b>\n\n"
     "{stats}\n\n"
     "<code>/give ID shagy|cherv СУМА</code> — видати (або мінус — забрати)\n"
     "<code>/vip_give ID ДНІВ</code> — подарувати VIP\n"
@@ -55,9 +55,9 @@ def ints(args: str | None, count: int) -> list[int] | None:
 async def cmd_owner(message: Message, pool: asyncpg.Pool, manager: GameManager) -> None:
     s = await users.stats(pool)
     stats = (
-        f"👥 Гравців: {s['users']} (VIP: {s['vips']})\n"
-        f"🎲 Ігор: {s['games']} (за добу: {s['games_day']}) · зараз іде: {len(manager.runners)}\n"
-        f"⭐ Зароблено зірок: {s['stars']}"
+        f"Гравців: {s['users']} (VIP: {s['vips']})\n"
+        f"Ігор: {s['games']} (за добу: {s['games_day']}) · зараз іде: {len(manager.runners)}\n"
+        f"Зароблено зірок: {s['stars']}"
     )
     await message.answer(HELP.format(stats=stats))
 
@@ -71,9 +71,9 @@ async def cmd_give(message: Message, command: CommandObject, pool: asyncpg.Pool)
         return
     balance = await users.add_balance(pool, int(parts[0]), currency, int(parts[2]))
     if balance is None:
-        await message.answer("❌ Гравця не знайдено або баланс пішов би в мінус.")
+        await message.answer("Гравця не знайдено або баланс пішов би в мінус.")
         return
-    await message.answer(f"✅ Новий баланс ({currency}): {balance}")
+    await message.answer(f"Новий баланс ({currency}): {balance}")
 
 
 @router.message(Command("vip_give"))
@@ -83,7 +83,7 @@ async def cmd_vip_give(message: Message, command: CommandObject, pool: asyncpg.P
         await message.answer("Формат: <code>/vip_give ID ДНІВ</code>")
         return
     until = await users.extend_vip(pool, nums[0], nums[1])
-    await message.answer(f"✅ VIP до {until:%d.%m.%Y}" if until else "❌ Гравця не знайдено.")
+    await message.answer(f"VIP до {until:%d.%m.%Y}" if until else "Гравця не знайдено.")
 
 
 @router.message(Command("block", "unblock"))
@@ -94,7 +94,7 @@ async def cmd_block(message: Message, command: CommandObject, pool: asyncpg.Pool
         return
     blocked = command.command == "block"
     ok = await users.set_blocked(pool, nums[0], blocked)
-    await message.answer(("⛔ Заблоковано" if blocked else "✅ Розблоковано") if ok else "❌ Гравця не знайдено.")
+    await message.answer(("Заблоковано" if blocked else "Розблоковано") if ok else "Гравця не знайдено.")
 
 
 @router.message(Command("broadcast"))
@@ -104,7 +104,7 @@ async def cmd_broadcast(message: Message, command: CommandObject, bot: Bot, pool
         await message.answer("Формат: <code>/broadcast ТЕКСТ</code> або відповіддю на повідомлення.")
         return
     ids = await users.all_ids(pool)
-    await message.answer(f"📣 Розсилаю {len(ids)} гравцям…")
+    await message.answer(f"Розсилаю {len(ids)} гравцям…")
     sent = 0
     for uid in ids:
         for attempt in range(2):
@@ -121,7 +121,7 @@ async def cmd_broadcast(message: Message, command: CommandObject, bot: Bot, pool
             except TelegramAPIError:
                 break
         await asyncio.sleep(0.05)  # ~20 повідомлень на секунду
-    await message.answer(f"✅ Доставлено: {sent}/{len(ids)}")
+    await message.answer(f"Доставлено: {sent}/{len(ids)}")
 
 
 @router.message(Command("promo_new"))
@@ -132,8 +132,8 @@ async def cmd_promo_new(message: Message, command: CommandObject, pool: asyncpg.
         await message.answer("Формат: <code>/promo_new КОД ШАГИ ЧЕРВІНЦІ VIP_ДНІВ ВИКОРИСТАНЬ</code>")
         return
     ok = await promocodes.create(pool, parts[0], *nums)
-    await message.answer(f"✅ Промокод <code>{texts.escape(parts[0].upper())}</code> створено."
-                         if ok else "❌ Такий код уже існує.")
+    await message.answer(f"Промокод <code>{texts.escape(parts[0].upper())}</code> створено."
+                         if ok else "Такий код уже існує.")
 
 
 @router.message(Command("promo_list"))
@@ -143,7 +143,7 @@ async def cmd_promo_list(message: Message, pool: asyncpg.Pool) -> None:
         await message.answer("Промокодів немає.")
         return
     lines = [
-        f"<code>{texts.escape(r['code'])}</code>: {r['shagy']}{texts.SHAGY} {r['chervintsi']}{texts.CHERV} "
+        f"<code>{texts.escape(r['code'])}</code>: {r['shagy']} ш. · {r['chervintsi']} черв. · "
         f"VIP {r['vip_days']}д · {r['uses']}/{r['max_uses']}"
         for r in rows
     ]
@@ -154,7 +154,7 @@ async def cmd_promo_list(message: Message, pool: asyncpg.Pool) -> None:
 async def cmd_promo_del(message: Message, command: CommandObject, pool: asyncpg.Pool) -> None:
     code = (command.args or "").strip()
     ok = bool(code) and await promocodes.delete(pool, code)
-    await message.answer("🗑 Видалено." if ok else "❌ Не знайдено.")
+    await message.answer("Видалено." if ok else "Не знайдено.")
 
 
 @router.message(Command("refund"))
@@ -162,7 +162,7 @@ async def cmd_refund(message: Message, command: CommandObject, bot: Bot, pool: a
     charge_id = (command.args or "").strip()
     purchase = await payments.get(pool, charge_id) if charge_id else None
     if purchase is None:
-        await message.answer("❌ Покупку не знайдено.")
+        await message.answer("Покупку не знайдено.")
         return
     if purchase["refunded"]:
         await message.answer("Цю покупку вже повернуто.")
@@ -170,7 +170,7 @@ async def cmd_refund(message: Message, command: CommandObject, bot: Bot, pool: a
     try:
         await bot.refund_star_payment(purchase["user_id"], charge_id)
     except TelegramAPIError as e:
-        await message.answer(f"❌ Telegram відмовив: {texts.escape(str(e))}")
+        await message.answer(f"Telegram відмовив: {texts.escape(str(e))}")
         return
     product = economy.PRODUCTS.get(purchase["product"])
     async with pool.acquire() as conn, conn.transaction():
@@ -183,7 +183,7 @@ async def cmd_refund(message: Message, command: CommandObject, bot: Bot, pool: a
             )
         if product and product.vip_days:
             await users.revoke_vip_days(conn, purchase["user_id"], product.vip_days)
-    await message.answer(f"✅ Повернуто {purchase['stars']}⭐ гравцю {purchase['user_id']}.")
+    await message.answer(f"Повернуто {purchase['stars']}⭐ гравцю {purchase['user_id']}.")
 
 
 @router.message(Command("games"))

@@ -43,7 +43,7 @@ class Role:
 
     @property
     def title(self) -> str:
-        return f"{self.emoji} {self.name}"
+        return self.name
 
 
 ROLES: dict[str, Role] = {
@@ -65,10 +65,10 @@ ROLES: dict[str, Role] = {
 }
 
 TEAM_TITLES = {
-    Team.VILLAGE: "🌾 Громада",
-    Team.EVIL: "🌑 Нечисть",
-    Team.WOLF: "🐺 Вовкулака",
-    Team.FOOL: "🤪 Іван-дурень",
+    Team.VILLAGE: "Громада",
+    Team.EVIL: "Нечисть",
+    Team.WOLF: "Вовкулака",
+    Team.FOOL: "Іван-дурень",
 }
 
 

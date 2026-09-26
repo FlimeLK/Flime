@@ -363,7 +363,7 @@ class GameRunner:
             private.append((owner, texts.CANDLE_RESULT.format(visitors=", ".join(name(v) for v in visitors))))
         leader_after = g.evil_leader()
         if leader_after and leader_before and leader_after.user_id != leader_before.user_id:
-            private.append((leader_after.user_id, "🌑 Ти тепер ватажок нечисті — твоє слово вирішальне."))
+            private.append((leader_after.user_id, texts.NEW_EVIL_LEADER))
         dead_now = {uid for uid, _ in res.deaths}
         for uid, text in private:
             if uid in dead_now and text != texts.YOU_DIED:
@@ -400,7 +400,7 @@ class GameRunner:
         candidate, counts = tally(g)
         rows = []
         for target, count in counts.most_common():
-            label = "🚫 Нікого" if target == SKIP else texts.mention(target, g.players[target].name)
+            label = texts.VOTE_SKIP_LABEL if target == SKIP else texts.mention(target, g.players[target].name)
             rows.append((label, count))
         await self.m.send(self.chat_id, texts.vote_results(rows))
         if candidate is None:
@@ -517,14 +517,14 @@ class GameRunner:
             won = p.user_id in win_ids
             reward = economy.game_reward(won, p.vip)
             results.append((p.user_id, p.role, won, reward))
-            dead = " 💀" if not p.alive else ""
-            line = f"{texts.mention(p.user_id, p.name)} — {ROLES[p.role].title}{dead}"
+            name = texts.mention(p.user_id, p.name)
+            line = f"{name if p.alive else f'<s>{name}</s>'} — {ROLES[p.role].title}"
             (win_lines if won else lose_lines).append(line)
         await self.m.send(self.chat_id, texts.game_over(winner, win_lines, lose_lines, g.day))
         await games_db.record_result(self.pool, self.chat_id, str(winner), g.day, results)
         for uid, _, won, reward in results:
             await self.m.send(uid, texts.REWARD_PM.format(
-                result=texts.RESULT_WIN if won else texts.RESULT_LOSE, amount=reward, shagy=texts.SHAGY))
+                result=texts.RESULT_WIN if won else texts.RESULT_LOSE, amount=texts.shagy(reward)))
         await self._return_pockets()
         g.phase = Phase.FINISHED
 
