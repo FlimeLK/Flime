@@ -358,3 +358,16 @@ async def test_settings_fallback_link_when_pm_closed(env):
     assert "Налаштування гри" in s.last_text(ADMIN)
     await feed(msg(13, "/start settings-1001"))
     assert "лише адміністратори" in s.last_text(13)
+
+
+async def test_testgame_command(env):
+    feed, s, manager, _ = env
+    await feed(msg(13, "/testgame", GROUP))
+    assert "лише адміністратор" in s.last_text(GROUP)
+    await feed(msg(ADMIN, "/testgame 3", GROUP))
+    assert "Тестова гра" in s.last_text(GROUP)
+    runner = manager.get(GROUP)
+    assert runner.is_test and sorted(runner.game.players) == [-3, -2, -1]
+    await feed(msg(ADMIN, "/testgame", GROUP))
+    assert "вже йде" in s.last_text(GROUP)
+    await feed(msg(ADMIN, "/stop", GROUP))

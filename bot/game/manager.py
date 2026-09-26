@@ -36,9 +36,14 @@ class GameManager:
         self.runners[game.chat_id] = runner
         return runner
 
-    def create(self, chat_id: int, settings: GroupSettings, starter_id: int, title: str) -> GameRunner:
+    def create(self, chat_id: int, settings: GroupSettings, starter_id: int, title: str,
+               bots: int = 0) -> GameRunner:
+        """bots > 0 — тестова гра з ботами: без нагород, предметів і статистики."""
         game = Game(chat_id=chat_id, settings=settings.to_dict(), starter_id=starter_id)
         runner = self._make(game, title)
+        if bots:
+            game.settings["test_game"] = True
+            runner.add_bots(bots)
         runner.start()
         return runner
 

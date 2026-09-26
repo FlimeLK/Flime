@@ -148,3 +148,46 @@ async def test_stop_returns_items(pool):
     assert finished.is_set()
     assert await shop_db.inventory(pool, ids[0]) == {"honey": 1}
     assert await games_db.load_snapshots(pool) == []
+
+
+async def test_test_game_with_bots(pool):
+    """Тестова гра: самі боти доводять гру до кінця, нагород і статистики немає."""
+    await users_db.upsert(pool, 3001, "Адмін", None)
+    await shop_db.add_item(pool, 3001, "obereg", 1)
+    from bot.game.manager import GameManager
+
+    m = FakeMessenger()
+    manager = GameManager(m, pool, "test_bot")
+    settings = GroupSettings(chat_id=-700, reg_time=30, night_time=2, day_time=0, vote_time=2, confirm_time=2)
+    runner = manager.create(-700, settings, 3001, "Тест", bots=6)
+    game = runner.game
+    assert len(game.players) == 6 and all(uid < 0 for uid in game.players)
+    await wait_phase(runner, Phase.LOBBY)
+    await asyncio.sleep(0.05)
+    assert runner.join(3001, "Адмін", vip=False) is None
+    runner.force_start()
+
+    await wait_phase(runner, Phase.NIGHT, Phase.DAY, Phase.VOTE, Phase.CONFIRM, Phase.FINISHED)
+    human = game.players[3001]
+    assert human.pocket == []  # предмети в тестовій грі не беруться
+    for _ in range(400):
+        if game.phase == Phase.FINISHED:
+            break
+        if game.phase == Phase.NIGHT and human.alive:
+            play_night(runner)
+        elif game.phase == Phase.VOTE and human.alive:
+            runner.vote(3001, 0)
+        elif game.phase == Phase.CONFIRM and human.alive and game.candidate != 3001:
+            runner.confirm_vote(3001, True)
+        await asyncio.sleep(0.03)
+
+    assert game.phase == Phase.FINISHED and game.winner
+    # Справжній Messenger не звертається до Telegram для ботів тестової гри.
+    from bot.game.messenger import Messenger
+
+    assert await Messenger(bot=None).send(-3, "роль") is None
+    assert await pool.fetchval("SELECT count(*) FROM game_results WHERE chat_id = -700") == 0
+    u = await users_db.get(pool, 3001)
+    assert u.games == 0 and u.shagy == 100
+    assert await shop_db.inventory(pool, 3001) == {"obereg": 1}
+    assert any("Тестова гра" in text for _, text in m.sent)

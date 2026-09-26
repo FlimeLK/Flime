@@ -9,6 +9,8 @@ from aiogram import Bot
 from aiogram.exceptions import TelegramAPIError, TelegramRetryAfter
 from aiogram.types import InlineKeyboardMarkup
 
+from bot.engine.models import is_bot_player
+
 log = logging.getLogger(__name__)
 
 
@@ -17,6 +19,8 @@ class Messenger:
         self.bot = bot
 
     async def send(self, chat_id: int, text: str, markup: InlineKeyboardMarkup | None = None) -> int | None:
+        if is_bot_player(chat_id):
+            return None  # ботам тестової гри нічого не надсилаємо
         for attempt in range(2):
             try:
                 msg = await self.bot.send_message(
@@ -34,6 +38,8 @@ class Messenger:
         return None
 
     async def edit(self, chat_id: int, message_id: int, text: str, markup: InlineKeyboardMarkup | None = None) -> None:
+        if is_bot_player(chat_id):
+            return
         try:
             await self.bot.edit_message_text(
                 text=text, chat_id=chat_id, message_id=message_id, reply_markup=markup,

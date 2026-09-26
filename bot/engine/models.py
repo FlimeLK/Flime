@@ -10,6 +10,15 @@ from bot.engine.roles import NightKind, Role, Team, register_custom, role
 MIN_PLAYERS = 4
 MAX_PLAYERS = 30
 
+# Боти для тестових ігор мають id від -1 до -99 (справжні користувачі — додатні, групи — ≤ -100).
+BOT_NAMES = ["Оксана", "Тарас", "Ярина", "Остап", "Соломія", "Богдан", "Марічка", "Данило",
+             "Мирослава", "Устим", "Горпина", "Панас", "Одарка", "Микола", "Параска", "Семен",
+             "Христя", "Грицько", "Катря", "Омелько"]
+
+
+def is_bot_player(user_id: int) -> bool:
+    return -100 < user_id < 0
+
 
 class Phase(StrEnum):
     LOBBY = "lobby"

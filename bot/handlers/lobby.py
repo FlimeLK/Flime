@@ -11,7 +11,7 @@ from bot import texts
 from bot.config import Settings
 from bot.db import groups
 from bot.db.users import User
-from bot.engine.models import MIN_PLAYERS
+from bot.engine.models import MAX_PLAYERS, MIN_PLAYERS
 from bot.game.manager import GameManager
 from bot.handlers.common import is_chat_admin, is_group
 
@@ -28,6 +28,30 @@ async def cmd_game(message: Message, pool: asyncpg.Pool, manager: GameManager, u
         return
     settings = await groups.get(pool, message.chat.id, message.chat.title or "")
     manager.create(message.chat.id, settings, user.id, message.chat.title or "")
+
+
+DEFAULT_TEST_BOTS = 5
+
+
+@router.message(Command("testgame"))
+async def cmd_testgame(message: Message, command: CommandObject, bot: Bot, pool: asyncpg.Pool,
+                       manager: GameManager, config: Settings, user: User) -> None:
+    """Тестова гра з ботами: /testgame [скільки ботів]. Лише для адміністраторів чату."""
+    if not is_group(message):
+        await message.answer(texts.GROUP_ONLY)
+        return
+    if not await is_chat_admin(bot, message.chat.id, user.id, config):
+        await message.answer(texts.ADMIN_ONLY)
+        return
+    if manager.get(message.chat.id):
+        await message.answer(texts.LOBBY_ALREADY)
+        return
+    arg = (command.args or "").strip()
+    count = int(arg) if arg.isdigit() else DEFAULT_TEST_BOTS
+    count = max(1, min(MAX_PLAYERS - 1, count))
+    settings = await groups.get(pool, message.chat.id, message.chat.title or "")
+    manager.create(message.chat.id, settings, user.id, message.chat.title or "", bots=count)
+    await message.answer(texts.TEST_GAME_STARTED.format(bots=count))
 
 
 @router.message(CommandStart(deep_link=True, magic=F.args.regexp(r"^join-?\d+$")), F.chat.type == "private")

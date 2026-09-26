@@ -39,6 +39,7 @@ GROUP_COMMANDS = [
     BotCommand(command="stop", description="Зупинити гру (адмін)"),
     BotCommand(command="settings", description="Налаштування і свої ролі (адмін)"),
     BotCommand(command="roles", description="Свої ролі чату (адмін)"),
+    BotCommand(command="testgame", description="Тестова гра з ботами (адмін)"),
     BotCommand(command="top", description="Найкращі гравці чату"),
     BotCommand(command="rules", description="Правила та ролі"),
 ]

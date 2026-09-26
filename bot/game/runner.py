@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import random
 from collections import Counter
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
@@ -20,7 +21,7 @@ from bot.db import custom_roles as custom_roles_db
 from bot.db import games as games_db
 from bot.db import shop as shop_db
 from bot.engine import items as it
-from bot.engine.models import MAX_PLAYERS, MIN_PLAYERS, Action, Game, Phase, Player
+from bot.engine.models import BOT_NAMES, MAX_PLAYERS, MIN_PLAYERS, Action, Game, Phase, Player, is_bot_player
 from bot.engine.night import can_target, resolve_night
 from bot.engine.roles import TEAM_TITLES, NightKind, Team
 from bot.engine.setup import assign_roles
@@ -173,6 +174,47 @@ class GameRunner:
         g.players[user_id] = Player(user_id=user_id, name=name, vip=vip)
         return None
 
+    @property
+    def is_test(self) -> bool:
+        return bool(self.game.settings.get("test_game"))
+
+    def add_bots(self, count: int) -> int:
+        """Додає ботів у набір тестової гри. Повертає, скільки додано."""
+        g = self.game
+        added = 0
+        for i in range(1, 100):
+            if added >= count or len(g.players) >= MAX_PLAYERS:
+                break
+            uid = -i
+            if uid in g.players:
+                continue
+            g.players[uid] = Player(user_id=uid, name=BOT_NAMES[(i - 1) % len(BOT_NAMES)])
+            added += 1
+        return added
+
+    def _bots(self) -> list[Player]:
+        return [p for p in self.game.alive() if is_bot_player(p.user_id)]
+
+    def _bots_night(self) -> None:
+        """Боти тестової гри роблять нічні ходи випадково, але за правилами."""
+        g = self.game
+        for p in self._bots():
+            for kind in g.night_kinds(p):
+                if kind == NightKind.PITCHFORK or (kind == NightKind.SABER and random.random() < 0.7):
+                    continue
+                targets = [t.user_id for t in g.alive() if can_target(g, p.user_id, kind, t.user_id)]
+                if not targets:
+                    continue
+                target = random.choice(targets)
+                if kind == NightKind.KILL:
+                    g.evil_votes[p.user_id] = target
+                elif kind == NightKind.COMPARE:
+                    others = [t.user_id for t in g.alive() if t.user_id not in (p.user_id, target)]
+                    if others:
+                        g.actions[f"{p.user_id}:{ROLE_SLOT}"] = Action(p.user_id, kind, target, random.choice(others))
+                else:
+                    g.actions[f"{p.user_id}:{ROLE_SLOT}"] = Action(p.user_id, kind, target)
+
     def leave(self, user_id: int) -> bool:
         if self.game.phase != Phase.LOBBY or user_id not in self.game.players:
             return False
@@ -226,7 +268,7 @@ class GameRunner:
         customs = await custom_roles_db.list_for_chat(self.pool, self.chat_id)
         g.settings["custom_roles"] = [r.to_engine() for r in customs if r.enabled]
         assign_roles(g)
-        if g.settings.get("items_enabled", True):
+        if g.settings.get("items_enabled", True) and not self.is_test:
             for p in g.players.values():
                 slots = it.VIP_POCKET_SLOTS if p.vip else it.BASE_POCKET_SLOTS
                 p.pocket = await shop_db.take_for_game(self.pool, p.user_id, slots, it.POCKET_ORDER)
@@ -255,6 +297,8 @@ class GameRunner:
         await self.m.send(self.chat_id, texts.night_start(g.day, alive), views.to_bot_keyboard(self.bot_username))
 
         for p in g.alive():
+            if is_bot_player(p.user_id):
+                continue  # боти ходять у _bots_night
             for kind in g.night_kinds(p):
                 slot = ITEM_SLOT if kind == NightKind.PITCHFORK else ROLE_SLOT
                 prompt = texts.NIGHT_PROMPTS["shot" if kind == NightKind.SABER and p.role_obj.custom else kind.value]
@@ -262,6 +306,7 @@ class GameRunner:
                                         views.night_targets(g, p.user_id, kind))
                 if mid:
                     self._pending.setdefault((p.user_id, slot), []).append(mid)
+        self._bots_night()
 
         await self._wait(int(g.settings.get("night_time", 60)), lambda: not self._pending)
         await self._clear_pending(texts.NIGHT_EXPIRED)
@@ -395,9 +440,14 @@ class GameRunner:
         await self.m.send(self.chat_id, texts.VOTE_START.format(time=texts.fmt_seconds(seconds)),
                           views.to_bot_keyboard(self.bot_username))
         for p in g.alive():
+            if is_bot_player(p.user_id):
+                continue
             mid = await self.m.send(p.user_id, texts.VOTE_PROMPT, views.vote_keyboard(g, p.user_id))
             if mid:
                 self._pending[(p.user_id, "vote")] = [mid]
+        for p in self._bots():
+            targets = [t.user_id for t in g.alive() if t.user_id != p.user_id]
+            self._record_vote(p.user_id, SKIP if random.random() < 0.15 else random.choice(targets))
         await self._wait(seconds, lambda: not self._pending)
         await self._clear_pending(texts.VOTE_EXPIRED)
 
@@ -420,8 +470,15 @@ class GameRunner:
             return Reply(texts.NIGHT_NOT_NOW, alert=True)
         if not can_vote(g, user_id, target):
             return Reply(texts.NIGHT_BAD_TARGET, alert=True)
-        g.votes[user_id] = target
         self._pending.pop((user_id, "vote"), None)
+        self._record_vote(user_id, target)
+        if target == SKIP:
+            return Reply(texts.VOTE_SKIP_CAST)
+        return Reply(texts.VOTE_CAST.format(target=g.players[target].name))
+
+    def _record_vote(self, user_id: int, target: int) -> None:
+        g = self.game
+        g.votes[user_id] = target
         self._poke()
 
         voter = texts.mention(user_id, g.players[user_id].name)
@@ -432,9 +489,6 @@ class GameRunner:
         else:
             note = texts.VOTE_ANNOUNCE.format(voter=voter, target=texts.mention(target, g.players[target].name))
         self._bg(self.m.send(self.chat_id, note))
-        if target == SKIP:
-            return Reply(texts.VOTE_SKIP_CAST)
-        return Reply(texts.VOTE_CAST.format(target=g.players[target].name))
 
     def honey(self, user_id: int) -> Reply:
         g = self.game
@@ -454,6 +508,9 @@ class GameRunner:
         g.confirm.clear()
         self._confirm_mid = await self.m.send(self.chat_id, self._confirm_text(), views.confirm_keyboard(self.chat_id))
         eligible = {p.user_id for p in g.alive() if p.user_id != g.candidate}
+        for p in self._bots():
+            if p.user_id != g.candidate:
+                self.confirm_vote(p.user_id, random.random() < 0.6)
         await self._wait(int(g.settings.get("confirm_time", 30)), lambda: eligible <= set(g.confirm))
         if self._confirm_mid:
             await self.m.edit(self.chat_id, self._confirm_mid, self._confirm_text())
@@ -524,7 +581,12 @@ class GameRunner:
             name = texts.mention(p.user_id, p.name)
             line = f"{name if p.alive else f'<s>{name}</s>'} — {p.role_obj.title}"
             (win_lines if won else lose_lines).append(line)
-        await self.m.send(self.chat_id, texts.game_over(winner, win_lines, lose_lines, g.day))
+        over = texts.game_over(winner, win_lines, lose_lines, g.day)
+        if self.is_test:
+            await self.m.send(self.chat_id, over + "\n\n" + texts.TEST_GAME_NOTE)
+            g.phase = Phase.FINISHED
+            return
+        await self.m.send(self.chat_id, over)
         await games_db.record_result(self.pool, self.chat_id, str(winner), g.day, results)
         for uid, _, won, reward in results:
             await self.m.send(uid, texts.REWARD_PM.format(
