@@ -326,3 +326,27 @@ def shop(balance: int, inventory: dict[str, int], slots: int) -> str:
 
 SHOP_BOUGHT = "✅ Куплено: {item}. Залишок: {balance} {shagy}"
 SHOP_NO_MONEY = "Не вистачає шагів. Зіграй ще кілька ігор або візьми /daily."
+
+
+# ---------- VIP і червінці ----------
+
+def vip_menu(cherv: int, vip_until: str | None, vip_price: int, rate: int) -> str:
+    status = f"👑 У тебе VIP до <b>{vip_until}</b>." if vip_until else "👑 VIP ще немає."
+    return (
+        "👑 <b>VIP на хуторі</b>\n\n"
+        "• ×1.5 шагів за кожну гру\n"
+        "• щоденний гостинець 120 🪙 замість 50\n"
+        "• +1 предмет у кишеню на гру\n"
+        "• корона 👑 у профілі\n\n"
+        f"{status}\n"
+        f"{CHERV} Червінців у гаманці: <b>{cherv}</b>\n\n"
+        f"VIP можна купити за зірки ⭐ або за {vip_price} {CHERV}.\n"
+        f"Червінці можна обміняти на шаги: 1 {CHERV} = {rate} {SHAGY}."
+    )
+
+
+VIP_BOUGHT = "👑 VIP активовано до {until}! Дякуємо, що підтримуєш хутір."
+VIP_NO_CHERV = "Не вистачає червінців."
+CHERV_BOUGHT = "💎 Зараховано {amount} червінців. Дякуємо за підтримку!"
+EXCHANGED = "🔄 Обміняно {cherv} {cherv_icon} на {shagy} {shagy_icon}."
+PAYMENT_UNKNOWN = "Невідомий товар. Спробуй ще раз через /vip."
