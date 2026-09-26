@@ -55,6 +55,37 @@ def tally(game: Game) -> tuple[int | None, Counter]:
     return top_target, counts
 
 
+def max_weight(game: Game, uid: int) -> int:
+    """Найбільша вага, яку ще може мати голос гравця (з урахуванням нез'їденого меду)."""
+    weight = vote_weight(game, uid)
+    if uid not in game.honey_voters and game.players[uid].has(it.HONEY):
+        weight += 1
+    return weight
+
+
+def vote_decided(game: Game) -> bool:
+    """Чи вже ніщо не змінить підсумок денного голосування (лідер недосяжний для решти)."""
+    remaining = sum(max_weight(game, p.user_id) for p in game.alive() if p.user_id not in game.votes)
+    if remaining == 0:
+        return True
+    _, counts = tally(game)
+    ranked = counts.most_common()
+    if not ranked:
+        return False
+    best_other = ranked[1][1] if len(ranked) > 1 else 0
+    return ranked[0][1] > best_other + remaining
+
+
+def confirm_decided(game: Game) -> bool:
+    """Чи вже ніщо не змінить вирок (страчувати чи ні)."""
+    remaining = sum(
+        vote_weight(game, p.user_id) for p in game.alive()
+        if p.user_id != game.candidate and p.user_id not in game.confirm
+    )
+    _, yes, no = confirm_result(game)
+    return yes > no + remaining or no >= yes + remaining
+
+
 def confirm_result(game: Game) -> tuple[bool, int, int]:
     """(страчувати?, зважене «так», зважене «ні»). Кандидат сам не голосує."""
     yes = no = 0

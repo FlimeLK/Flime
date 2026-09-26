@@ -25,7 +25,16 @@ from bot.engine.models import BOT_NAMES, MAX_PLAYERS, MIN_PLAYERS, Action, Game,
 from bot.engine.night import can_target, resolve_night
 from bot.engine.roles import TEAM_TITLES, NightKind, Team
 from bot.engine.setup import assign_roles
-from bot.engine.voting import SKIP, can_vote, confirm_result, lynch, tally, use_honey
+from bot.engine.voting import (
+    SKIP,
+    can_vote,
+    confirm_decided,
+    confirm_result,
+    lynch,
+    tally,
+    use_honey,
+    vote_decided,
+)
 from bot.engine.win import check_winner, winners
 from bot.game import views
 from bot.game.messenger import Messenger
@@ -71,11 +80,61 @@ class GameRunner:
         self._compare_first: dict[int, int] = {}
         self._confirm_mid: int | None = None
         self._background: set[asyncio.Task] = set()
+        # Пауза перед голосом бота тестової гри (секунди, від–до), щоб голоси йшли природно.
+        self.bot_delay: tuple[float, float] = (1.0, 4.0)
+        self._bot_tasks: set[asyncio.Task] = set()
+        # Живі повідомлення (лобі, суд): message_id → чи треба ще раз оновити.
+        self._live_dirty: dict[int, bool] = {}
+        self._confirm_open = False
 
     def _bg(self, coro: Awaitable) -> None:
         task = asyncio.ensure_future(coro)
         self._background.add(task)
         task.add_done_callback(self._background.discard)
+
+    def _live_edit(self, message_id: int | None, render: Callable[[], tuple[str, InlineKeyboardMarkup | None]]) -> None:
+        """Оновлює «живе» повідомлення: по одному редагуванню за раз і завжди з останнім станом.
+
+        Паралельні edit-и доходять до Telegram у довільному порядку, тож лічильники «стрибали» б.
+        """
+        if not message_id:
+            return
+        if message_id in self._live_dirty:
+            self._live_dirty[message_id] = True
+            return
+        self._live_dirty[message_id] = False
+
+        async def run() -> None:
+            try:
+                while True:
+                    text, markup = render()
+                    await self.m.edit(self.chat_id, message_id, text, markup)
+                    if not self._live_dirty.get(message_id):
+                        return
+                    self._live_dirty[message_id] = False
+            finally:
+                self._live_dirty.pop(message_id, None)
+
+        self._bg(run())
+
+    async def _flush(self) -> None:
+        """Чекаємо фонові надсилання, щоб підсумки не випереджали оголошення голосів."""
+        while self._background:
+            await asyncio.gather(*list(self._background), return_exceptions=True)
+
+    def _bot_later(self, action: Callable[[], object]) -> None:
+        """Хід бота з невеликою паузою; скасовується, коли фаза закінчується."""
+        async def run() -> None:
+            await asyncio.sleep(random.uniform(*self.bot_delay))
+            action()
+
+        task = asyncio.ensure_future(run())
+        self._bot_tasks.add(task)
+        task.add_done_callback(self._bot_tasks.discard)
+
+    def _cancel_bot_moves(self) -> None:
+        for task in list(self._bot_tasks):
+            task.cancel()
 
     @property
     def chat_id(self) -> int:
@@ -122,6 +181,7 @@ class GameRunner:
 
     async def stop(self) -> None:
         self._stopped = True
+        self._cancel_bot_moves()
         if self._task and not self._task.done():
             self._task.cancel()
             try:
@@ -134,6 +194,7 @@ class GameRunner:
 
     async def shutdown(self) -> None:
         """Зупинка без прибирання (бот вимикається, гру відновимо після старту)."""
+        self._cancel_bot_moves()
         if self._task and not self._task.done():
             self._task.cancel()
             try:
@@ -233,11 +294,10 @@ class GameRunner:
         return texts.lobby(players, self.remaining(), MIN_PLAYERS)
 
     async def refresh_lobby(self) -> None:
-        if self.game.lobby_message_id:
-            await self.m.edit(
-                self.chat_id, self.game.lobby_message_id, self._lobby_text(),
-                views.join_keyboard(self.bot_username, self.chat_id),
-            )
+        if self.game.phase != Phase.LOBBY:
+            return
+        self._live_edit(self.game.lobby_message_id, lambda: (
+            self._lobby_text(), views.join_keyboard(self.bot_username, self.chat_id)))
 
     async def _lobby(self) -> None:
         g = self.game
@@ -256,6 +316,7 @@ class GameRunner:
             await self._wait(total, started)
 
         if g.lobby_message_id:
+            await self._flush()
             await self.m.clear_markup(self.chat_id, g.lobby_message_id)
         if len(g.players) < MIN_PLAYERS:
             await self.m.send(self.chat_id, texts.LOBBY_NOT_ENOUGH.format(min=MIN_PLAYERS))
@@ -447,9 +508,14 @@ class GameRunner:
                 self._pending[(p.user_id, "vote")] = [mid]
         for p in self._bots():
             targets = [t.user_id for t in g.alive() if t.user_id != p.user_id]
-            self._record_vote(p.user_id, SKIP if random.random() < 0.15 else random.choice(targets))
-        await self._wait(seconds, lambda: not self._pending)
-        await self._clear_pending(texts.VOTE_EXPIRED)
+            target = SKIP if random.random() < 0.15 else random.choice(targets)
+            self._pending[(p.user_id, "vote")] = []
+            self._bot_later(lambda uid=p.user_id, t=target: self.vote(uid, t))
+        await self._wait(seconds, lambda: not self._pending or vote_decided(g))
+        self._cancel_bot_moves()
+        early = bool(self._pending) and vote_decided(g)
+        await self._clear_pending(texts.VOTE_EARLY if early else texts.VOTE_EXPIRED)
+        await self._flush()
 
         candidate, counts = tally(g)
         rows = []
@@ -507,11 +573,17 @@ class GameRunner:
         g = self.game
         g.confirm.clear()
         self._confirm_mid = await self.m.send(self.chat_id, self._confirm_text(), views.confirm_keyboard(self.chat_id))
+        self._confirm_open = True
         eligible = {p.user_id for p in g.alive() if p.user_id != g.candidate}
         for p in self._bots():
             if p.user_id != g.candidate:
-                self.confirm_vote(p.user_id, random.random() < 0.6)
-        await self._wait(int(g.settings.get("confirm_time", 30)), lambda: eligible <= set(g.confirm))
+                agree = random.random() < 0.6
+                self._bot_later(lambda uid=p.user_id, a=agree: self.confirm_vote(uid, a))
+        await self._wait(int(g.settings.get("confirm_time", 30)),
+                         lambda: eligible <= set(g.confirm) or confirm_decided(g))
+        self._confirm_open = False
+        self._cancel_bot_moves()
+        await self._flush()
         if self._confirm_mid:
             await self.m.edit(self.chat_id, self._confirm_mid, self._confirm_text())
 
@@ -537,13 +609,13 @@ class GameRunner:
     def confirm_vote(self, user_id: int, yes: bool) -> Reply:
         g = self.game
         p = g.players.get(user_id)
+        if not self._confirm_open:
+            return Reply(texts.CONFIRM_CLOSED, alert=True)
         if g.phase != Phase.CONFIRM or not p or not p.alive or user_id == g.candidate:
             return Reply(texts.CONFIRM_NOT_ALLOWED, alert=True)
         g.confirm[user_id] = yes
         self._poke()
-        if self._confirm_mid:
-            self._bg(self.m.edit(self.chat_id, self._confirm_mid, self._confirm_text(),
-                                            views.confirm_keyboard(self.chat_id)))
+        self._live_edit(self._confirm_mid, lambda: (self._confirm_text(), views.confirm_keyboard(self.chat_id)))
         return Reply(texts.CONFIRM_THANKS, alert=False)
 
     def _next_night(self) -> None:

@@ -1,4 +1,4 @@
-from bot.engine.models import Game
+from bot.engine.models import Game, Phase
 from bot.engine.roles import Team
 from bot.engine.voting import SKIP, confirm_result, lynch, tally, use_honey
 from bot.engine.win import DRAW, check_winner, winners
@@ -88,3 +88,28 @@ def test_serialization_roundtrip():
     g2 = Game.from_dict(g.to_dict())
     assert g2.to_dict() == g.to_dict()
     assert g2.evil_votes == {1: 3}
+
+
+def test_vote_decided_early():
+    from bot.engine.voting import vote_decided
+
+    g = make_game(["vidma", "selianyn", "selianyn", "selianyn", "selianyn"])
+    g.phase = Phase.VOTE
+    g.votes = {2: 1, 3: 1}
+    assert not vote_decided(g)  # ще троє можуть переголосувати за іншого
+    g.votes[4] = 1
+    assert vote_decided(g)  # 3 голоси проти максимум 2 у будь-кого іншого
+
+
+def test_confirm_decided_early():
+    from bot.engine.voting import confirm_decided
+
+    g = make_game(["vidma", "selianyn", "selianyn", "selianyn", "selianyn"])
+    g.phase = Phase.CONFIRM
+    g.candidate = 1
+    g.confirm = {2: True, 3: True}
+    assert not confirm_decided(g)
+    g.confirm[4] = True
+    assert confirm_decided(g)  # 3 «так» проти максимум 1 «ні»
+    g.confirm = {2: False, 3: False}
+    assert confirm_decided(g)  # помилування: «так» уже не переважить

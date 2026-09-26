@@ -160,6 +160,7 @@ async def test_test_game_with_bots(pool):
     manager = GameManager(m, pool, "test_bot")
     settings = GroupSettings(chat_id=-700, reg_time=30, night_time=2, day_time=0, vote_time=2, confirm_time=2)
     runner = manager.create(-700, settings, 3001, "Тест", bots=6)
+    runner.bot_delay = (0, 0.02)
     game = runner.game
     assert len(game.players) == 6 and all(uid < 0 for uid in game.players)
     await wait_phase(runner, Phase.LOBBY)
