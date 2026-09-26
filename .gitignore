@@ -1,0 +1,28 @@
+# Secrets
+.env
+.env.*
+!.env.example
+
+# Python
+__pycache__/
+*.pyc
+venv/
+.venv/
+.venv312/
+
+# Runtime data, logs, backups
+runtime/
+backups/
+*.log
+mafia_backup.sql
+
+# OS / editor
+.DS_Store
+__MACOSX/
+.claude/settings.local.json
+
+
+# Local configs with credentials
+database/config_db.py
+config_bot.py
+.vscode/

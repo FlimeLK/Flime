@@ -1,0 +1,19 @@
+[Unit]
+Description=Mafia Telegram Bot
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/mafia-bot
+EnvironmentFile=/opt/mafia-bot/.env
+ExecStart=/opt/mafia-bot/venv/bin/python /opt/mafia-bot/run.py
+Restart=always
+RestartSec=3
+User=mafia
+Group=mafia
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
+

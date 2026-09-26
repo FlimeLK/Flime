@@ -1,0 +1,19 @@
+[Unit]
+Description=Mafia Admin Web Panel
+After=network.target mafia-bot.service
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/mafia-bot
+EnvironmentFile=/opt/mafia-bot/.env
+ExecStart=/opt/mafia-bot/venv/bin/python -m uvicorn admin_web.app:app --host 127.0.0.1 --port 8080
+Restart=always
+RestartSec=3
+User=mafia
+Group=mafia
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
+
