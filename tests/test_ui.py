@@ -137,3 +137,13 @@ def test_all_texts_are_valid_html(enabled):
         c.close()
         assert not c.stack, (raw[:60], c.stack)
         assert not [t for t in emoji.TOKEN_RE.findall(html) if t in emoji.DEFAULTS], raw[:60]
+
+
+def test_no_separator_lines_or_command_lists_in_menu():
+    for raw in samples():
+        assert "┈" not in raw, raw[:60]
+    sections = [texts.SECTION_HOWTO, texts.SECTION_GAME, texts.SECTION_VIP, texts.section_roles(),
+                texts.section_items(), texts.section_profile(texts.profile("N", 1, 0, None, 0, 0, [])),
+                texts.section_daily("ok")]
+    for text in sections:
+        assert "<code>/" not in text and "/vip" not in text and "/shop" not in text, text[:60]

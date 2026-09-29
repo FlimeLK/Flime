@@ -17,7 +17,7 @@ router = Router(name="design")
 router.message.filter(IsOwner())
 
 HELP = (
-    ":sparkle: <b>ОФОРМЛЕННЯ</b>\n" + texts.LINE + "\n"
+    ":sparkle: <b>ОФОРМЛЕННЯ</b>\n\n"
     "<b>Анімовані емодзі</b>\n"
     "<code>/emoji</code> — усі ключі й поточні емодзі\n"
     "<code>/emoji_id</code> — відповіддю на повідомлення з premium-емодзі: покаже їхні ID\n"
@@ -68,7 +68,7 @@ async def cmd_design(message: Message) -> None:
 
 @router.message(Command("emoji"))
 async def cmd_emoji(message: Message) -> None:
-    lines = [":sparkle: <b>ЕМОДЗІ БОТА</b> (ключ — вигляд — ID)", texts.LINE]
+    lines = [":sparkle: <b>ЕМОДЗІ БОТА</b> (ключ — вигляд — ID)", ""]
     for key in emoji.DEFAULTS:
         cid = emoji.custom_id(key)
         lines.append(f"<code>{key}</code> — {emoji.e(key)} — {f'<code>{cid}</code>' if cid else 'звичайний'}")
@@ -135,7 +135,7 @@ async def cmd_emoji_pack(message: Message, command: CommandObject, bot: Bot, poo
         by_char.setdefault(_norm(ch), cid)
     matches = [(key, by_char[_norm(emo.char)]) for key, emo in emoji.DEFAULTS.items() if _norm(emo.char) in by_char]
 
-    lines = [f":sparkle: <b>{texts.escape(sticker_set.title)}</b> — {len(pack)} емодзі", texts.LINE]
+    lines = [f":sparkle: <b>{texts.escape(sticker_set.title)}</b> — {len(pack)} емодзі", ""]
     lines += [f'<tg-emoji emoji-id="{cid}">{ch or "❔"}</tg-emoji> <code>{cid}</code>' for ch, cid in pack[:60]]
     if len(pack) > 60:
         lines.append(f"… і ще {len(pack) - 60}")
@@ -157,7 +157,7 @@ async def cmd_emoji_pack(message: Message, command: CommandObject, bot: Bot, poo
 async def cmd_media(message: Message, command: CommandObject, pool: asyncpg.Pool) -> None:
     slot = (command.args or "").strip()
     if not slot:
-        lines = [":sparkle: <b>МЕДІА ДЛЯ СЦЕН</b>", texts.LINE]
+        lines = [":sparkle: <b>МЕДІА ДЛЯ СЦЕН</b>", ""]
         for key, title in media.SCENES.items():
             mark = ":ok:" if media.get(key) else "▫️"
             lines.append(f"{mark} <code>{key}</code> — {title}")

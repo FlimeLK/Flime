@@ -299,7 +299,7 @@ async def test_menu_and_sections(env):
     assert all(b.icon_custom_emoji_id for row in menu.inline_keyboard for b in row)
     assert menu.inline_keyboard[0][0].callback_data == "sec:howto"
 
-    for name, marker in [("howto", "<code>/game</code>"), ("game", "Як грати"), ("roles", "Характерник"),
+    for name, marker in [("howto", "в групу"), ("game", "Як грати"), ("roles", "Характерник"),
                          ("items", "Оберіг"), ("profile", "Шаги"), ("daily", "+50"), ("vip", "VIP")]:
         await feed(cb(31, f"sec:{name}"))
         last = edits()[-1]
