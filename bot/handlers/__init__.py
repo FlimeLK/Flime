@@ -6,7 +6,7 @@ from bot.handlers import design, lobby, owner, payments, play, profile, roles, s
 def build_router() -> Router:
     root = Router(name="root")
     # Порядок важливий: deep-link приєднання до гри - раніше загального /start;
-    # «рада нечисті» (будь-який текст в особистих) - останньою.
+    # «рада мафії» (будь-який текст в особистих) - останньою.
     root.include_routers(
         lobby.router,
         roles.router,

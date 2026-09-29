@@ -125,9 +125,9 @@ async def env(pool):
 async def test_private_commands(env):
     feed, s, _, pool = env
     await feed(msg(10, "/start"))
-    assert "Кум Опанас" in s.last_text(10) and "Гравець10" in s.last_text(10)
+    assert "Консильєре" in s.last_text(10) and "Гравець10" in s.last_text(10)
     await feed(msg(10, "/profile"))
-    assert "Шаги: <b>100</b>" in s.last_text(10)
+    assert "Ліри: <b>100</b>" in s.last_text(10)
     await feed(msg(10, "/daily"))
     assert "+50" in s.last_text(10)
     await feed(msg(10, "/daily"))
@@ -136,7 +136,7 @@ async def test_private_commands(env):
     assert "Комісар" in s.last_text(10)
 
     await feed(msg(10, "/shop"))
-    assert "ЯРМАРОК" in s.last_text(10)
+    assert "ЧОРНИЙ РИНОК" in s.last_text(10)
     await feed(cb(10, BuyCb(item="obereg").pack()))
     assert await shop_db.inventory(pool, 10) == {"obereg": 1}
     assert (await users_db.get(pool, 10)).shagy == 150 - 120
@@ -199,7 +199,7 @@ async def test_settings_admin_only(env):
     await feed(msg(13, "/settings", GROUP))
     assert "лише адміністратор" in s.last_text(GROUP)
     await feed(msg(ADMIN, "/settings", GROUP))
-    assert "Налаштування хутора:" in s.last_text(GROUP)
+    assert "Налаштування сім'ї:" in s.last_text(GROUP)
     home = [c for c in s.calls if type(c).__name__ == "SendMessage" and c.chat_id == GROUP][-1].reply_markup
     assert [len(r) for r in home.inline_keyboard] == [2, 2, 1]
     await feed(cb(ADMIN, SetCb(action="toggle", key="secret_vote").pack(), GROUP))
@@ -276,11 +276,11 @@ async def test_design_tools(env):
     assert await pool.fetchval("SELECT file_id FROM media WHERE slot = 'start'") == "PHOTO1"
     await feed(msg(30, "/start"))
     photo = [c for c in s.calls if type(c).__name__ == "SendPhoto"][-1]
-    assert photo.photo == "PHOTO1" and "Кум Опанас" in photo.caption and "<tg-emoji" in photo.caption
+    assert photo.photo == "PHOTO1" and "Консильєре" in photo.caption and "<tg-emoji" in photo.caption
     assert photo.reply_markup.inline_keyboard[0][0].icon_custom_emoji_id
     await feed(msg(OWNER, "/media_clear start"))
     await feed(msg(30, "/start"))
-    assert "Кум Опанас" in s.last_text(30)
+    assert "Консильєре" in s.last_text(30)
 
     # звичайний гравець не має доступу
     await feed(msg(30, "/emoji_set fire"))
@@ -299,14 +299,14 @@ async def test_menu_and_sections(env):
     assert all(b.icon_custom_emoji_id for row in menu.inline_keyboard for b in row)
     assert menu.inline_keyboard[0][0].callback_data == "sec:howto"
 
-    for name, marker in [("howto", "в групу"), ("game", "Звичаї хутора"), ("roles", "Комісар"),
-                         ("items", "Оберіг"), ("profile", "Шаги"), ("daily", "+50"), ("vip", "VIP")]:
+    for name, marker in [("howto", "в групу"), ("game", "Правила сім'ї"), ("roles", "Комісар"),
+                         ("items", "Талісман"), ("profile", "Ліри"), ("daily", "+50"), ("vip", "VIP")]:
         await feed(cb(31, f"sec:{name}"))
         last = edits()[-1]
         assert marker in last.text, name
         assert last.reply_markup.inline_keyboard[0][0].callback_data == "menu:main"
     await feed(cb(31, "menu:main"))
-    assert "Обирай, куди зазирнемо" in edits()[-1].text
+    assert "Обирай, з чого почнемо" in edits()[-1].text
 
 
 async def test_settings_modules(env):
@@ -316,11 +316,11 @@ async def test_settings_modules(env):
         return [c for c in s.calls if type(c).__name__ == "EditMessageText"][-1]
 
     await feed(cb(ADMIN, SetCb(action="timers").pack(), GROUP))
-    assert "Годинник" in last_edit().text
+    assert "Таймери" in last_edit().text
     await feed(cb(ADMIN, SetCb(action="vote").pack(), GROUP))
     assert len(last_edit().reply_markup.inline_keyboard) == 3  # 2 перемикачі + Назад
     await feed(cb(ADMIN, SetCb(action="refresh").pack(), GROUP))
-    assert "Налаштування хутора:" in last_edit().text
+    assert "Налаштування сім'ї:" in last_edit().text
 
 
 async def test_custom_role_wizard_and_game(env):

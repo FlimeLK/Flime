@@ -5,17 +5,17 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import timedelta
 
-# Нагороди за гру (шаги)
+# Нагороди за гру (ліри)
 REWARD_PLAY = 10
 REWARD_WIN = 40
 VIP_MULTIPLIER = 1.5
 
-# Щоденний гостинець
+# Щоденний конверт від Дона
 DAILY = 50
 DAILY_VIP = 120
 DAILY_COOLDOWN = timedelta(hours=20)
 
-# Обмін: 1 червінець = N шагів
+# Обмін: 1 золота монета = N лір
 EXCHANGE_RATE = 50
 
 # VIP
@@ -35,9 +35,9 @@ class Product:
 PRODUCTS: dict[str, Product] = {
     p.key: p
     for p in (
-        Product("cherv_10", "10 червінців", 50, chervintsi=10),
-        Product("cherv_30", "30 червінців", 140, chervintsi=30),
-        Product("cherv_75", "75 червінців", 325, chervintsi=75),
+        Product("cherv_10", "10 золотих монет", 50, chervintsi=10),
+        Product("cherv_30", "30 золотих монет", 140, chervintsi=30),
+        Product("cherv_75", "75 золотих монет", 325, chervintsi=75),
         Product("vip_30", "VIP на 30 днів", 150, vip_days=VIP_DAYS),
     )
 }

@@ -66,7 +66,7 @@ class Game:
     day: int = 0
     # Нічні дії: ключ "uid:slot" (slot = role | item), щоб гравець міг і діяти роллю, і застосувати вилу.
     actions: dict[str, Action] = field(default_factory=dict)
-    # Голоси нечисті за жертву: хто → за кого.
+    # Голоси мафії за жертву: хто → за кого.
     evil_votes: dict[int, int] = field(default_factory=dict)
     # Денне голосування: хто → за кого (0 = пропустити).
     votes: dict[int, int] = field(default_factory=dict)
@@ -96,7 +96,7 @@ class Game:
         return [p for p in self.alive() if p.team == team]
 
     def evil_leader(self) -> Player | None:
-        """Ватажок нечисті: жива Відьма, інакше перший живий Упир, інакше Мавка."""
+        """Ватажок мафії: живий Дон, інакше перший живий мафіозі, інакше Коханка."""
         for key in ("vidma", "upyr", "mavka"):
             found = self.by_role(key)
             if found:
@@ -112,7 +112,7 @@ class Game:
             return []
         kinds = list(player.role_obj.night)
         if player.role == "mavka" and not self.by_role("vidma") and not self.by_role("upyr"):
-            # Остання з нечисті - сама обирає жертву замість заманювання.
+            # Остання з мафії - сама обирає жертву замість блокування.
             kinds = [NightKind.KILL]
         if NightKind.SABER in kinds and player.flags.get("saber_used"):
             kinds.remove(NightKind.SABER)

@@ -177,7 +177,7 @@ async def cmd_refund(message: Message, command: CommandObject, bot: Bot, pool: a
     async with pool.acquire() as conn, conn.transaction():
         await payments.mark_refunded(conn, charge_id)
         if product and product.chervintsi:
-            # Забираємо стільки червінців, скільки лишилось (не йдемо в мінус).
+            # Забираємо стільки золотих монет, скільки лишилось (не йдемо в мінус).
             await conn.execute(
                 "UPDATE users SET chervintsi = GREATEST(chervintsi - $2, 0) WHERE id = $1",
                 purchase["user_id"], product.chervintsi,

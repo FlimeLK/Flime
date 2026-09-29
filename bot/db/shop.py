@@ -13,7 +13,7 @@ async def inventory(pool: asyncpg.Pool, user_id: int) -> dict[str, int]:
 
 
 async def buy(pool: asyncpg.Pool, user_id: int, item: str, price: int) -> int | None:
-    """Списує шаги й додає предмет. Повертає новий баланс або None, якщо не вистачає."""
+    """Списує ліри й додає предмет. Повертає новий баланс або None, якщо не вистачає."""
     async with pool.acquire() as conn, conn.transaction():
         balance = await users.add_balance(conn, user_id, "shagy", -price)
         if balance is None:

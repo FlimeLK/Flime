@@ -2,11 +2,11 @@
 
 Порядок:
   1. Мавка заманює - дія цілі скасовується (якщо в неї немає часнику).
-  2. Визначається жертва нечисті (слово ватажка, інакше більшість голосів).
+  2. Визначається жертва мафії (слово Дона, інакше більшість голосів).
   3. Фіксуються візити (для сторожа й свічки).
   4. Знахарка лікує.
   5. Перевірки характерника й кобзаря.
-  6. Вбивства: лікування → оберіг → везіння кума → смерть.
+  6. Вбивства: лікування → талісман → везіння щасливчика → смерть.
   7. Інформація: сторож, свічка.
 """
 
@@ -50,7 +50,7 @@ def side(game: Game, uid: int) -> Team:
 
 
 def evil_target(game: Game, lured: set[int]) -> tuple[int | None, int | None]:
-    """Повертає (ціль, хто «приходив» від нечисті)."""
+    """Повертає (ціль, хто «приходив» від мафії)."""
     votes = {v: t for v, t in game.evil_votes.items() if v not in lured and game.players[v].alive}
     if not votes:
         return None, None
@@ -59,7 +59,7 @@ def evil_target(game: Game, lured: set[int]) -> tuple[int | None, int | None]:
         return votes[leader.user_id], leader.user_id
     counts = Counter(votes.values()).most_common()
     if len(counts) > 1 and counts[0][1] == counts[1][1]:
-        return None, None  # нечисть не домовилась
+        return None, None  # мафія не домовилась
     target = counts[0][0]
     visitor = next(v for v, t in votes.items() if t == target)
     return target, visitor
@@ -83,7 +83,7 @@ def resolve_night(game: Game) -> NightResult:
     res.lured = sorted(lured)
     actions = [a for a in actions if a.actor not in lured or a.kind == NightKind.LURE]
 
-    # 2. Жертва нечисті
+    # 2. Жертва мафії
     target, visitor = evil_target(game, lured)
     res.evil_target = target
     if target is not None and target in alive:
@@ -182,7 +182,7 @@ def can_target(game: Game, actor_id: int, kind: NightKind, target_id: int) -> bo
     if kind in (NightKind.KILL,):
         return target.team != Team.EVIL
     if kind == NightKind.LURE:
-        # Мавка (і будь-яка нечисть) не блокує своїх; блокувальник з інших сторін — будь-кого.
+        # Коханка (і будь-яка мафія) не блокує своїх; блокувальник з інших сторін - будь-кого.
         return target_id != actor_id and (actor.team != Team.EVIL or target.team != Team.EVIL)
     # Решта дій - будь-хто, крім себе.
     return target_id != actor_id

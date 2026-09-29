@@ -92,7 +92,7 @@ def settings_roles(s: GroupSettings, custom: list[dict], bot_username: str, chat
     return InlineKeyboardMarkup(inline_keyboard=[
         *rows(buttons, 2),
         [btn(texts.ROLES_CREATE, url=f"{link}newrole{chat_id}", emo="sparkle", style=PRIMARY),
-         btn(texts.ROLES_MINE, url=f"{link}myroles{chat_id}", emo="mask")],
+         btn(texts.ROLES_MINE, url=f"{link}myroles{chat_id}", emo="theater")],
         _back_to_settings(),
     ])
 

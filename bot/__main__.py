@@ -28,10 +28,10 @@ log = logging.getLogger("bot")
 
 PRIVATE_COMMANDS = [
     BotCommand(command="start", description="Головне меню"),
-    BotCommand(command="profile", description="Моя хата і гаманець"),
-    BotCommand(command="shop", description="Ярмарок предметів"),
-    BotCommand(command="daily", description="Щоденний гостинець"),
-    BotCommand(command="vip", description="VIP і червінці"),
+    BotCommand(command="profile", description="Моє досьє і гаманець"),
+    BotCommand(command="shop", description="Чорний ринок"),
+    BotCommand(command="daily", description="Конверт від Дона"),
+    BotCommand(command="vip", description="VIP і золоті монети"),
     BotCommand(command="promo", description="Активувати промокод"),
     BotCommand(command="rules", description="Правила та ролі"),
 ]

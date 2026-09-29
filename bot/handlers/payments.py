@@ -1,4 +1,4 @@
-"""VIP, червінці та оплата зірками Telegram (XTR)."""
+"""VIP, золоті монети та оплата зірками Telegram (XTR)."""
 
 from __future__ import annotations
 
@@ -40,7 +40,7 @@ def vip_keyboard() -> InlineKeyboardMarkup:
     vip = economy.PRODUCTS["vip_30"]
     keyboard = [
         [btn(f"{vip.title} - {vip.stars} ⭐", StarsCb(product=vip.key), emo="vip", style=SUCCESS)],
-        [btn(f"VIP за {economy.VIP_PRICE_CHERV} червінців", VipChervCb(), emo="vip", style=PRIMARY)],
+        [btn(f"VIP за {economy.VIP_PRICE_CHERV} золотих монет", VipChervCb(), emo="vip", style=PRIMARY)],
         [btn(f"{p.chervintsi} - {p.stars} ⭐", StarsCb(product=p.key), emo="cherv")
          for p in economy.PRODUCTS.values() if p.chervintsi],
         [btn(f"{a} → {a * economy.EXCHANGE_RATE}", ExchangeCb(amount=a), emo="refresh") for a in EXCHANGE_AMOUNTS],

@@ -506,7 +506,7 @@ class GameRunner:
         self.game.day += 1
         self.game.phase = Phase.NIGHT
 
-    # ================= нечиста рада =================
+    # ================= рада мафії =================
 
     def evil_chat_targets(self, user_id: int) -> list[int]:
         g = self.game
