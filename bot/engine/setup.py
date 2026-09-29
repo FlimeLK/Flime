@@ -7,7 +7,7 @@ from collections.abc import Iterable
 
 from bot.engine.models import MAX_PLAYERS, MIN_PLAYERS, Game, Phase
 
-# Спеціальні ролі в порядку появи (кожна — з певної кількості гравців, див. roles.py).
+# Спеціальні ролі в порядку появи (кожна - з певної кількості гравців, див. roles.py).
 VILLAGE_SPECIALS = ["znaharka", "harakternyk", "kum", "storozh", "kobzar", "otaman"]
 SOLO_ROLES = ["duren", "vovkulaka"]
 

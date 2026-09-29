@@ -147,7 +147,7 @@ async def test_private_commands(env):
 async def test_owner_and_promo(env):
     feed, s, _, pool = env
     await feed(msg(11, "/start"))
-    await feed(msg(11, "/owner"))  # не власник — тиша
+    await feed(msg(11, "/owner"))  # не власник - тиша
     assert not any("ПАНЕЛЬ ВЛАСНИКА" in t for t in s.texts_to(11))
     await feed(msg(OWNER, "/owner"))
     assert "ПАНЕЛЬ ВЛАСНИКА" in s.last_text(OWNER)
@@ -227,7 +227,7 @@ async def test_game_via_handlers(env):
     assert 25 not in runner.game.players
     await feed(msg(22, "/start_now", GROUP))
     assert "лише адміністратор" in s.last_text(GROUP)
-    await feed(msg(21, "/start_now", GROUP))  # хто почав збір — може
+    await feed(msg(21, "/start_now", GROUP))  # хто почав збір - може
     for _ in range(100):
         if runner.game.phase == Phase.NIGHT and runner._pending:
             break

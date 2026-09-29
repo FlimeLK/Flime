@@ -61,7 +61,7 @@ async def cmd_top(message: Message, pool: asyncpg.Pool) -> None:
     lines = [texts.TOP_HEAD]
     for i, r in enumerate(rows):
         mark = texts.TOP_MEDALS[i] if i < 3 else f"<b>{i + 1}.</b>"
-        lines.append(f"{mark} {texts.escape(r['name'])} — :trophy: {r['wins']} · :dice: {r['games']}")
+        lines.append(f"{mark} {texts.escape(r['name'])} - :trophy: {r['wins']} · :dice: {r['games']}")
     await message.answer("\n".join(lines))
 
 

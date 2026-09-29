@@ -22,15 +22,15 @@ log = logging.getLogger(__name__)
 HELP = (
     ":tools: <b>ПАНЕЛЬ ВЛАСНИКА</b>\n\n"
     "{stats}\n\n"
-    "<code>/give ID shagy|cherv СУМА</code> — видати (або мінус — забрати)\n"
-    "<code>/vip_give ID ДНІВ</code> — подарувати VIP\n"
+    "<code>/give ID shagy|cherv СУМА</code> - видати (або мінус - забрати)\n"
+    "<code>/vip_give ID ДНІВ</code> - подарувати VIP\n"
     "<code>/block ID</code> · <code>/unblock ID</code>\n"
-    "<code>/broadcast ТЕКСТ</code> — розсилка всім (або відповіддю на повідомлення)\n"
+    "<code>/broadcast ТЕКСТ</code> - розсилка всім (або відповіддю на повідомлення)\n"
     "<code>/promo_new КОД ШАГИ ЧЕРВІНЦІ VIP_ДНІВ ВИКОРИСТАНЬ</code>\n"
     "<code>/promo_list</code> · <code>/promo_del КОД</code>\n"
-    "<code>/purchases</code> — останні покупки · <code>/refund CHARGE_ID</code> — повернути зірки\n"
-    "<code>/games</code> — активні ігри\n"
-    "<code>/design</code> — анімовані емодзі та медіа для сцен"
+    "<code>/purchases</code> - останні покупки · <code>/refund CHARGE_ID</code> - повернути зірки\n"
+    "<code>/games</code> - активні ігри\n"
+    "<code>/design</code> - анімовані емодзі та медіа для сцен"
 )
 
 

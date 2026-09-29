@@ -32,7 +32,7 @@ def test_every_role_and_item_has_emoji_key():
 def test_e_icon_render():
     cid = emoji.DEFAULTS["vovkulaka"].id
     assert emoji.e("vovkulaka") == f'<tg-emoji emoji-id="{cid}">🐺</tg-emoji>'
-    assert emoji.e("selianyn") == "👨‍🌾"  # без ID — звичайний символ
+    assert emoji.e("selianyn") == "👨‍🌾"  # без ID - звичайний символ
     assert emoji.icon("vovkulaka") == cid
     assert emoji.render(":vovkulaka: вийшов") == f'<tg-emoji emoji-id="{cid}">🐺</tg-emoji> вийшов'
     assert emoji.render(":vovkulaka: вийшов", html=False) == "🐺 вийшов"

@@ -22,7 +22,7 @@ router = Router(name="start")
 
 
 async def _edit(cb: CallbackQuery, text: str, markup: InlineKeyboardMarkup) -> None:
-    """Редагує повідомлення меню; якщо це повідомлення з медіа — редагує підпис."""
+    """Редагує повідомлення меню; якщо це повідомлення з медіа - редагує підпис."""
     await cb.answer()
     try:
         if cb.message.photo or cb.message.animation or cb.message.video:
@@ -30,7 +30,7 @@ async def _edit(cb: CallbackQuery, text: str, markup: InlineKeyboardMarkup) -> N
         else:
             await cb.message.edit_text(text, reply_markup=markup, disable_web_page_preview=True)
     except TelegramBadRequest:
-        # Підпис до медіа обмежений 1024 символами — тоді надсилаємо розділ окремим повідомленням.
+        # Підпис до медіа обмежений 1024 символами - тоді надсилаємо розділ окремим повідомленням.
         await cb.message.answer(text, reply_markup=markup)
 
 

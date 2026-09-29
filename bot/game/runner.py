@@ -103,7 +103,7 @@ class GameRunner:
                 await phases[self.game.phase]()
             cleanup = True
         except asyncio.CancelledError:
-            # Зупинка адміном — прибираємо; вимкнення бота — лишаємо снапшот для відновлення.
+            # Зупинка адміном - прибираємо; вимкнення бота - лишаємо снапшот для відновлення.
             cleanup = self._stopped
             raise
         except Exception:
@@ -252,7 +252,7 @@ class GameRunner:
         for p in g.players.values():
             allies = []
             if p.team == Team.EVIL:
-                allies = [f"{texts.mention(a.user_id, a.name)} — {texts.role_title(a.role)}" for a in evil if a is not p]
+                allies = [f"{texts.mention(a.user_id, a.name)} - {texts.role_title(a.role)}" for a in evil if a is not p]
             await self.m.send_scene(p.user_id, f"role_{p.role}", texts.role_card(p.role, p.pocket, allies))
 
     # ================= ніч =================
@@ -308,7 +308,7 @@ class GameRunner:
                 self._resolve_slot(user_id, slot)
                 return Reply(texts.NIGHT_CHOSEN.format(target="нікого"))
             if kind == NightKind.SABER:
-                # Шаблю відклали — лишається перевірка.
+                # Шаблю відклали - лишається перевірка.
                 return Reply(texts.NIGHT_CHOSEN.format(target="шабля лишається в піхвах"))
             return Reply(texts.NIGHT_BAD_TARGET, alert=True)
 
@@ -533,7 +533,7 @@ class GameRunner:
             reward = economy.game_reward(won, p.vip)
             results.append((p.user_id, p.role, won, reward))
             dead = "" if p.alive else " :skull:"
-            line = f"{texts.mention(p.user_id, p.name)} — {texts.role_title(p.role)}{dead}"
+            line = f"{texts.mention(p.user_id, p.name)} - {texts.role_title(p.role)}{dead}"
             (won_lines if won else other_lines).append(line)
         await self.m.send_scene(self.chat_id, texts.WIN_SCENES.get(winner, "draw"),
                                 texts.game_over(winner, won_lines, other_lines, g.day))

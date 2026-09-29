@@ -49,7 +49,7 @@ class Messenger:
         markup: InlineKeyboardMarkup | None = None,
         effect: str | None = None,
     ) -> int | None:
-        effect = effect if chat_id > 0 else None  # ефекти — лише в особистих
+        effect = effect if chat_id > 0 else None  # ефекти - лише в особистих
         return await self._call(chat_id, lambda: self.bot.send_message(
             chat_id, text, reply_markup=markup, disable_web_page_preview=True, message_effect_id=effect,
         ))
@@ -78,7 +78,7 @@ class Messenger:
                 chat_id, file_id, caption=text, reply_markup=markup, message_effect_id=effect))
             if mid is not None:
                 return mid
-            # Медіа не надіслалось (наприклад, file_id застарів) — хоча б текст.
+            # Медіа не надіслалось (наприклад, file_id застарів) - хоча б текст.
             return await self.send(chat_id, text, markup, effect)
         await self._call(chat_id, lambda: sender(chat_id, file_id, message_effect_id=effect))
         return await self.send(chat_id, text, markup)
@@ -91,7 +91,7 @@ class Messenger:
             )
         except TelegramAPIError as e:
             if "there is no text in the message" in str(e).lower():
-                # Це повідомлення з медіа — редагуємо підпис.
+                # Це повідомлення з медіа - редагуємо підпис.
                 try:
                     await self.bot.edit_message_caption(
                         chat_id=chat_id, message_id=message_id, caption=text, reply_markup=markup)

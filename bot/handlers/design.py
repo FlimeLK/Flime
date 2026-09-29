@@ -19,14 +19,14 @@ router.message.filter(IsOwner())
 HELP = (
     ":sparkle: <b>ОФОРМЛЕННЯ</b>\n\n"
     "<b>Анімовані емодзі</b>\n"
-    "<code>/emoji</code> — усі ключі й поточні емодзі\n"
-    "<code>/emoji_id</code> — відповіддю на повідомлення з premium-емодзі: покаже їхні ID\n"
-    "<code>/emoji_set КЛЮЧ</code> — відповіддю на повідомлення з premium-емодзі (або емодзі одразу після ключа)\n"
-    "<code>/emoji_reset КЛЮЧ</code> — повернути емодзі за замовчуванням\n"
-    "<code>/emoji_pack НАЗВА</code> — показати, що з пака підходить; <code>/emoji_pack НАЗВА apply</code> — застосувати\n\n"
+    "<code>/emoji</code> - усі ключі й поточні емодзі\n"
+    "<code>/emoji_id</code> - відповіддю на повідомлення з premium-емодзі: покаже їхні ID\n"
+    "<code>/emoji_set КЛЮЧ</code> - відповіддю на повідомлення з premium-емодзі (або емодзі одразу після ключа)\n"
+    "<code>/emoji_reset КЛЮЧ</code> - повернути емодзі за замовчуванням\n"
+    "<code>/emoji_pack НАЗВА</code> - показати, що з пака підходить; <code>/emoji_pack НАЗВА apply</code> - застосувати\n\n"
     "<b>Медіа для сцен</b>\n"
-    "<code>/media</code> — список сцен\n"
-    "<code>/media СЦЕНА</code> — відповіддю на фото / GIF / відео\n"
+    "<code>/media</code> - список сцен\n"
+    "<code>/media СЦЕНА</code> - відповіддю на фото / GIF / відео\n"
     "<code>/media_clear СЦЕНА</code>"
 )
 
@@ -68,10 +68,10 @@ async def cmd_design(message: Message) -> None:
 
 @router.message(Command("emoji"))
 async def cmd_emoji(message: Message) -> None:
-    lines = [":sparkle: <b>ЕМОДЗІ БОТА</b> (ключ — вигляд — ID)", ""]
+    lines = [":sparkle: <b>ЕМОДЗІ БОТА</b> (ключ - вигляд - ID)", ""]
     for key in emoji.DEFAULTS:
         cid = emoji.custom_id(key)
-        lines.append(f"<code>{key}</code> — {emoji.e(key)} — {f'<code>{cid}</code>' if cid else 'звичайний'}")
+        lines.append(f"<code>{key}</code> - {emoji.e(key)} - {f'<code>{cid}</code>' if cid else 'звичайний'}")
     await send_chunks(message, lines)
 
 
@@ -81,7 +81,7 @@ async def cmd_emoji_id(message: Message) -> None:
     if not found:
         await message.answer("Надішли повідомлення з premium-емодзі й відповідай на нього командою /emoji_id.")
         return
-    lines = [f'<tg-emoji emoji-id="{cid}">{ch}</tg-emoji> — <code>{cid}</code>' for ch, cid in found]
+    lines = [f'<tg-emoji emoji-id="{cid}">{ch}</tg-emoji> - <code>{cid}</code>' for ch, cid in found]
     await message.answer("\n".join(lines))
 
 
@@ -135,7 +135,7 @@ async def cmd_emoji_pack(message: Message, command: CommandObject, bot: Bot, poo
         by_char.setdefault(_norm(ch), cid)
     matches = [(key, by_char[_norm(emo.char)]) for key, emo in emoji.DEFAULTS.items() if _norm(emo.char) in by_char]
 
-    lines = [f":sparkle: <b>{texts.escape(sticker_set.title)}</b> — {len(pack)} емодзі", ""]
+    lines = [f":sparkle: <b>{texts.escape(sticker_set.title)}</b> - {len(pack)} емодзі", ""]
     lines += [f'<tg-emoji emoji-id="{cid}">{ch or "❔"}</tg-emoji> <code>{cid}</code>' for ch, cid in pack[:60]]
     if len(pack) > 60:
         lines.append(f"… і ще {len(pack) - 60}")
@@ -148,7 +148,7 @@ async def cmd_emoji_pack(message: Message, command: CommandObject, bot: Bot, poo
             emoji.set_override(key, cid)
         lines.append(f":ok: Застосовано {len(matches)}: " + ", ".join(f"<code>{k}</code>" for k, _ in matches))
     else:
-        lines.append(f"Збігів: {len(matches)} — " + ", ".join(f"<code>{k}</code>" for k, _ in matches))
+        lines.append(f"Збігів: {len(matches)} - " + ", ".join(f"<code>{k}</code>" for k, _ in matches))
         lines.append(f"Застосувати: <code>/emoji_pack {texts.escape(name)} apply</code>")
     await send_chunks(message, lines)
 
@@ -160,7 +160,7 @@ async def cmd_media(message: Message, command: CommandObject, pool: asyncpg.Pool
         lines = [":sparkle: <b>МЕДІА ДЛЯ СЦЕН</b>", ""]
         for key, title in media.SCENES.items():
             mark = ":ok:" if media.get(key) else "▫️"
-            lines.append(f"{mark} <code>{key}</code> — {title}")
+            lines.append(f"{mark} <code>{key}</code> - {title}")
         lines += ["", "Щоб задати: відповідай на фото / GIF / відео командою <code>/media СЦЕНА</code>."]
         await send_chunks(message, lines)
         return

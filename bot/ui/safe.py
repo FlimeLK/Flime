@@ -21,10 +21,10 @@ from bot.ui.emoji import TAG_RE, render, strip
 log = logging.getLogger(__name__)
 
 TEXT_FIELDS = ("text", "caption")
-# Поля без HTML — лише звичайні емодзі.
+# Поля без HTML - лише звичайні емодзі.
 PLAIN_FIELDS = ("error_message", "title", "description")
 PLAIN_METHODS = ("AnswerCallbackQuery", "AnswerPreCheckoutQuery", "SendInvoice", "CreateInvoiceLink")
-# Помилки, які точно не пов'язані з емодзі — не повторюємо.
+# Помилки, які точно не пов'язані з емодзі - не повторюємо.
 UNRELATED = ("message is not modified", "message to edit not found", "chat not found",
              "query is too old", "message can't be edited", "not enough rights")
 

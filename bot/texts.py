@@ -1,7 +1,7 @@
 """Усі тексти бота. Українською, у стилі «Мафія: Хутір».
 
 Мітки :ключ: (наприклад :night:, :vidma:) перед надсиланням перетворюються на анімовані
-емодзі — див. bot/ui/emoji.py і bot/ui/safe.py. У тексті кнопок і спливних вікон HTML не
+емодзі - див. bot/ui/emoji.py і bot/ui/safe.py. У тексті кнопок і спливних вікон HTML не
 працює, там мітки стають звичайними емодзі.
 """
 
@@ -56,16 +56,16 @@ def numbered(players: list[tuple[int, str]]) -> str:
 # ---------- старт / допомога ----------
 
 # ---------- персонаж ----------
-# Щоб змінити персонажа — достатньо цих констант.
+# Щоб змінити персонажа - достатньо цих констант.
 
 PERSONA = "Кум Опанас"
 CATCHPHRASE = "Отакої"
 
 # Профіль бота в Telegram (застосовується при старті бота; аватарку ставить власник у @BotFather).
 BOT_NAME = f"{PERSONA} | {GAME_NAME}"
-BOT_ABOUT = "Веду «Мафію» на хуторі: ролі, нічні дії, голосування й ярмарок. Додай у групу — і грай!"
+BOT_ABOUT = "Веду «Мафію» на хуторі: ролі, нічні дії, голосування й ярмарок. Додай у групу - і грай!"
 BOT_DESCRIPTION = (
-    "🌻 Отакої! На хуторі завелася нечисть — знайди її раніше, ніж вона знайде тебе.\n"
+    "🌻 Отакої! На хуторі завелася нечисть - знайди її раніше, ніж вона знайде тебе.\n"
     "👇 Тисни «Старт», і я розповім, як тут усе влаштовано."
 )
 
@@ -75,8 +75,8 @@ BOT_DESCRIPTION = (
 def start(first_name: str) -> str:
     return (
         f":wave: <b>{CATCHPHRASE}, {escape(first_name)}!</b>\n"
-        f"Я — <b>{PERSONA}</b>, ведучий гри «{GAME_NAME}».\n"
-        "На нашому хуторі завелася нечисть: вдень усі — добрі сусіди, а вночі хтось не повертається з вечорниць.\n\n"
+        f"Я - <b>{PERSONA}</b>, ведучий гри «{GAME_NAME}».\n"
+        "На нашому хуторі завелася нечисть: вдень усі - добрі сусіди, а вночі хтось не повертається з вечорниць.\n\n"
         "Ознайомся з моїми можливостями ↓"
     )
 
@@ -103,76 +103,76 @@ def section(emo: str, title: str, intro: str, items: list[str], call: str) -> st
 
 SECTION_HOWTO = section(
     "chat", "Як зі мною говорити",
-    f"{CATCHPHRASE}, куме, та це ж просто! Тиснеш кнопку — я роблю.",
+    f"{CATCHPHRASE}, куме, та це ж просто! Тиснеш кнопку - я роблю.",
     [
-        "• :people: Додай мене в групу — там я збиратиму громаду на гру",
+        "• :people: Додай мене в групу - там я збиратиму громаду на гру",
         "• :lock: Ролі, нічні дії й голосування приходять мені в особисті",
         "• :settings: Адміни групи можуть налаштувати гру під себе",
-        "• :sparkle: Усе інше — кнопками в цьому меню",
+        "• :sparkle: Усе інше - кнопками в цьому меню",
     ],
-    "Додавай мене в групу — і гайда на вечорниці!",
+    "Додавай мене в групу - і гайда на вечорниці!",
 )
 
 
 SECTION_GAME = section(
     "dice", "Як грати",
-    "Гра йде по колу, поки хтось не переможе. Я веду — ви хитруєте.",
+    "Гра йде по колу, поки хтось не переможе. Я веду - ви хитруєте.",
     [
-        "• :night: <b>Ніч</b> — кнопки дій приходять в особисті",
-        "• :morning: <b>Ранок</b> — дізнаєтесь, хто не дожив до світанку",
-        "• :discuss: <b>Обговорення</b> — шукайте, хто бреше",
-        "• :vote: <b>Голосування</b> — в особистих, потім вирок :like:/:dislike:",
+        "• :night: <b>Ніч</b> - кнопки дій приходять в особисті",
+        "• :morning: <b>Ранок</b> - дізнаєтесь, хто не дожив до світанку",
+        "• :discuss: <b>Обговорення</b> - шукайте, хто бреше",
+        "• :vote: <b>Голосування</b> - в особистих, потім вирок :like:/:dislike:",
     ],
-    "Громада перемагає, коли нечисті не лишилось. Нечисть — коли її не менше, ніж решти.",
+    "Громада перемагає, коли нечисті не лишилось. Нечисть - коли її не менше, ніж решти.",
 )
 
 
 def section_roles() -> str:
-    lines = [f"• :{r.key}: <b>{r.name}</b> — {ROLE_DESCRIPTIONS[r.key]}" for r in ROLES.values()]
+    lines = [f"• :{r.key}: <b>{r.name}</b> - {ROLE_DESCRIPTIONS[r.key]}" for r in ROLES.values()]
     return section("mask", "Ролі", "На хуторі кожен не той, ким здається. Ось хто тут живе:", lines,
-                   "Роль приходить в особисті на початку гри — нікому не показуй!")
+                   "Роль приходить в особисті на початку гри - нікому не показуй!")
 
 
 def section_items() -> str:
-    lines = [f"• :{i.key}: <b>{i.name}</b> · {i.price} :shagy: — {i.description}" for i in ITEMS.values()]
-    return section("bag", "Предмети", "На ярмарку можна прикупити дещо корисне — у гру беруться самі.",
+    lines = [f"• :{i.key}: <b>{i.name}</b> · {i.price} :shagy: - {i.description}" for i in ITEMS.values()]
+    return section("bag", "Предмети", "На ярмарку можна прикупити дещо корисне - у гру беруться самі.",
                    lines, "Зазирни на ярмарок, поки шаги в кишені!")
 
 
 def section_profile(card: str) -> str:
-    return section("profile", "Моя хата", card, [], "Грай частіше — шаги самі в кишеню не стрибнуть!")
+    return section("profile", "Моя хата", card, [], "Грай частіше - шаги самі в кишеню не стрибнуть!")
 
 
 def section_daily(result: str) -> str:
-    return section("gift", "Гостинець", result, [], "Кума щодня пече пиріжки — не забувай заходити!")
+    return section("gift", "Гостинець", result, [], "Кума щодня пече пиріжки - не забувай заходити!")
 
 
 SECTION_VIP = section(
     "vip", "VIP і червінці",
-    "VIP — для поважних кумів. Купується за :star: зірки або червінці.",
+    "VIP - для поважних кумів. Купується за :star: зірки або червінці.",
     [
         "• :fire: ×1.5 шагів за кожну гру",
         "• :gift: більший щоденний гостинець",
         "• :bag: +1 предмет у кишеню на гру",
         "• :vip: корона в профілі",
     ],
-    "Підтримай хутір — і хутір віддячить!",
+    "Підтримай хутір - і хутір віддячить!",
 )
 
 
 ROLE_DESCRIPTIONS = {
     "selianyn": "Звичайний селянин. Вночі спить, вдень шукає нечисть і голосує.",
-    "znaharka": "Щоночі лікує одного гравця від смерті. Себе — лише раз за гру. Одну людину двічі поспіль не можна.",
+    "znaharka": "Щоночі лікує одного гравця від смерті. Себе - лише раз за гру. Одну людину двічі поспіль не можна.",
     "harakternyk": "Щоночі перевіряє, чи гравець із Громади. Один раз за гру може замість цього вдарити шаблею.",
     "kum": "Везунчик: переживає перший напад уночі.",
     "storozh": "Стереже чиюсь хату і зранку знає, хто туди приходив.",
     "kobzar": "Співає про двох гравців і дізнається, чи вони з одного боку.",
     "otaman": "Його голос на денному голосуванні важить подвійно.",
     "vidma": "Ватажок нечисті. Її слово вирішує, кого забрати вночі.",
-    "upyr": "Нечисть. Голосує за жертву. Якщо Відьма загине — стає ватажком.",
-    "mavka": "Нечисть. Заманює гравця на ніч — його дія не спрацьовує. Якщо лишиться сама з нечисті — вбиває.",
+    "upyr": "Нечисть. Голосує за жертву. Якщо Відьма загине - стає ватажком.",
+    "mavka": "Нечисть. Заманює гравця на ніч - його дія не спрацьовує. Якщо лишиться сама з нечисті - вбиває.",
     "vovkulaka": "Одинак. Щоночі вбиває і хоче лишитися останнім.",
-    "duren": "Одинак. Мріє, щоб громада його стратила — тоді він переможе.",
+    "duren": "Одинак. Мріє, щоб громада його стратила - тоді він переможе.",
 }
 
 
@@ -187,15 +187,15 @@ def rules() -> str:
         ":vote: <b>Голосування</b> в особистих, потім громада підтверджує страту :like:/:dislike:.",
         "",
         ":trophy: <b>Перемога</b>",
-        "<blockquote>Громада — коли вся нечисть і вовкулака мертві.\n"
-        "Нечисть — коли її не менше, ніж решти.\n"
-        "Вовкулака — коли лишиться сам на сам з кимось.\n"
-        "Іван-дурень — якщо його стратять.</blockquote>",
+        "<blockquote>Громада - коли вся нечисть і вовкулака мертві.\n"
+        "Нечисть - коли її не менше, ніж решти.\n"
+        "Вовкулака - коли лишиться сам на сам з кимось.\n"
+        "Іван-дурень - якщо його стратять.</blockquote>",
     ]
     for team in (Team.VILLAGE, Team.EVIL, Team.WOLF, Team.FOOL):
-        lines = [f"{role_title(r.key)} — {ROLE_DESCRIPTIONS[r.key]}" for r in ROLES.values() if r.team == team]
+        lines = [f"{role_title(r.key)} - {ROLE_DESCRIPTIONS[r.key]}" for r in ROLES.values() if r.team == team]
         parts.append(f"<b>{TEAM_TITLES[team]}</b>\n<blockquote expandable>" + "\n".join(lines) + "</blockquote>")
-    items = [f"{item_title(i.key)} — {i.description}" for i in ITEMS.values()]
+    items = [f"{item_title(i.key)} - {i.description}" for i in ITEMS.values()]
     parts.append(":bag: <b>Предмети</b> (купуються на ярмарку й самі беруться в гру)\n"
                  "<blockquote expandable>" + "\n".join(items) + "</blockquote>")
     return "\n".join(parts)
@@ -220,15 +220,15 @@ def lobby(players: list[tuple[int, str]], seconds: int, min_players: int) -> str
 
 
 JOIN_BUTTON = "Долучитися до гри"
-LOBBY_REMINDER = ":bell: До початку гри лишилось <b>{left}</b>! Хто ще не записався — тисни «Долучитися»."
-LOBBY_NOT_ENOUGH = ":skip: Не зібралось навіть {min} людей. Гру скасовано — хутір лягає спати."
+LOBBY_REMINDER = ":bell: До початку гри лишилось <b>{left}</b>! Хто ще не записався - тисни «Долучитися»."
+LOBBY_NOT_ENOUGH = ":skip: Не зібралось навіть {min} людей. Гру скасовано - хутір лягає спати."
 LOBBY_ALREADY = ":dice: Гра в цьому чаті вже йде. Дочекайся наступної."
 JOINED_PM = ":ok: Тебе записано на гру в чаті <b>{chat}</b>. Чекай на свою роль!"
 JOIN_ALREADY_HERE = "Ти вже записаний на цю гру."
 JOIN_IN_OTHER = "Ти вже граєш в іншому чаті. Одна гра за раз!"
 JOIN_CLOSED = "Реєстрацію вже закрито."
-JOIN_FULL = "Громада переповнена — більше {max} гравців не можна."
-LEFT_LOBBY = ":wave: {name} іде додому — не цього разу."
+JOIN_FULL = "Громада переповнена - більше {max} гравців не можна."
+LEFT_LOBBY = ":wave: {name} іде додому - не цього разу."
 NOT_IN_LOBBY = "Ти не записаний у цю гру або вона вже почалась."
 GROUP_ONLY = "Ця команда працює лише в групі."
 PRIVATE_ONLY = "Ця команда працює лише в особистих повідомленнях з ботом."
@@ -263,7 +263,7 @@ def role_card(role_key: str, pocket: list[str], allies: list[str]) -> str:
     ]
     if allies:
         text += ["", ":evil: <b>Твоя нечиста братія:</b>", *[f"• {a}" for a in allies],
-                 "<i>Пиши мені сюди — я передам повідомлення своїм.</i>"]
+                 "<i>Пиши мені сюди - я передам повідомлення своїм.</i>"]
     if pocket:
         text += ["", ":bag: <b>У кишені:</b> " + ", ".join(item_title(i) for i in pocket)]
     return "\n".join(text)
@@ -275,7 +275,7 @@ def night_start(day: int, alive: list[tuple[int, str]]) -> str:
     return (
         f":night: <b>НІЧ {day}</b>\n\n"
         "<blockquote>Хутір засинає. Собаки гавкають, у лісі щось шарудить…</blockquote>\n"
-        ":lock: Хто має нічні справи — перевірте особисті.\n\n"
+        ":lock: Хто має нічні справи - перевірте особисті.\n\n"
         f":people: <b>Живі ({len(alive)}):</b>\n{numbered(alive)}"
     )
 
@@ -287,7 +287,7 @@ NIGHT_PROMPTS = {
     "saber": ":harakternyk: Або вдарити шаблею <i>(лише раз за гру)</i>:",
     "watch": ":storozh: <b>Чию хату стерегтимеш?</b>",
     "compare": ":kobzar: <b>Про кого співатимеш?</b> Обери першого.",
-    "compare2": ":kobzar: А тепер другого — поруч із <b>{first}</b>.",
+    "compare2": ":kobzar: А тепер другого - поруч із <b>{first}</b>.",
     "lure": ":mavka: <b>Кого заманиш до ставка?</b>",
     "wolf": ":vovkulaka: <b>Кого вовкулака розірве цієї ночі?</b>",
     "pitchfork": ":pitchfork: У тебе є вила. Кого проштрикнеш? <i>(необов'язково)</i>",
@@ -320,29 +320,29 @@ def morning(day: int, deaths: list[tuple[int, str, str, str | None]], saved_coun
         lines.append(":dove: Цієї ночі всі живі! Нечисть лишилась голодною.")
     for uid, name, cause, role_key in deaths:
         role_part = f"\n    <i>Роль: {role_title(role_key)}</i>" if role_key else ""
-        lines.append(f":coffin: {mention(uid, name)} — {DEATH_CAUSES.get(cause, 'не дожили до ранку')}.{role_part}")
+        lines.append(f":coffin: {mention(uid, name)} - {DEATH_CAUSES.get(cause, 'не дожили до ранку')}.{role_part}")
     if saved_count:
         lines.append(f"\n:sparkle: Цієї ночі когось дивом врятували ({saved_count}).")
     return "\n".join(lines)
 
 
-YOU_DIED = ":coffin: Тебе вбили цієї ночі. Можеш спостерігати, але мовчи — мертві не говорять."
+YOU_DIED = ":coffin: Тебе вбили цієї ночі. Можеш спостерігати, але мовчи - мертві не говорять."
 YOU_SAVED = {
     "heal": ":znaharka: На тебе напали, але знахарка встигла тебе вилікувати!",
     "obereg": ":obereg: На тебе напали, але оберіг захистив! Він розсипався на порох.",
     "kum": ":kum: На тебе напали, але ти, кум, як завжди, викрутився!",
 }
-YOU_LURED = ":mavka: Мавка заманила тебе до ставка — цієї ночі ти нічого не встиг."
+YOU_LURED = ":mavka: Мавка заманила тебе до ставка - цієї ночі ти нічого не встиг."
 GARLIC_WORKED = ":garlic: Мавка кликала тебе до ставка, але від часнику аж скривилась!"
 CHECK_RESULT = {
-    True: ":harakternyk: {target} — з :village: <b>Громади</b>.",
-    False: ":harakternyk: {target} — <b>НЕ з Громади!</b> :evil:",
+    True: ":harakternyk: {target} - з :village: <b>Громади</b>.",
+    False: ":harakternyk: {target} - <b>НЕ з Громади!</b> :evil:",
 }
-COMPARE_RESULT = {True: ":kobzar: {a} і {b} — <b>з одного боку</b>.", False: ":kobzar: {a} і {b} — <b>з різних боків</b>."}
+COMPARE_RESULT = {True: ":kobzar: {a} і {b} - <b>з одного боку</b>.", False: ":kobzar: {a} і {b} - <b>з різних боків</b>."}
 WATCH_RESULT = ":storozh: До хати {target} цієї ночі приходили: {visitors}"
 WATCH_NOBODY = ":storozh: До хати {target} цієї ночі ніхто не приходив."
 CANDLE_RESULT = ":candle: Свічка догоріла. До тебе вночі приходили: {visitors}"
-NEW_LEADER = ":evil: Ти тепер ватажок нечисті — твоє слово вирішальне."
+NEW_LEADER = ":evil: Ти тепер ватажок нечисті - твоє слово вирішальне."
 
 
 # ---------- день і голосування ----------
@@ -351,7 +351,7 @@ DAY_START = ":discuss: <b>ОБГОВОРЕННЯ</b> · {time}\nХто підо�
 VOTE_START = ":vote: <b>ГОЛОСУВАННЯ!</b>\nКожен живий голосує в особистих · {time}"
 VOTE_PROMPT = ":vote: <b>Кого громада має стратити?</b>"
 HONEY_BUTTON = "Мед: мій голос ×2"
-HONEY_USED = ":honey: Мед з'їдено — твій голос сьогодні важить більше!"
+HONEY_USED = ":honey: Мед з'їдено - твій голос сьогодні важить більше!"
 HONEY_FAIL = "Меду немає або його вже з'їдено."
 VOTE_CAST = ":ok: Твій голос: <b>{target}</b>"
 VOTE_SKIP_CAST = ":ok: Твій голос: нікого не страчувати."
@@ -359,7 +359,7 @@ VOTE_ANNOUNCE = ":vote: {voter} → {target}"
 VOTE_ANNOUNCE_SKIP = ":vote: {voter} → :skip: нікого"
 VOTE_ANNOUNCE_SECRET = ":secret: Хтось проголосував · {count}/{total}"
 VOTE_EXPIRED = ":hourglass: Голосування завершилось."
-VOTE_NOBODY = ":dove: Громада не дійшла згоди — сьогодні нікого не стратять."
+VOTE_NOBODY = ":dove: Громада не дійшла згоди - сьогодні нікого не стратять."
 
 
 def vote_results(rows: list[tuple[str, int]]) -> str:
@@ -381,7 +381,7 @@ CONFIRM_THANKS = "Голос враховано."
 PARDON = ":dove: Громада змилувалась: {name} лишається жити. ({yes} :like: / {no} :dislike:)"
 LYNCHED = ":rope: Громада винесла вирок: {name} страчено.{role}"
 HORSESHOE_SAVED = ":horseshoe: Мотузка обірвалась! У кишені знайшлась підкова на щастя: {name} вціліли."
-FOOL_WON = ":duren: Та це ж був Іван-дурень! Він хотів цього — і переміг. Гра триває."
+FOOL_WON = ":duren: Та це ж був Іван-дурень! Він хотів цього - і переміг. Гра триває."
 
 
 # ---------- кінець гри ----------
@@ -389,7 +389,7 @@ FOOL_WON = ":duren: Та це ж був Іван-дурень! Він хотів
 WINNER_TITLES = {
     Team.VILLAGE: ":village: <b>Перемогла Громада!</b> Нечисть вигнали з хутора.",
     Team.EVIL: ":evil: <b>Перемогла Нечисть!</b> Хутір тепер належить темряві.",
-    Team.WOLF: ":vovkulaka: <b>Переміг Вовкулака!</b> Лишився лише він — і місяць.",
+    Team.WOLF: ":vovkulaka: <b>Переміг Вовкулака!</b> Лишився лише він - і місяць.",
     "draw": ":candle: <b>Нічия.</b> На хуторі не лишилось нікого…",
 }
 WIN_SCENES = {Team.VILLAGE: "win_village", Team.EVIL: "win_evil", Team.WOLF: "win_wolf", "draw": "draw"}
@@ -431,7 +431,7 @@ def profile(name: str, shagy: int, cherv: int, vip_until: str | None, games: int
 
 
 DAILY_OK = ":gift: Кума передала гостинця: <b>+{amount}</b> {shagy}! Приходь завтра."
-DAILY_WAIT = ":timer: Гостинець уже отримано. Наступний — через <b>{left}</b>."
+DAILY_WAIT = ":timer: Гостинець уже отримано. Наступний - через <b>{left}</b>."
 TOP_HEAD = ":trophy: <b>НАЙКРАЩІ НА ХУТОРІ</b>\n"
 TOP_MEDALS = (":gold:", ":silver:", ":bronze:")
 TOP_EMPTY = "Тут ще ніхто не грав. Почніть з /game!"
@@ -461,13 +461,13 @@ def shop(balance: int, inventory: dict[str, int], slots: int) -> str:
         ":shop: <b>ЯРМАРОК</b>",
         "",
         f"Твій гаманець: <b>{balance}</b> {SHAGY}",
-        f"<i>На гру береш до {slots} різних предметів (VIP — більше).</i>",
+        f"<i>На гру береш до {slots} різних предметів (VIP - більше).</i>",
         "",
     ]
     for item in ITEMS.values():
         have = inventory.get(item.key, 0)
         own = f"  · у скрині: {have}" if have else ""
-        lines.append(f"{item_title(item.key)} — <b>{item.price}</b> {SHAGY}{own}\n<blockquote>{item.description}</blockquote>")
+        lines.append(f"{item_title(item.key)} - <b>{item.price}</b> {SHAGY}{own}\n<blockquote>{item.description}</blockquote>")
     return "\n".join(lines)
 
 
@@ -519,7 +519,7 @@ SETTINGS_MODULES = [
 SETTINGS_REFRESH = "Оновити меню"
 SETTINGS_TIMERS_HEAD = ":timer: <b>Таймери</b>\n\nСкільки часу триває кожна фаза. Тисни −/+."
 SETTINGS_ROLES_HEAD = (
-    ":mask: <b>Ролі</b>\n\nЗелені — в грі, червоні — вимкнені. Відьма, Упир і Селянин — обов'язкові."
+    ":mask: <b>Ролі</b>\n\nЗелені - в грі, червоні - вимкнені. Відьма, Упир і Селянин - обов'язкові."
 )
 SETTINGS_VOTE_HEAD = ":vote: <b>Голосування</b>\n\nЯк громада голосує і що дізнається про загиблих."
 SETTINGS_ITEMS_HEAD = ":bag: <b>Предмети</b>\n\nЧи можна брати в гру предмети з ярмарку."

@@ -1,7 +1,7 @@
 """Резолвер ночі.
 
 Порядок:
-  1. Мавка заманює — дія цілі скасовується (якщо в неї немає часнику).
+  1. Мавка заманює - дія цілі скасовується (якщо в неї немає часнику).
   2. Визначається жертва нечисті (слово ватажка, інакше більшість голосів).
   3. Фіксуються візити (для сторожа й свічки).
   4. Знахарка лікує.
@@ -24,9 +24,9 @@ KILL_KINDS = (NightKind.KILL, NightKind.WOLF_KILL, NightKind.SABER, NightKind.PI
 
 @dataclass
 class NightResult:
-    # (жертва, причина) — причина: evil | wolf | saber | pitchfork
+    # (жертва, причина) - причина: evil | wolf | saber | pitchfork
     deaths: list[tuple[int, str]] = field(default_factory=list)
-    # (врятований, чим) — heal | obereg | kum
+    # (врятований, чим) - heal | obereg | kum
     saved: list[tuple[int, str]] = field(default_factory=list)
     # кого заманила мавка (їхня дія скасована)
     lured: list[int] = field(default_factory=list)
@@ -183,5 +183,5 @@ def can_target(game: Game, actor_id: int, kind: NightKind, target_id: int) -> bo
         return target.team != Team.EVIL
     if kind == NightKind.LURE:
         return target_id != actor_id and target.team != Team.EVIL
-    # Решта дій — будь-хто, крім себе.
+    # Решта дій - будь-хто, крім себе.
     return target_id != actor_id

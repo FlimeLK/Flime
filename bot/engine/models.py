@@ -112,7 +112,7 @@ class Game:
             return []
         kinds = list(player.role_obj.night)
         if player.role == "mavka" and not self.by_role("vidma") and not self.by_role("upyr"):
-            # Остання з нечисті — сама обирає жертву замість заманювання.
+            # Остання з нечисті - сама обирає жертву замість заманювання.
             kinds = [NightKind.KILL]
         if NightKind.SABER in kinds and player.flags.get("saber_used"):
             kinds.remove(NightKind.SABER)
