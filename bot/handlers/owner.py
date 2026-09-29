@@ -189,7 +189,7 @@ async def on_owner(cb: CallbackQuery, callback_data: OwnCb, state: FSMContext, b
     elif action == "games":
         games = [(chat_id, r.chat_title or str(chat_id)) for chat_id, r in manager.runners.items()]
         lines = [
-            f"• {texts.escape(r.chat_title or str(chat_id))}: {r.game.phase.value}, "
+            f"{texts.escape(r.chat_title or str(chat_id))}: {r.game.phase.value}, "
             f"день {r.game.day}, живих {len(r.game.alive())}/{len(r.game.players)}"
             for chat_id, r in manager.runners.items()
         ]
@@ -392,7 +392,7 @@ async def cmd_games(message: Message, manager: GameManager) -> None:
         await message.answer("Зараз ігор немає.")
         return
     lines = [
-        f"• {texts.escape(r.chat_title or str(chat_id))}: {r.game.phase.value}, "
+        f"{texts.escape(r.chat_title or str(chat_id))}: {r.game.phase.value}, "
         f"день {r.game.day}, живих {len(r.game.alive())}/{len(r.game.players)}"
         for chat_id, r in manager.runners.items()
     ]
