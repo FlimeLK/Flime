@@ -10,6 +10,7 @@ from aiogram.types import Message
 from bot import texts
 from bot.config import Settings
 from bot.db import groups
+from bot.db import roles as roles_db
 from bot.db.users import User
 from bot.engine.models import MIN_PLAYERS
 from bot.game.manager import GameManager
@@ -27,7 +28,8 @@ async def cmd_game(message: Message, pool: asyncpg.Pool, manager: GameManager, u
         await message.answer(texts.LOBBY_ALREADY)
         return
     settings = await groups.get(pool, message.chat.id, message.chat.title or "")
-    manager.create(message.chat.id, settings, user.id, message.chat.title or "")
+    custom = await roles_db.list_for_chat(pool, message.chat.id, enabled_only=True)
+    manager.create(message.chat.id, settings, user.id, message.chat.title or "", custom)
 
 
 @router.message(CommandStart(deep_link=True, magic=F.args.regexp(r"^join-?\d+$")), F.chat.type == "private")

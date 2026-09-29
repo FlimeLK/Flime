@@ -25,7 +25,7 @@ def fresh_emoji():
 
 
 def test_every_role_and_item_has_emoji_key():
-    for key in list(ROLES) + list(ITEMS):
+    for key in [k for k, r in ROLES.items() if not r.custom] + list(ITEMS):
         assert key in emoji.DEFAULTS, key
 
 

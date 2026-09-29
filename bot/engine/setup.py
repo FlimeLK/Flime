@@ -16,8 +16,12 @@ def evil_count(n: int) -> int:
     return max(1, round(n / 3.5))
 
 
-def build_roles(n: int, disabled: Iterable[str] = ()) -> list[str]:
-    """Повертає список ролей довжини n (ще не перемішаний)."""
+def build_roles(n: int, disabled: Iterable[str] = (), custom: Iterable[str] = ()) -> list[str]:
+    """Повертає список ролей довжини n (ще не перемішаний).
+
+    custom - ключі власних ролей чату (уже зареєстрованих у ROLES); вони роздаються першими:
+    нечисть - замість упирів (кількість нечисті не змінюється), решта - перед стандартними спецролями.
+    """
     from bot.engine.roles import ROLES
 
     if not MIN_PLAYERS <= n <= MAX_PLAYERS:
@@ -27,12 +31,23 @@ def build_roles(n: int, disabled: Iterable[str] = ()) -> list[str]:
     def enabled(key: str) -> bool:
         return key not in off and n >= ROLES[key].min_players
 
+    from bot.engine.roles import Team
+
+    custom = [k for k in custom if k in ROLES and n >= ROLES[k].min_players]
     evil = evil_count(n)
     roles = ["vidma"]
-    if evil >= 2 and enabled("mavka"):
+    for key in custom:
+        if ROLES[key].team == Team.EVIL and len(roles) < evil:
+            roles.append(key)
+    if len(roles) < evil and evil >= 2 and enabled("mavka"):
         roles.append("mavka")
     roles += ["upyr"] * (evil - len(roles))
 
+    others = [k for k in custom if ROLES[k].team != Team.EVIL]
+    for key in others:
+        if len(roles) >= n - 1:  # лишаємо щонайменше одне місце для стандартних ролей
+            break
+        roles.append(key)
     for key in SOLO_ROLES + VILLAGE_SPECIALS:
         if len(roles) >= n:
             break
@@ -45,7 +60,10 @@ def build_roles(n: int, disabled: Iterable[str] = ()) -> list[str]:
 def assign_roles(game: Game, rng: random.Random | None = None) -> None:
     rng = rng or random.Random()
     ids = list(game.players)
-    roles = build_roles(len(ids), game.settings.get("disabled_roles", ()))
+    from bot.engine.roles import register_custom
+
+    custom = register_custom(game.settings.get("custom_roles", []))
+    roles = build_roles(len(ids), game.settings.get("disabled_roles", ()), custom)
     rng.shuffle(roles)
     for uid, role in zip(ids, roles, strict=True):
         p = game.players[uid]

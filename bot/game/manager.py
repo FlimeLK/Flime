@@ -9,6 +9,7 @@ import asyncpg
 from bot.db import games as games_db
 from bot.db.groups import GroupSettings
 from bot.engine.models import Game, Phase
+from bot.engine.roles import register_custom
 from bot.game.messenger import Messenger
 from bot.game.runner import GameRunner
 
@@ -36,8 +37,10 @@ class GameManager:
         self.runners[game.chat_id] = runner
         return runner
 
-    def create(self, chat_id: int, settings: GroupSettings, starter_id: int, title: str) -> GameRunner:
-        game = Game(chat_id=chat_id, settings=settings.to_dict(), starter_id=starter_id)
+    def create(self, chat_id: int, settings: GroupSettings, starter_id: int, title: str,
+               custom_roles: list[dict] | None = None) -> GameRunner:
+        game = Game(chat_id=chat_id, settings={**settings.to_dict(), "custom_roles": custom_roles or []},
+                    starter_id=starter_id)
         runner = self._make(game, title)
         runner.start()
         return runner
@@ -55,6 +58,7 @@ class GameManager:
                 log.exception("Broken game snapshot, dropping: %s", state.get("chat_id"))
                 await games_db.delete_snapshot(self.pool, state.get("chat_id"))
                 continue
+            register_custom(game.settings.get("custom_roles", []))
             if game.phase == Phase.FINISHED:
                 await games_db.delete_snapshot(self.pool, game.chat_id)
                 continue

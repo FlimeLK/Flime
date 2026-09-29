@@ -175,3 +175,21 @@ def test_lone_mavka_becomes_killer():
     assert can_target(g, 3, K.KILL, 9)
     g.evil_votes = {3: 9}
     assert resolve_night(g).deaths == [(9, "evil")]
+
+
+def test_custom_village_killer_and_blocker():
+    from bot.engine.roles import register_custom
+
+    killer, blocker = register_custom([
+        {"id": 8001, "name": "Мисливець", "emoji": "🏹", "team": "village", "ability": "kill", "min_players": 4},
+        {"id": 8002, "name": "Сторожиха", "emoji": "🧹", "team": "village", "ability": "block", "min_players": 4},
+    ])
+    g = make_game(["vidma", "znaharka", killer, blocker, "selianyn", "selianyn"])
+    assert can_target(g, 3, K.CUSTOM_KILL, 1)
+    assert can_target(g, 4, K.LURE, 1)  # блокувальник з Громади може зупинити відьму
+    act(g, 3, K.CUSTOM_KILL, 5)
+    act(g, 4, K.LURE, 1)
+    g.evil_votes = {1: 6}
+    r = resolve_night(g)
+    assert r.lured == [1]
+    assert r.deaths == [(5, "custom")]  # відьму затримали - її жертва жива

@@ -19,7 +19,7 @@ from bot.engine import items as it
 from bot.engine.models import Action, Game
 from bot.engine.roles import NightKind, Team
 
-KILL_KINDS = (NightKind.KILL, NightKind.WOLF_KILL, NightKind.SABER, NightKind.PITCHFORK)
+KILL_KINDS = (NightKind.KILL, NightKind.WOLF_KILL, NightKind.SABER, NightKind.PITCHFORK, NightKind.CUSTOM_KILL)
 
 
 @dataclass
@@ -124,7 +124,7 @@ def resolve_night(game: Game) -> NightResult:
             continue
         cause = {
             NightKind.KILL: "evil", NightKind.WOLF_KILL: "wolf",
-            NightKind.SABER: "saber", NightKind.PITCHFORK: "pitchfork",
+            NightKind.SABER: "saber", NightKind.PITCHFORK: "pitchfork", NightKind.CUSTOM_KILL: "custom",
         }[a.kind]
         if a.kind == NightKind.SABER:
             game.players[a.actor].flags["saber_used"] = True
@@ -182,6 +182,7 @@ def can_target(game: Game, actor_id: int, kind: NightKind, target_id: int) -> bo
     if kind in (NightKind.KILL,):
         return target.team != Team.EVIL
     if kind == NightKind.LURE:
-        return target_id != actor_id and target.team != Team.EVIL
+        # Мавка (і будь-яка нечисть) не блокує своїх; блокувальник з інших сторін — будь-кого.
+        return target_id != actor_id and (actor.team != Team.EVIL or target.team != Team.EVIL)
     # Решта дій - будь-хто, крім себе.
     return target_id != actor_id

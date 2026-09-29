@@ -50,3 +50,33 @@ def test_assign_roles_sets_everyone():
 def test_bad_player_count():
     with pytest.raises(ValueError):
         build_roles(3)
+
+
+def _custom(i: int, team: str, ability: str, min_players: int = 4) -> dict:
+    return {"id": 9000 + i, "name": f"Роль{i}", "emoji": "🦉", "emoji_id": None, "description": "опис",
+            "team": team, "ability": ability, "min_players": min_players}
+
+
+@pytest.mark.parametrize("n", range(MIN_PLAYERS, MAX_PLAYERS + 1))
+def test_build_roles_with_custom(n):
+    from bot.engine.roles import register_custom
+
+    keys = register_custom([_custom(1, "evil", "block"), _custom(2, "village", "kill"),
+                            _custom(3, "wolf", "none", min_players=8)])
+    roles = build_roles(n, custom=keys)
+    assert len(roles) == n
+    evil = sum(1 for r in roles if ROLES[r].team == Team.EVIL)
+    assert evil == evil_count(n) and evil < n - evil
+    assert "c9002" in roles  # громада-вбивця з 4 гравців
+    assert ("c9003" in roles) == (n >= 8)
+    if evil_count(n) >= 2:
+        assert "c9001" in roles
+
+
+def test_custom_role_abilities():
+    from bot.engine.roles import NightKind, register_custom
+
+    k_evil, k_vill = register_custom([_custom(11, "evil", "kill"), _custom(12, "village", "kill")])
+    assert ROLES[k_evil].night == (NightKind.KILL,)
+    assert ROLES[k_vill].night == (NightKind.CUSTOM_KILL,)
+    assert ROLES[k_vill].custom and ROLES[k_vill].team == Team.VILLAGE

@@ -1,6 +1,6 @@
 from aiogram import Router
 
-from bot.handlers import design, lobby, owner, payments, play, profile, settings, shop, start
+from bot.handlers import design, lobby, owner, payments, play, profile, roles, settings, shop, start
 
 
 def build_router() -> Router:
@@ -9,6 +9,7 @@ def build_router() -> Router:
     # «рада нечисті» (будь-який текст в особистих) - останньою.
     root.include_routers(
         lobby.router,
+        roles.router,
         start.router,
         profile.router,
         shop.router,

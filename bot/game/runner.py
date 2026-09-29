@@ -270,7 +270,9 @@ class GameRunner:
         for p in g.alive():
             for kind in g.night_kinds(p):
                 slot = ITEM_SLOT if kind == NightKind.PITCHFORK else ROLE_SLOT
-                mid = await self.m.send(p.user_id, texts.NIGHT_PROMPTS[kind.value],
+                prompts = texts.CUSTOM_NIGHT_PROMPTS if p.role_obj.custom else texts.NIGHT_PROMPTS
+                prompt = prompts.get(kind.value) or texts.NIGHT_PROMPTS[kind.value]
+                mid = await self.m.send(p.user_id, prompt,
                                         views.night_targets(g, p.user_id, kind))
                 if mid:
                     self._pending.setdefault((p.user_id, slot), []).append(mid)

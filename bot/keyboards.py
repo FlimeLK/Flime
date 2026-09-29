@@ -77,13 +77,67 @@ def settings_timers(s: GroupSettings) -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(inline_keyboard=keyboard)
 
 
-def settings_roles(s: GroupSettings) -> InlineKeyboardMarkup:
+def settings_roles(s: GroupSettings, custom: list[dict], bot_username: str, chat_id: int) -> InlineKeyboardMarkup:
     buttons = [
         btn(f"{r.name} ({r.min_players}+)", SetCb(action="role", key=r.key), emo=r.key,
             style=DANGER if r.key in s.disabled_roles else SUCCESS)
-        for r in ROLES.values() if r.optional
+        for r in ROLES.values() if r.optional and not r.custom
     ]
-    return InlineKeyboardMarkup(inline_keyboard=[*rows(buttons, 2), _back_to_settings()])
+    buttons += [
+        btn(f"{c['emoji']}{c['name']} ({c['min_players']}+)", SetCb(action="crole", key=str(c["id"])),
+            style=SUCCESS if c["enabled"] else DANGER)
+        for c in custom
+    ]
+    link = f"https://t.me/{bot_username}?start="
+    return InlineKeyboardMarkup(inline_keyboard=[
+        *rows(buttons, 2),
+        [btn(texts.ROLES_CREATE, url=f"{link}newrole{chat_id}", emo="sparkle", style=PRIMARY),
+         btn(texts.ROLES_MINE, url=f"{link}myroles{chat_id}", emo="mask")],
+        _back_to_settings(),
+    ])
+
+
+# ---------- майстер власних ролей (особисті) ----------
+
+class RoleCb(CallbackData, prefix="role"):
+    # team | ability | min | save | cancel | view | toggle | delete | list
+    action: str
+    value: str = ""
+
+
+def role_choice(action: str, options: list[tuple[str, str, str]], width: int = 2) -> InlineKeyboardMarkup:
+    """options: (значення, емодзі-ключ або "", підпис)."""
+    buttons = [btn(label, RoleCb(action=action, value=value), emo=emo or None) for value, emo, label in options]
+    return InlineKeyboardMarkup(inline_keyboard=[
+        *rows(buttons, width),
+        [btn(texts.ROLE_CANCEL, RoleCb(action="cancel"), emo="no")],
+    ])
+
+
+def role_confirm() -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(inline_keyboard=[[
+        btn(texts.ROLE_SAVE, RoleCb(action="save"), emo="ok", style=SUCCESS),
+        btn(texts.ROLE_CANCEL, RoleCb(action="cancel"), emo="no", style=DANGER),
+    ]])
+
+
+def roles_list(custom: list[dict]) -> InlineKeyboardMarkup:
+    buttons = [
+        btn(f"{c['emoji']}{c['name']}", RoleCb(action="view", value=str(c["id"])),
+            style=SUCCESS if c["enabled"] else DANGER)
+        for c in custom
+    ]
+    return InlineKeyboardMarkup(inline_keyboard=rows(buttons, 2))
+
+
+def role_manage(role: dict) -> InlineKeyboardMarkup:
+    rid = str(role["id"])
+    toggle = texts.ROLE_DISABLE if role["enabled"] else texts.ROLE_ENABLE
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [btn(toggle, RoleCb(action="toggle", value=rid), emo="refresh"),
+         btn(texts.ROLE_DELETE, RoleCb(action="delete", value=rid), emo="no", style=DANGER)],
+        [btn(texts.BACK, RoleCb(action="list", value=str(role["chat_id"])), emo="back")],
+    ])
 
 
 def settings_toggles(s: GroupSettings, keys: tuple[str, ...]) -> InlineKeyboardMarkup:

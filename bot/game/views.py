@@ -17,6 +17,7 @@ NIGHT_STYLE: dict[NightKind, tuple[str, str | None]] = {
     NightKind.WOLF_KILL: ("vovkulaka", DANGER),
     NightKind.SABER: ("harakternyk", DANGER),
     NightKind.PITCHFORK: ("pitchfork", DANGER),
+    NightKind.CUSTOM_KILL: ("skull", DANGER),
     NightKind.HEAL: ("heal", SUCCESS),
     NightKind.CHECK: ("check", PRIMARY),
     NightKind.COMPARE: ("kobzar", PRIMARY),

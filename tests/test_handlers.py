@@ -110,9 +110,9 @@ async def env(pool):
     # Роутери модульні: від'єднуємо їх від диспетчера попереднього тесту.
     from bot import handlers
 
-    for mod in (handlers.lobby, handlers.start, handlers.profile, handlers.shop, handlers.payments,
-                handlers.settings, handlers.owner, handlers.design, handlers.play):
-        mod.router._parent_router = None
+    for mod in vars(handlers).values():
+        if hasattr(mod, "router"):
+            mod.router._parent_router = None
     dp = build_dispatcher(pool, manager, config)
 
     async def feed(update: Update):
@@ -321,3 +321,70 @@ async def test_settings_modules(env):
     assert len(last_edit().reply_markup.inline_keyboard) == 3  # 2 перемикачі + Назад
     await feed(cb(ADMIN, SetCb(action="refresh").pack(), GROUP))
     assert "Налаштування хутора:" in last_edit().text
+
+
+async def test_custom_role_wizard_and_game(env):
+    feed, s, manager, pool = env
+    from bot.engine.roles import ROLES
+    from bot.keyboards import RoleCb
+
+    # Не адмін групи - відмова
+    await feed(msg(13, f"/start newrole{GROUP}"))
+    assert "лише адміністратори" in s.last_text(13)
+
+    # Адмін проходить майстер
+    await feed(msg(ADMIN, f"/start newrole{GROUP}"))
+    assert "Нова роль" in s.last_text(ADMIN)
+    await feed(msg(ADMIN, "x" * 30))
+    assert "від 1 до 24" in s.last_text(ADMIN)
+    await feed(msg(ADMIN, "Мисливець"))
+    await feed(msg(ADMIN, "abc"))
+    assert "емодзі" in s.last_text(ADMIN)
+    await feed(msg(ADMIN, "🏹"))
+    await feed(msg(ADMIN, "Полює на нечисть <вночі>"))
+    await feed(cb(ADMIN, RoleCb(action="team", value="village").pack()))
+    await feed(cb(ADMIN, RoleCb(action="ability", value="kill").pack()))
+    await feed(cb(ADMIN, RoleCb(action="min", value="4").pack()))
+    preview = [c for c in s.calls if type(c).__name__ == "EditMessageText"][-1].text
+    assert "Мисливець" in preview and "&lt;вночі&gt;" in preview and "Вбивати" in preview
+    await feed(cb(ADMIN, RoleCb(action="save").pack()))
+    row = await pool.fetchrow("SELECT * FROM custom_roles WHERE chat_id = $1", GROUP)
+    assert row["name"] == "Мисливець" and row["team"] == "village" and row["ability"] == "kill"
+    key = f"c{row['id']}"
+
+    # Роль видно в /settings → Хто є хто; вимкнути й знову увімкнути
+    await feed(cb(ADMIN, SetCb(action="roles").pack(), GROUP))
+    kb = [c for c in s.calls if type(c).__name__ == "EditMessageText"][-1].reply_markup
+    labels = [b.text for r in kb.inline_keyboard for b in r]
+    assert any("Мисливець" in t for t in labels)
+    assert any(b.url and "newrole" in b.url for r in kb.inline_keyboard for b in r)
+    await feed(cb(ADMIN, SetCb(action="crole", key=str(row["id"])).pack(), GROUP))
+    assert await pool.fetchval("SELECT enabled FROM custom_roles WHERE id = $1", row["id"]) is False
+    await feed(cb(ADMIN, SetCb(action="crole", key=str(row["id"])).pack(), GROUP))
+
+    # Гра: власна роль роздається й отримує свою нічну підказку
+    players = [ADMIN, 41, 42, 43, 44]
+    await feed(msg(41, "/game", GROUP))
+    runner = manager.get(GROUP)
+    await asyncio.sleep(0.05)
+    for uid in players:
+        await feed(msg(uid, f"/start join{GROUP}"))
+    await feed(msg(41, "/start_now", GROUP))
+    for _ in range(100):
+        if runner.game.phase == Phase.NIGHT and runner._pending:
+            break
+        await asyncio.sleep(0.02)
+    hunter = next(p for p in runner.game.players.values() if p.role == key)
+    assert ROLES[key].name == "Мисливець"
+    assert any("Мисливець" in t for t in s.texts_to(hunter.user_id))
+    assert any("Кого приберемо" in t for t in s.texts_to(hunter.user_id))
+    target = next(p for p in runner.game.alive() if p.user_id != hunter.user_id)
+    await feed(cb(hunter.user_id, NightCb(chat=GROUP, kind="ckill", target=target.user_id).pack()))
+    assert runner.game.actions[f"{hunter.user_id}:role"].target == target.user_id
+    await feed(msg(ADMIN, "/stop", GROUP))
+
+    # Мої ролі → видалити
+    await feed(msg(ADMIN, f"/start myroles{GROUP}"))
+    assert "Власні ролі" in s.last_text(ADMIN)
+    await feed(cb(ADMIN, RoleCb(action="delete", value=str(row["id"])).pack()))
+    assert await pool.fetchval("SELECT count(*) FROM custom_roles") == 0

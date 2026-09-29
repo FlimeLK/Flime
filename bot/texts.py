@@ -29,7 +29,21 @@ def mention(user_id: int, name: str) -> str:
 
 
 def role_title(key: str) -> str:
-    return f":{key}: {ROLES[key].name}"
+    r = ROLES[key]
+    if not r.custom:
+        return f":{key}: {r.name}"
+    # Власна роль чату: назва від адміна (екрануємо), емодзі — звичайний або premium.
+    icon = f'<tg-emoji emoji-id="{r.custom_emoji_id}">{r.emoji}</tg-emoji>' if r.custom_emoji_id else r.emoji
+    return f"{icon} {escape(r.name)}"
+
+
+def role_description(key: str) -> str:
+    return ROLE_DESCRIPTIONS.get(key) or escape(ROLES[key].description)
+
+
+def team_title(key: str) -> str:
+    r = ROLES[key]
+    return ":moon: Одинак" if r.custom and r.team == Team.WOLF else TEAM_TITLES[r.team]
 
 
 def item_title(key: str) -> str:
@@ -128,7 +142,7 @@ SECTION_GAME = section(
 
 
 def section_roles() -> str:
-    lines = [f"• :{r.key}: <b>{r.name}</b> - {ROLE_DESCRIPTIONS[r.key]}" for r in ROLES.values()]
+    lines = [f"• :{r.key}: <b>{r.name}</b> - {ROLE_DESCRIPTIONS[r.key]}" for r in ROLES.values() if not r.custom]
     return section("mask", "Хто є хто", "На хуторі кожен не той, ким здається. Ось хто тут живе:", lines,
                    "Роль приходить в особисті на початку гри - нікому не показуй!")
 
@@ -193,7 +207,8 @@ def rules() -> str:
         "Іван-дурень - якщо його стратять.</blockquote>",
     ]
     for team in (Team.VILLAGE, Team.EVIL, Team.WOLF, Team.FOOL):
-        lines = [f"{role_title(r.key)} - {ROLE_DESCRIPTIONS[r.key]}" for r in ROLES.values() if r.team == team]
+        lines = [f"{role_title(r.key)} - {ROLE_DESCRIPTIONS[r.key]}" for r in ROLES.values()
+                 if r.team == team and not r.custom]
         parts.append(f"<b>{TEAM_TITLES[team]}</b>\n<blockquote expandable>" + "\n".join(lines) + "</blockquote>")
     items = [f"{item_title(i.key)} - {i.description}" for i in ITEMS.values()]
     parts.append(":bag: <b>Предмети</b> (купуються на ярмарку й самі беруться в гру)\n"
@@ -252,14 +267,13 @@ def game_started(n: int, composition: list[str]) -> str:
 
 
 def role_card(role_key: str, pocket: list[str], allies: list[str]) -> str:
-    r = ROLES[role_key]
     text = [
         ":mask: <b>ТВОЯ РОЛЬ</b>",
         "",
         f"<tg-spoiler><b>{role_title(role_key)}</b></tg-spoiler>",
-        f"Сторона: {TEAM_TITLES[r.team]}",
+        f"Сторона: {team_title(role_key)}",
         "",
-        f"<blockquote>{ROLE_DESCRIPTIONS[role_key]}</blockquote>",
+        f"<blockquote>{role_description(role_key)}</blockquote>",
     ]
     if allies:
         text += ["", ":evil: <b>Твоя нечиста братія:</b>", *[f"• {a}" for a in allies],
@@ -291,6 +305,17 @@ NIGHT_PROMPTS = {
     "lure": ":mavka: <b>Кого заманиш до ставка?</b>",
     "wolf": ":vovkulaka: <b>Кого вовкулака розірве цієї ночі?</b>",
     "pitchfork": ":pitchfork: У тебе є вила. Кого проштрикнеш? <i>(необов'язково)</i>",
+    "ckill": ":skull: <b>Кого приберемо цієї ночі?</b>",
+}
+
+# Для власних ролей чату — нейтральні підказки (без згадок Мавки, Знахарки тощо).
+CUSTOM_NIGHT_PROMPTS = {
+    "kill": ":evil: <b>Кого нечисть забере цієї ночі?</b>",
+    "ckill": ":skull: <b>Кого приберемо цієї ночі?</b>",
+    "heal": ":heal: <b>Кого захистиш цієї ночі?</b>",
+    "check": ":check: <b>Кого перевіриш?</b>",
+    "lure": ":lock: <b>Кого затримаєш цієї ночі?</b>",
+    "watch": ":eye: <b>За ким стежитимеш?</b>",
 }
 
 NIGHT_CHOSEN = ":ok: Обрано: <b>{target}</b>"
@@ -305,6 +330,7 @@ SKIP_BUTTON = "Пропустити"
 # ---------- ранок ----------
 
 DEATH_CAUSES = {
+    "custom": "не дожили до ранку",
     "evil": "нечисть забрала в темряву",
     "wolf": "не пережили зустрічі з вовкулакою",
     "saber": "впали від шаблі характерника",
@@ -332,7 +358,7 @@ YOU_SAVED = {
     "obereg": ":obereg: На тебе напали, але оберіг захистив! Він розсипався на порох.",
     "kum": ":kum: На тебе напали, але ти, кум, як завжди, викрутився!",
 }
-YOU_LURED = ":mavka: Мавка заманила тебе до ставка - цієї ночі ти нічого не встиг."
+YOU_LURED = ":mavka: Тебе цієї ночі заманили й затримали - ти нічого не встиг."
 GARLIC_WORKED = ":garlic: Мавка кликала тебе до ставка, але від часнику аж скривилась!"
 CHECK_RESULT = {
     True: ":harakternyk: {target} - з :village: <b>Громади</b>.",
@@ -519,7 +545,8 @@ SETTINGS_MODULES = [
 SETTINGS_REFRESH = "Освіжити"
 SETTINGS_TIMERS_HEAD = ":timer: <b>Годинник</b>\n\nСкільки часу триває кожна фаза. Тисни −/+."
 SETTINGS_ROLES_HEAD = (
-    ":mask: <b>Хто є хто</b>\n\nЗелені - в грі, червоні - вимкнені. Відьма, Упир і Селянин - обов'язкові."
+    ":mask: <b>Хто є хто</b>\n\nЗелені - в грі, червоні - вимкнені. Відьма, Упир і Селянин - обов'язкові.\n"
+    "Можна створити й власні ролі - майстер відкриється в особистих."
 )
 SETTINGS_VOTE_HEAD = ":vote: <b>Віче</b>\n\nЯк громада голосує і що дізнається про загиблих."
 SETTINGS_ITEMS_HEAD = ":bag: <b>Комора</b>\n\nЧи можна брати в гру предмети з ярмарку."
@@ -537,3 +564,58 @@ TOGGLE_LABELS = {
     "secret_vote": (("vote", "Голосування: відкрите"), ("secret", "Голосування: таємне")),
     "items_enabled": (("skip", "Предмети: вимкнені"), ("bag", "Предмети: увімкнені")),
 }
+
+
+# ---------- власні ролі: майстер і керування ----------
+
+ROLE_TEAM_LABELS = {"village": ("village", "Громада"), "evil": ("evil", "Нечисть"), "wolf": ("moon", "Одинак")}
+ROLE_ABILITY_HINTS = {
+    "kill": "щоночі вбиває (нечисть - разом зі своїми)",
+    "heal": "щоночі рятує когось від смерті",
+    "check": "дізнається, чи гравець з Громади",
+    "block": "затримує гравця - його нічна дія не спрацює",
+    "watch": "дізнається, хто приходив до гравця",
+    "none": "нічних дій немає, лише голос удень",
+}
+ROLE_ABILITY_EMO = {"kill": "skull", "heal": "heal", "check": "check", "block": "lock", "watch": "eye", "none": "dove"}
+ROLE_MIN_PLAYERS = (4, 5, 6, 8, 10, 12, 15)
+
+ROLES_CREATE = "Створити роль"
+ROLES_MINE = "Мої ролі"
+ROLE_CANCEL = "Скасувати"
+ROLE_SAVE = "Зберегти"
+ROLE_ENABLE = "Увімкнути"
+ROLE_DISABLE = "Вимкнути"
+ROLE_DELETE = "Видалити"
+ROLES_NOT_ADMIN = ":lock: Керувати ролями можуть лише адміністратори того чату."
+ROLES_LIMIT = ":no: У чаті вже {max} власних ролей - видали якусь, щоб створити нову."
+ROLE_STEP_NAME = (
+    ":sparkle: <b>Нова роль</b> для чату <i>{chat}</i>\n\n"
+    "Як назвемо роль? Напиши назву (до 24 символів).\n<i>Передумав - /cancel</i>"
+)
+ROLE_STEP_EMOJI = "Добре! Тепер надішли <b>одне емодзі</b> для ролі (можна premium - тоді воно буде анімоване)."
+ROLE_STEP_DESC = "Опиши роль одним-двома реченнями (до 200 символів) - це побачить гравець у своїй картці."
+ROLE_STEP_TEAM = "За кого грає роль?"
+ROLE_STEP_ABILITY = "Що роль уміє вночі?"
+ROLE_STEP_MIN = "З якої кількості гравців роль з'являється в грі?"
+ROLE_BAD_NAME = "Назва має бути від 1 до 24 символів. Спробуй ще раз."
+ROLE_BAD_EMOJI = "Надішли саме емодзі, без літер і цифр."
+ROLE_BAD_DESC = "Опис має бути від 1 до 200 символів."
+ROLE_CANCELLED = ":no: Створення ролі скасовано."
+ROLE_SAVED = ":party: Роль {title} створено! Вона вже в грі - вимкнути можна в /settings → Хто є хто."
+ROLE_DELETED = ":ok: Роль видалено."
+ROLES_EMPTY = "У цьому чаті ще немає власних ролей."
+ROLES_LIST_HEAD = ":mask: <b>Власні ролі</b> чату <i>{chat}</i>\n\nОбери роль, щоб змінити її."
+
+
+def role_preview(name: str, emoji_html: str, description: str, team: str, ability: str, min_players: int) -> str:
+    from bot.engine.roles import ABILITIES
+
+    team_emo, team_label = ROLE_TEAM_LABELS[team]
+    return (
+        f"{emoji_html} <b>{escape(name)}</b>\n\n"
+        f"<blockquote>{escape(description)}</blockquote>\n"
+        f":{team_emo}: Сторона: <b>{team_label}</b>\n"
+        f":{ROLE_ABILITY_EMO[ability]}: Здатність: <b>{ABILITIES[ability]}</b> - {ROLE_ABILITY_HINTS[ability]}\n"
+        f":people: З'являється від <b>{min_players}</b> гравців"
+    )
