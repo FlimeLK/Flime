@@ -17,6 +17,8 @@ class Settings:
     db_user: str = "postgres"
     db_password: str = ""
     owner_ids: frozenset[int] = field(default_factory=frozenset)
+    # Анімовані емодзі (потрібен Telegram Premium у власника бота)
+    premium_emoji: bool = True
 
     @property
     def dsn(self) -> str:
@@ -44,4 +46,5 @@ def load_settings() -> Settings:
         db_user=os.getenv("DB_USER", "postgres"),
         db_password=os.getenv("DB_PASSWORD", ""),
         owner_ids=_parse_ids(os.getenv("OWNER_IDS", "")),
+        premium_emoji=os.getenv("PREMIUM_EMOJI", "1").strip().lower() not in ("0", "false", "no", "off"),
     )

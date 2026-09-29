@@ -1,6 +1,6 @@
 from aiogram import Router
 
-from bot.handlers import lobby, owner, payments, play, profile, settings, shop, start
+from bot.handlers import design, lobby, owner, payments, play, profile, settings, shop, start
 
 
 def build_router() -> Router:
@@ -15,6 +15,7 @@ def build_router() -> Router:
         payments.router,
         settings.router,
         owner.router,
+        design.router,
         play.router,
     )
     return root

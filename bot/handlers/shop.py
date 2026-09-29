@@ -8,12 +8,12 @@ from aiogram.exceptions import TelegramBadRequest
 from aiogram.filters import Command
 from aiogram.filters.callback_data import CallbackData
 from aiogram.types import CallbackQuery, InlineKeyboardMarkup, Message
-from aiogram.utils.keyboard import InlineKeyboardBuilder
 
 from bot import texts
 from bot.db import shop, users
 from bot.db.users import User
 from bot.engine import items as it
+from bot.ui.buttons import PRIMARY, btn, rows
 
 router = Router(name="shop")
 
@@ -23,11 +23,9 @@ class BuyCb(CallbackData, prefix="buy"):
 
 
 def shop_keyboard() -> InlineKeyboardMarkup:
-    kb = InlineKeyboardBuilder()
-    for item in it.ITEMS.values():
-        kb.button(text=f"{item.emoji} {item.price}", callback_data=BuyCb(item=item.key))
-    kb.adjust(4)
-    return kb.as_markup()
+    buttons = [btn(f"{item.name} · {item.price}", BuyCb(item=item.key), emo=item.key, style=PRIMARY)
+               for item in it.ITEMS.values()]
+    return InlineKeyboardMarkup(inline_keyboard=rows(buttons, 2))
 
 
 async def shop_text(pool: asyncpg.Pool, user: User, balance: int | None = None) -> str:
@@ -54,7 +52,7 @@ async def on_buy(cb: CallbackQuery, callback_data: BuyCb, pool: asyncpg.Pool, us
     if balance is None:
         await cb.answer(texts.SHOP_NO_MONEY, show_alert=True)
         return
-    await cb.answer(texts.SHOP_BOUGHT.format(item=item.title, balance=balance, shagy=texts.SHAGY))
+    await cb.answer(texts.SHOP_BOUGHT.format(item=texts.item_title(item.key), balance=balance, shagy=texts.SHAGY))
     fresh = await users.get(pool, user.id)
     try:
         await cb.message.edit_text(await shop_text(pool, fresh), reply_markup=shop_keyboard())

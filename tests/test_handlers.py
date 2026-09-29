@@ -17,14 +17,16 @@ from aiogram.types import (
     ChatMemberMember,
     ChatMemberOwner,
     Message,
+    MessageEntity,
     MessageId,
+    PhotoSize,
     PreCheckoutQuery,
     SuccessfulPayment,
     Update,
     User,
 )
 
-from bot.__main__ import build_dispatcher
+from bot.__main__ import build_dispatcher, setup_bot
 from bot.config import Settings
 from bot.db import shop as shop_db
 from bot.db import users as users_db
@@ -35,6 +37,7 @@ from bot.game.messenger import Messenger
 from bot.handlers.payments import StarsCb
 from bot.handlers.settings import SetCb
 from bot.handlers.shop import BuyCb
+from bot.ui import emoji
 
 OWNER = 1
 ADMIN = 2
@@ -63,7 +66,7 @@ class MockSession(BaseSession):
             if method.user_id in (OWNER, ADMIN):
                 return ChatMemberOwner(user=user, is_anonymous=False)
             return ChatMemberMember(user=user)
-        if name in ("SendMessage", "SendInvoice"):
+        if name in ("SendMessage", "SendInvoice", "SendPhoto", "SendAnimation", "SendVideo"):
             chat_type = "private" if method.chat_id > 0 else "supergroup"
             return Message(message_id=next(ids), date=datetime.now(UTC),
                            chat=Chat(id=method.chat_id, type=chat_type), text=getattr(method, "text", None))
@@ -100,14 +103,15 @@ def cb(uid: int, data: str, chat_id: int | None = None) -> Update:
 @pytest.fixture
 async def env(pool):
     session = MockSession()
-    bot = Bot("42:TEST", session=session, default=DefaultBotProperties(parse_mode="HTML"))
+    bot = setup_bot(Bot("42:TEST", session=session, default=DefaultBotProperties(parse_mode="HTML")))
+    emoji.configure(True)
     manager = GameManager(Messenger(bot), pool, "test_bot")
     config = Settings(bot_token="42:TEST", owner_ids=frozenset({OWNER}))
     # Роутери модульні: від'єднуємо їх від диспетчера попереднього тесту.
     from bot import handlers
 
     for mod in (handlers.lobby, handlers.start, handlers.profile, handlers.shop, handlers.payments,
-                handlers.settings, handlers.owner, handlers.play):
+                handlers.settings, handlers.owner, handlers.design, handlers.play):
         mod.router._parent_router = None
     dp = build_dispatcher(pool, manager, config)
 
@@ -121,7 +125,7 @@ async def env(pool):
 async def test_private_commands(env):
     feed, s, _, pool = env
     await feed(msg(10, "/start"))
-    assert "Мафія: Хутір" in s.last_text(10)
+    assert "МАФІЯ: ХУТІР" in s.last_text(10)
     await feed(msg(10, "/profile"))
     assert "Шаги: <b>100</b>" in s.last_text(10)
     await feed(msg(10, "/daily"))
@@ -132,7 +136,7 @@ async def test_private_commands(env):
     assert "Характерник" in s.last_text(10)
 
     await feed(msg(10, "/shop"))
-    assert "Ярмарок" in s.last_text(10)
+    assert "ЯРМАРОК" in s.last_text(10)
     await feed(cb(10, BuyCb(item="obereg").pack()))
     assert await shop_db.inventory(pool, 10) == {"obereg": 1}
     assert (await users_db.get(pool, 10)).shagy == 150 - 120
@@ -144,9 +148,9 @@ async def test_owner_and_promo(env):
     feed, s, _, pool = env
     await feed(msg(11, "/start"))
     await feed(msg(11, "/owner"))  # не власник — тиша
-    assert not any("Панель власника" in t for t in s.texts_to(11))
+    assert not any("ПАНЕЛЬ ВЛАСНИКА" in t for t in s.texts_to(11))
     await feed(msg(OWNER, "/owner"))
-    assert "Панель власника" in s.last_text(OWNER)
+    assert "ПАНЕЛЬ ВЛАСНИКА" in s.last_text(OWNER)
     await feed(msg(OWNER, "/give 11 cherv 70"))
     assert (await users_db.get(pool, 11)).chervintsi == 70
     await feed(msg(OWNER, "/promo_new HUTIR 25 0 3 10"))
@@ -195,7 +199,7 @@ async def test_settings_admin_only(env):
     await feed(msg(13, "/settings", GROUP))
     assert "лише адміністратор" in s.last_text(GROUP)
     await feed(msg(ADMIN, "/settings", GROUP))
-    assert "Налаштування гри" in s.last_text(GROUP)
+    assert "НАЛАШТУВАННЯ ГРИ" in s.last_text(GROUP)
     await feed(cb(ADMIN, SetCb(action="toggle", key="secret_vote").pack(), GROUP))
     await feed(cb(ADMIN, SetCb(action="timer", key="night_time", delta=15).pack(), GROUP))
     await feed(cb(ADMIN, SetCb(action="role", key="mavka").pack(), GROUP))
@@ -227,7 +231,7 @@ async def test_game_via_handlers(env):
             break
         await asyncio.sleep(0.02)
     game = runner.game
-    assert all("Твоя роль" in "".join(s.texts_to(uid)) for uid in game.players)
+    assert all("ТВОЯ РОЛЬ" in "".join(s.texts_to(uid)) for uid in game.players)
 
     # Рада нечисті: повідомлення відьми доходить до інших з нечисті (якщо вони є).
     witch = game.by_role("vidma")[0]
@@ -247,3 +251,47 @@ async def test_game_via_handlers(env):
     await feed(msg(ADMIN, "/stop", GROUP))
     assert manager.get(GROUP) is None
     assert "зупинено" in s.last_text(GROUP)
+
+
+async def test_design_tools(env):
+    feed, s, _, pool = env
+    # /emoji_set з premium-емодзі в самому повідомленні
+    text = "/emoji_set selianyn 🌾"
+    ent = MessageEntity(type="custom_emoji", offset=len("/emoji_set selianyn "), length=2, custom_emoji_id="777")
+    await feed(msg(OWNER, text, entities=[ent]))
+    assert emoji.custom_id("selianyn") == "777"
+    assert await pool.fetchval("SELECT custom_id FROM emoji_overrides WHERE key = 'selianyn'") == "777"
+    await feed(msg(OWNER, "/emoji"))
+    assert any('emoji-id="777"' in t for t in s.texts_to(OWNER))
+    await feed(msg(OWNER, "/emoji_reset selianyn"))
+    assert emoji.custom_id("selianyn") is None
+
+    # /media відповіддю на фото → /start надсилає фото з підписом
+    photo_msg = Message(message_id=next(ids), date=datetime.now(UTC), chat=Chat(id=OWNER, type="private"),
+                        from_user=tg_user(OWNER), photo=[PhotoSize(file_id="PHOTO1", file_unique_id="u",
+                                                                   width=10, height=10)])
+    await feed(msg(OWNER, "/media start", reply_to_message=photo_msg))
+    assert await pool.fetchval("SELECT file_id FROM media WHERE slot = 'start'") == "PHOTO1"
+    await feed(msg(30, "/start"))
+    photo = [c for c in s.calls if type(c).__name__ == "SendPhoto"][-1]
+    assert photo.photo == "PHOTO1" and "МАФІЯ: ХУТІР" in photo.caption and "<tg-emoji" in photo.caption
+    assert photo.reply_markup.inline_keyboard[0][0].icon_custom_emoji_id
+    await feed(msg(OWNER, "/media_clear start"))
+    await feed(msg(30, "/start"))
+    assert "МАФІЯ: ХУТІР" in s.last_text(30)
+
+    # звичайний гравець не має доступу
+    await feed(msg(30, "/emoji_set fire"))
+    assert emoji.custom_id("fire") == emoji.DEFAULTS["fire"].id
+
+
+async def test_menu_and_keyboards_have_icons(env):
+    feed, s, _, pool = env
+    await feed(msg(31, "/start"))
+    menu = [c for c in s.calls if type(c).__name__ == "SendMessage" and c.chat_id == 31][-1].reply_markup
+    assert all(b.icon_custom_emoji_id for row in menu.inline_keyboard for b in row)
+    await feed(cb(31, "menu:profile"))
+    assert "Шаги" in s.last_text(31)
+    await feed(cb(31, "menu:shop"))
+    shop_kb = [c for c in s.calls if type(c).__name__ == "SendMessage" and c.chat_id == 31][-1].reply_markup
+    assert all(b.style == "primary" for row in shop_kb.inline_keyboard for b in row)

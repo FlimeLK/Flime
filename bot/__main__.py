@@ -13,11 +13,14 @@ from aiogram.enums import ParseMode
 from aiogram.types import BotCommand, BotCommandScopeAllGroupChats, BotCommandScopeAllPrivateChats
 
 from bot.config import Settings, load_settings
+from bot.db import ui as ui_db
 from bot.db.pool import create_pool
 from bot.game.manager import GameManager
 from bot.game.messenger import Messenger
 from bot.handlers import build_router
 from bot.middlewares import UserMiddleware
+from bot.ui import emoji, media
+from bot.ui.safe import CustomEmojiFallback
 
 log = logging.getLogger("bot")
 
@@ -51,6 +54,17 @@ def build_dispatcher(pool: asyncpg.Pool, manager: GameManager, config: Settings)
     return dp
 
 
+def setup_bot(bot: Bot) -> Bot:
+    """Мітки :ключ: → анімовані емодзі + запасний варіант, якщо Telegram їх відхилить."""
+    bot.session.middleware(CustomEmojiFallback())
+    return bot
+
+
+async def load_design(pool: asyncpg.Pool, config: Settings) -> None:
+    emoji.configure(config.premium_emoji, await ui_db.emoji_overrides(pool))
+    media.load(await ui_db.media_all(pool))
+
+
 def setup_logging() -> None:
     fmt = logging.Formatter("%(asctime)s %(levelname)s %(name)s: %(message)s")
     root = logging.getLogger()
@@ -67,7 +81,8 @@ async def main() -> None:
     setup_logging()
     config = load_settings()
     pool = await create_pool(config.dsn)
-    bot = Bot(config.bot_token, default=DefaultBotProperties(parse_mode=ParseMode.HTML))
+    bot = setup_bot(Bot(config.bot_token, default=DefaultBotProperties(parse_mode=ParseMode.HTML)))
+    await load_design(pool, config)
     me = await bot.get_me()
 
     manager = GameManager(Messenger(bot), pool, me.username)

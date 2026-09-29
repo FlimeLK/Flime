@@ -20,7 +20,7 @@ router = Router(name="owner")
 log = logging.getLogger(__name__)
 
 HELP = (
-    "🛠 <b>Панель власника</b>\n\n"
+    ":tools: <b>ПАНЕЛЬ ВЛАСНИКА</b>\n\n"
     "{stats}\n\n"
     "<code>/give ID shagy|cherv СУМА</code> — видати (або мінус — забрати)\n"
     "<code>/vip_give ID ДНІВ</code> — подарувати VIP\n"
@@ -29,7 +29,8 @@ HELP = (
     "<code>/promo_new КОД ШАГИ ЧЕРВІНЦІ VIP_ДНІВ ВИКОРИСТАНЬ</code>\n"
     "<code>/promo_list</code> · <code>/promo_del КОД</code>\n"
     "<code>/purchases</code> — останні покупки · <code>/refund CHARGE_ID</code> — повернути зірки\n"
-    "<code>/games</code> — активні ігри"
+    "<code>/games</code> — активні ігри\n"
+    "<code>/design</code> — анімовані емодзі та медіа для сцен"
 )
 
 

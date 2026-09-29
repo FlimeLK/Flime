@@ -31,7 +31,7 @@ def fmt_left(until: datetime) -> str:
 @router.message(Command("profile", "me"))
 async def cmd_profile(message: Message, pool: asyncpg.Pool, user: User) -> None:
     inv = await shop.inventory(pool, user.id)
-    inventory = [f"{ITEMS[k].title} ×{v}" for k, v in inv.items() if k in ITEMS]
+    inventory = [f"{texts.item_title(k)} ×{v}" for k, v in inv.items() if k in ITEMS]
     await message.answer(texts.profile(
         user.name, user.shagy, user.chervintsi,
         fmt_date(user.vip_until) if user.is_vip else None,
@@ -58,11 +58,10 @@ async def cmd_top(message: Message, pool: asyncpg.Pool) -> None:
     if not rows:
         await message.answer(texts.TOP_EMPTY)
         return
-    medals = ["🥇", "🥈", "🥉"]
     lines = [texts.TOP_HEAD]
     for i, r in enumerate(rows):
-        mark = medals[i] if i < 3 else f"{i + 1}."
-        lines.append(f"{mark} {texts.escape(r['name'])} — 🏆 {r['wins']} / 🎲 {r['games']}")
+        mark = texts.TOP_MEDALS[i] if i < 3 else f"<b>{i + 1}.</b>"
+        lines.append(f"{mark} {texts.escape(r['name'])} — :trophy: {r['wins']} · :dice: {r['games']}")
     await message.answer("\n".join(lines))
 
 

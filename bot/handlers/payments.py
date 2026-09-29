@@ -10,12 +10,13 @@ from aiogram.exceptions import TelegramBadRequest
 from aiogram.filters import Command
 from aiogram.filters.callback_data import CallbackData
 from aiogram.types import CallbackQuery, InlineKeyboardMarkup, LabeledPrice, Message, PreCheckoutQuery
-from aiogram.utils.keyboard import InlineKeyboardBuilder
 
 from bot import economy, texts
 from bot.db import payments, users
 from bot.db.users import User
 from bot.handlers.profile import fmt_date
+from bot.ui import media
+from bot.ui.buttons import PRIMARY, SUCCESS, btn
 
 router = Router(name="payments")
 log = logging.getLogger(__name__)
@@ -36,18 +37,15 @@ class ExchangeCb(CallbackData, prefix="exch"):
 
 
 def vip_keyboard() -> InlineKeyboardMarkup:
-    kb = InlineKeyboardBuilder()
     vip = economy.PRODUCTS["vip_30"]
-    kb.button(text=f"👑 {vip.title} — {vip.stars}⭐", callback_data=StarsCb(product=vip.key))
-    kb.button(text=f"👑 VIP за {economy.VIP_PRICE_CHERV} {texts.CHERV}", callback_data=VipChervCb())
-    for p in economy.PRODUCTS.values():
-        if p.chervintsi:
-            kb.button(text=f"{texts.CHERV} {p.chervintsi} — {p.stars}⭐", callback_data=StarsCb(product=p.key))
-    for amount in EXCHANGE_AMOUNTS:
-        kb.button(text=f"🔄 {amount}{texts.CHERV} → {amount * economy.EXCHANGE_RATE}{texts.SHAGY}",
-                  callback_data=ExchangeCb(amount=amount))
-    kb.adjust(1, 1, 3, 3)
-    return kb.as_markup()
+    keyboard = [
+        [btn(f"{vip.title} — {vip.stars} ⭐", StarsCb(product=vip.key), emo="vip", style=SUCCESS)],
+        [btn(f"VIP за {economy.VIP_PRICE_CHERV} червінців", VipChervCb(), emo="vip", style=PRIMARY)],
+        [btn(f"{p.chervintsi} — {p.stars} ⭐", StarsCb(product=p.key), emo="cherv")
+         for p in economy.PRODUCTS.values() if p.chervintsi],
+        [btn(f"{a} → {a * economy.EXCHANGE_RATE}", ExchangeCb(amount=a), emo="refresh") for a in EXCHANGE_AMOUNTS],
+    ]
+    return InlineKeyboardMarkup(inline_keyboard=keyboard)
 
 
 def vip_text(user: User) -> str:
@@ -113,9 +111,10 @@ async def on_paid(message: Message, pool: asyncpg.Pool, user: User) -> None:
             await users.add_balance(conn, user.id, "chervintsi", product.chervintsi)
         until = await users.extend_vip(conn, user.id, product.vip_days) if product.vip_days else None
     if until:
-        await message.answer(texts.VIP_BOUGHT.format(until=fmt_date(until)))
+        await message.answer(texts.VIP_BOUGHT.format(until=fmt_date(until)), message_effect_id=media.EFFECT_PARTY)
     else:
-        await message.answer(texts.CHERV_BOUGHT.format(amount=product.chervintsi))
+        await message.answer(texts.CHERV_BOUGHT.format(amount=product.chervintsi),
+                             message_effect_id=media.EFFECT_FIRE)
 
 
 @router.callback_query(VipChervCb.filter())

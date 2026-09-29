@@ -8,7 +8,6 @@ from aiogram.exceptions import TelegramBadRequest
 from aiogram.filters import Command
 from aiogram.filters.callback_data import CallbackData
 from aiogram.types import CallbackQuery, InlineKeyboardMarkup, Message
-from aiogram.utils.keyboard import InlineKeyboardBuilder
 
 from bot import texts
 from bot.config import Settings
@@ -17,6 +16,7 @@ from bot.db.groups import TIMER_LIMITS, TOGGLES, GroupSettings
 from bot.db.users import User
 from bot.engine.roles import ROLES
 from bot.handlers.common import is_chat_admin, is_group
+from bot.ui.buttons import DANGER, PRIMARY, SUCCESS, btn, rows
 
 router = Router(name="settings")
 
@@ -28,30 +28,36 @@ class SetCb(CallbackData, prefix="set"):
 
 
 def main_keyboard(s: GroupSettings) -> InlineKeyboardMarkup:
-    kb = InlineKeyboardBuilder()
-    for key, label in texts.TIMER_NAMES.items():
+    keyboard = []
+    for key, (emo, label) in texts.TIMER_NAMES.items():
         step = TIMER_LIMITS[key][2]
-        kb.button(text="➖", callback_data=SetCb(action="timer", key=key, delta=-step))
-        kb.button(text=f"{label}: {texts.fmt_seconds(getattr(s, key))}", callback_data=SetCb(action="noop"))
-        kb.button(text="➕", callback_data=SetCb(action="timer", key=key, delta=step))
+        keyboard.append([
+            btn("−", SetCb(action="timer", key=key, delta=-step)),
+            btn(f"{label}: {texts.fmt_seconds(getattr(s, key))}", SetCb(action="noop"), emo=emo),
+            btn("+", SetCb(action="timer", key=key, delta=step)),
+        ])
     for key in TOGGLES:
-        kb.button(text=texts.TOGGLE_LABELS[key][int(getattr(s, key))], callback_data=SetCb(action="toggle", key=key))
-    kb.button(text="🎭 Ролі", callback_data=SetCb(action="roles"))
-    kb.button(text="✖️ Закрити", callback_data=SetCb(action="close"))
-    kb.adjust(*([3] * len(texts.TIMER_NAMES)), *([1] * len(TOGGLES)), 2)
-    return kb.as_markup()
+        on = bool(getattr(s, key))
+        emo, label = texts.TOGGLE_LABELS[key][int(on)]
+        keyboard.append([btn(label, SetCb(action="toggle", key=key), emo=emo, style=SUCCESS if on else None)])
+    keyboard.append([
+        btn("Ролі", SetCb(action="roles"), emo="mask", style=PRIMARY),
+        btn("Готово", SetCb(action="close"), emo="ok"),
+    ])
+    return InlineKeyboardMarkup(inline_keyboard=keyboard)
 
 
 def roles_keyboard(s: GroupSettings) -> InlineKeyboardMarkup:
-    kb = InlineKeyboardBuilder()
+    buttons = []
     for r in ROLES.values():
         if not r.optional:
             continue
-        mark = "❌" if r.key in s.disabled_roles else "✅"
-        kb.button(text=f"{mark} {r.title} ({r.min_players}+)", callback_data=SetCb(action="role", key=r.key))
-    kb.button(text="⬅️ Назад", callback_data=SetCb(action="menu"))
-    kb.adjust(2)
-    return kb.as_markup()
+        on = r.key not in s.disabled_roles
+        buttons.append(btn(f"{r.name} ({r.min_players}+)", SetCb(action="role", key=r.key), emo=r.key,
+                           style=SUCCESS if on else DANGER))
+    keyboard = rows(buttons, 2)
+    keyboard.append([btn("Назад", SetCb(action="menu"), emo="back")])
+    return InlineKeyboardMarkup(inline_keyboard=keyboard)
 
 
 @router.message(Command("settings"))

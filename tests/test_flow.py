@@ -25,10 +25,13 @@ class FakeMessenger:
         self.sent: list[tuple[int, str]] = []
         self._id = 0
 
-    async def send(self, chat_id, text, markup=None):
+    async def send(self, chat_id, text, markup=None, effect=None):
         self._id += 1
         self.sent.append((chat_id, text))
         return self._id
+
+    async def send_scene(self, chat_id, slot, text, markup=None, effect=None):
+        return await self.send(chat_id, text, markup, effect)
 
     async def edit(self, chat_id, message_id, text, markup=None):
         pass
@@ -122,7 +125,7 @@ async def test_full_game(pool):
     assert res["players"] == 8
     u = await users_db.get(pool, ids[1])
     assert u.games == 1 and u.shagy > 100
-    assert any("Гру завершено" in text for _, text in m.sent)
+    assert any("ГРУ ЗАВЕРШЕНО" in text for _, text in m.sent)
 
 
 async def test_stop_returns_items(pool):
