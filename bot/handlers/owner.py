@@ -167,7 +167,7 @@ async def on_owner(cb: CallbackQuery, callback_data: OwnCb, state: FSMContext, b
         rows = await payments.recent(pool, 10)
         lines = [
             f"#{r['id']} · {r['created_at']:%d.%m %H:%M} · <code>{r['user_id']}</code> · "
-            f"{texts.escape(r['product'])} · {r['stars']}⭐{' · повернуто' if r['refunded'] else ''}"
+            f"{texts.escape(r['product'])} · {r['stars']}:star:{' · повернуто' if r['refunded'] else ''}"
             for r in rows
         ]
         refundable = [(r["id"], f"#{r['id']} {r['stars']}⭐") for r in rows if not r["refunded"]]
@@ -274,13 +274,13 @@ async def broadcast(bot: Bot, ids: list[int], *, text: str | None = None, from_c
 async def refund(bot: Bot, pool: asyncpg.Pool, charge_id: str) -> str:
     purchase = await payments.get(pool, charge_id) if charge_id else None
     if purchase is None:
-        return "❌ Покупку не знайдено."
+        return ":no: Покупку не знайдено."
     if purchase["refunded"]:
         return "Цю покупку вже повернуто."
     try:
         await bot.refund_star_payment(purchase["user_id"], charge_id)
     except TelegramAPIError as e:
-        return f"❌ Telegram відмовив: {texts.escape(str(e))}"
+        return f":no: Telegram відмовив: {texts.escape(str(e))}"
     product = economy.PRODUCTS.get(purchase["product"])
     async with pool.acquire() as conn, conn.transaction():
         await payments.mark_refunded(conn, charge_id)
@@ -292,7 +292,7 @@ async def refund(bot: Bot, pool: asyncpg.Pool, charge_id: str) -> str:
             )
         if product and product.vip_days:
             await users.revoke_vip_days(conn, purchase["user_id"], product.vip_days)
-    return f"✅ Повернуто {purchase['stars']}⭐ гравцю {purchase['user_id']}."
+    return f":ok: Повернуто {purchase['stars']} :star: гравцю {purchase['user_id']}."
 
 
 # ================= текстові команди =================
@@ -307,9 +307,9 @@ async def cmd_give(message: Message, command: CommandObject, pool: asyncpg.Pool)
         return
     balance = await users.add_balance(pool, int(parts[0]), currency, int(parts[2]))
     if balance is None:
-        await message.answer("❌ Гравця не знайдено або баланс пішов би в мінус.")
+        await message.answer(":no: Гравця не знайдено або баланс пішов би в мінус.")
         return
-    await message.answer(f"✅ Новий баланс ({currency}): {balance}")
+    await message.answer(f":ok: Новий баланс ({currency}): {balance}")
 
 
 @router.message(Command("vip_give"))
@@ -319,7 +319,7 @@ async def cmd_vip_give(message: Message, command: CommandObject, pool: asyncpg.P
         await message.answer("Формат: <code>/vip_give ID ДНІВ</code>")
         return
     until = await users.extend_vip(pool, nums[0], nums[1])
-    await message.answer(f"✅ VIP до {until:%d.%m.%Y}" if until else "❌ Гравця не знайдено.")
+    await message.answer(f":ok: VIP до {until:%d.%m.%Y}" if until else ":no: Гравця не знайдено.")
 
 
 @router.message(Command("block", "unblock"))
@@ -330,7 +330,7 @@ async def cmd_block(message: Message, command: CommandObject, pool: asyncpg.Pool
         return
     blocked = command.command == "block"
     ok = await users.set_blocked(pool, nums[0], blocked)
-    await message.answer(("⛔ Заблоковано" if blocked else "✅ Розблоковано") if ok else "❌ Гравця не знайдено.")
+    await message.answer((":lock: Заблоковано" if blocked else ":ok: Розблоковано") if ok else ":no: Гравця не знайдено.")
 
 
 @router.message(Command("broadcast"))
@@ -356,8 +356,8 @@ async def cmd_promo_new(message: Message, command: CommandObject, pool: asyncpg.
         await message.answer("Формат: <code>/promo_new КОД ЛІРИ МОНЕТИ VIP_ДНІВ ВИКОРИСТАНЬ</code>")
         return
     ok = await promocodes.create(pool, parts[0], *nums)
-    await message.answer(f"✅ Промокод <code>{texts.escape(parts[0].upper())}</code> створено."
-                         if ok else "❌ Такий код уже існує.")
+    await message.answer(f":ok: Промокод <code>{texts.escape(parts[0].upper())}</code> створено."
+                         if ok else ":no: Такий код уже існує.")
 
 
 @router.message(Command("promo_list"))
@@ -378,7 +378,7 @@ async def cmd_promo_list(message: Message, pool: asyncpg.Pool) -> None:
 async def cmd_promo_del(message: Message, command: CommandObject, pool: asyncpg.Pool) -> None:
     code = (command.args or "").strip()
     ok = bool(code) and await promocodes.delete(pool, code)
-    await message.answer("🗑 Видалено." if ok else "❌ Не знайдено.")
+    await message.answer(":trash: Видалено." if ok else ":no: Не знайдено.")
 
 
 @router.message(Command("refund"))
@@ -406,7 +406,7 @@ async def cmd_purchases(message: Message, pool: asyncpg.Pool) -> None:
         await message.answer("Покупок ще не було.")
         return
     lines = [
-        f"{r['created_at']:%d.%m %H:%M} · {r['user_id']} · {texts.escape(r['product'])} · {r['stars']}⭐"
+        f"{r['created_at']:%d.%m %H:%M} · {r['user_id']} · {texts.escape(r['product'])} · {r['stars']}:star:"
         f"{' · повернуто' if r['refunded'] else ''}\n<code>{texts.escape(r['charge_id'])}</code>"
         for r in rows
     ]

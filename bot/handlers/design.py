@@ -23,7 +23,8 @@ HELP = (
     "<code>/emoji_id</code> - відповіддю на повідомлення з premium-емодзі: покаже їхні ID\n"
     "<code>/emoji_set КЛЮЧ</code> - відповіддю на повідомлення з premium-емодзі (або емодзі одразу після ключа)\n"
     "<code>/emoji_reset КЛЮЧ</code> - повернути емодзі за замовчуванням\n"
-    "<code>/emoji_pack НАЗВА</code> - показати, що з пака підходить; <code>/emoji_pack НАЗВА apply</code> - застосувати\n\n"
+    "<code>/emoji_pack НАЗВА</code> - показати, що з пака підходить; <code>/emoji_pack НАЗВА apply</code> - застосувати; "
+    "<code>/emoji_pack НАЗВА ui</code> - лише іконки інтерфейсу (напр. <code>/emoji_pack TgAndroidIcons ui</code>)\n\n"
     "<b>Медіа для сцен</b>\n"
     "<code>/media</code> - список сцен\n"
     "<code>/media СЦЕНА</code> - відповіддю на фото / GIF / відео\n"
@@ -120,7 +121,9 @@ async def cmd_emoji_pack(message: Message, command: CommandObject, bot: Bot, poo
         await message.answer("Формат: <code>/emoji_pack НАЗВА</code> (назва з посилання t.me/addemoji/НАЗВА)")
         return
     name = parts[0].rsplit("/", 1)[-1]
-    apply = len(parts) > 1 and parts[1] == "apply"
+    mode = parts[1] if len(parts) > 1 else ""
+    apply = mode in ("apply", "ui")
+    keys = emoji.UI_KEYS if mode == "ui" else emoji.DEFAULTS.keys()
     try:
         sticker_set = await bot.get_sticker_set(name)
     except TelegramAPIError as e:
@@ -133,7 +136,8 @@ async def cmd_emoji_pack(message: Message, command: CommandObject, bot: Bot, poo
     by_char: dict[str, str] = {}
     for ch, cid in pack:
         by_char.setdefault(_norm(ch), cid)
-    matches = [(key, by_char[_norm(emo.char)]) for key, emo in emoji.DEFAULTS.items() if _norm(emo.char) in by_char]
+    matches = [(key, by_char[_norm(emoji.DEFAULTS[key].char)]) for key in keys
+               if _norm(emoji.DEFAULTS[key].char) in by_char]
 
     lines = [f":sparkle: <b>{texts.escape(sticker_set.title)}</b> - {len(pack)} емодзі", ""]
     lines += [f'<tg-emoji emoji-id="{cid}">{ch or "❔"}</tg-emoji> <code>{cid}</code>' for ch, cid in pack[:60]]
@@ -149,7 +153,8 @@ async def cmd_emoji_pack(message: Message, command: CommandObject, bot: Bot, poo
         lines.append(f":ok: Застосовано {len(matches)}: " + ", ".join(f"<code>{k}</code>" for k, _ in matches))
     else:
         lines.append(f"Збігів: {len(matches)} - " + ", ".join(f"<code>{k}</code>" for k, _ in matches))
-        lines.append(f"Застосувати: <code>/emoji_pack {texts.escape(name)} apply</code>")
+        lines.append(f"Застосувати: <code>/emoji_pack {texts.escape(name)} apply</code> (усе) або "
+                     f"<code>/emoji_pack {texts.escape(name)} ui</code> (лише іконки інтерфейсу)")
     await send_chunks(message, lines)
 
 

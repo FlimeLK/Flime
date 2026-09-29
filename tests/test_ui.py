@@ -150,3 +150,13 @@ def test_no_separator_lines_or_command_lists_in_menu():
                 texts.section_daily("ok")]
     for text in sections:
         assert "<code>/" not in text and "/vip" not in text and "/shop" not in text, text[:60]
+
+
+def test_emoji_ids_and_ui_keys():
+    import re
+
+    for key, emo in emoji.DEFAULTS.items():
+        assert emo.id is None or re.fullmatch(r"\d{15,20}", emo.id), key
+    assert emoji.UI_KEYS <= set(emoji.DEFAULTS)
+    # Службові іконки - всі мають ID (пак TgAndroidIcons)
+    assert all(emoji.DEFAULTS[k].id for k in emoji.UI_KEYS)

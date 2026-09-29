@@ -72,6 +72,16 @@ class MockSession(BaseSession):
                            chat=Chat(id=method.chat_id, type=chat_type), text=getattr(method, "text", None))
         if name == "CopyMessage":
             return MessageId(message_id=next(ids))
+        if name == "GetStickerSet":
+            from aiogram.types import Sticker, StickerSet
+
+            def sticker(ch: str, cid: str) -> Sticker:
+                return Sticker(file_id=cid, file_unique_id=cid, type="custom_emoji", width=100, height=100,
+                               is_animated=False, is_video=False, emoji=ch, custom_emoji_id=cid)
+
+            return StickerSet(name=method.name, title="Icons", sticker_type="custom_emoji", stickers=[
+                sticker("⚙️", "111"), sticker("✅", "222"), sticker("🎩", "333"),
+            ])
         return True
 
     def texts_to(self, chat_id: int) -> list[str]:
@@ -437,6 +447,17 @@ async def test_design_tools(env):
     # звичайний гравець не має доступу
     await feed(msg(30, "/emoji_set fire"))
     assert emoji.custom_id("fire") == emoji.DEFAULTS["fire"].id
+
+
+async def test_emoji_pack_ui_only(env):
+    feed, s, _, pool = env
+    try:
+        await feed(msg(OWNER, "/emoji_pack TgAndroidIcons ui"))
+        assert emoji.custom_id("settings") == "111" and emoji.custom_id("ok") == "222"
+        assert emoji.custom_id("vidma") != "333"  # роль - не інтерфейс, не чіпаємо
+        assert await pool.fetchval("SELECT count(*) FROM emoji_overrides") == 2
+    finally:
+        emoji.configure(True)
 
 
 async def test_menu_and_sections(env):
