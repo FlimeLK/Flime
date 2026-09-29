@@ -52,3 +52,27 @@ async def test_parallel_start():
     pools = await asyncio.gather(create_pool(DSN), create_pool(DSN))
     for p in pools:
         await p.close()
+
+
+async def test_foreign_table_in_schema_is_replaced():
+    conn = await _fresh_conn()
+    await conn.execute("CREATE SCHEMA hutir")
+    await conn.execute(
+        "CREATE TABLE hutir.custom_roles (role_id SERIAL PRIMARY KEY, group_id BIGINT, role_name TEXT)")
+    await conn.execute("INSERT INTO hutir.custom_roles (group_id, role_name) VALUES (1, 'old')")
+    await conn.close()
+    from bot.db import roles as roles_db
+    from bot.db.pool import create_pool
+
+    p = await create_pool(DSN)
+    try:
+        assert await roles_db.list_for_chat(p, 1) == []
+        rid = await roles_db.create(p, 1, 1, name="X", emoji="🙂", emoji_id=None, description="",
+                                    team="village", ability="check", min_players=4)
+        assert (await roles_db.get(p, rid))["name"] == "X"
+        assert await p.fetchval("SELECT role_name FROM hutir_legacy.custom_roles") == "old"
+        await p.close()
+        p = await create_pool(DSN)  # повторний старт нічого не ламає
+        assert len(await roles_db.list_for_chat(p, 1)) == 1
+    finally:
+        await p.close()

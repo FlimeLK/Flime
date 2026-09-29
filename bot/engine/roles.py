@@ -92,7 +92,6 @@ ABILITIES: dict[str, str] = {
     "watch": "Стежити",
     "none": "Без дії",
 }
-CUSTOM_TEAMS: dict[str, Team] = {"village": Team.VILLAGE, "evil": Team.EVIL, "solo": Team.WOLF}
 
 
 def ability_kinds(ability: str, team: Team) -> tuple[NightKind, ...]:
