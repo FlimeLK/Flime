@@ -559,15 +559,23 @@ def settings_home(chat_title: str, s) -> str:
 
 
 SETTINGS_MODULES = [
-    ("lobby", "bell", "Реєстрація"),
     ("timers", "timer", "Таймери"),
     ("roles", "theater", "Хто є хто"),
-    ("family", "vidma", "Розмір сім'ї"),
     ("vote", "vote", "Голосування"),
-    ("omerta", "secret", "Омерта"),
     ("items", "bag", "Арсенал"),
-    ("reset", "skip", "Скинути все"),
 ]
+SETTINGS_CUSTOM_BTN = "Кастомні налаштування"
+SETTINGS_CUSTOM_MODULES = [
+    ("lobby", "bell", "Реєстрація"),
+    ("family", "vidma", "Розмір сім'ї"),
+    ("omerta", "secret", "Омерта"),
+]
+SETTINGS_CUSTOM_HEAD = (
+    ":tools: <b>Кастомні налаштування</b>\n\n"
+    "Тут сім'я грає за власними правилами: як збирати гравців, скільки мафії за столом, закон мовчання "
+    "і власні ролі вашого чату."
+)
+SETTINGS_RESET_BTN = "Скинути все"
 SETTINGS_REFRESH = "Освіжити"
 SETTINGS_SENT = ":settings: Доне, налаштування сім'ї чекають на тебе в особистих."
 SETTINGS_SENT_BTN = "Відкрити особисті"

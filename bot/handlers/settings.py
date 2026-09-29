@@ -47,7 +47,9 @@ def panel(s: GroupSettings, module: str, custom: list[dict] | None = None):
     if module == "vote":
         return texts.SETTINGS_VOTE_HEAD, keyboards.settings_toggles(s, MODULE_TOGGLES["vote"])
     if module == "omerta":
-        return texts.SETTINGS_OMERTA_HEAD, keyboards.settings_toggles(s, MODULE_TOGGLES["omerta"])
+        return texts.SETTINGS_OMERTA_HEAD, keyboards.settings_toggles(s, MODULE_TOGGLES["omerta"], "custom")
+    if module == "custom":
+        return texts.SETTINGS_CUSTOM_HEAD, keyboards.settings_custom(s.chat_id)
     if module == "reset":
         return texts.SETTINGS_RESET_HEAD, keyboards.settings_reset(s.chat_id)
     return texts.settings_home(s.title, s), keyboards.settings_home(s.chat_id)

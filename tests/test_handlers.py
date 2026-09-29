@@ -271,9 +271,18 @@ async def test_settings_admin_only(env):
     assert "Налаштування сім'ї" in s.last_text(ADMIN)
     assert "в особистих" in s.last_text(GROUP)
     home = [c for c in s.calls if type(c).__name__ == "SendMessage" and c.chat_id == ADMIN][-1].reply_markup
-    assert [len(r) for r in home.inline_keyboard] == [2, 2, 2, 2, 2, 1]
+    assert [len(r) for r in home.inline_keyboard] == [2, 2, 1, 1]
     labels = [b.text for r in home.inline_keyboard for b in r]
-    assert "Створити роль" in labels and "Омерта" in labels
+    assert "Кастомні налаштування" in labels and "Омерта" not in labels
+    # Кастомні налаштування: реєстрація, розмір сім'ї, омерта, власні ролі, скидання
+    await feed(cb(ADMIN, SetCb(action="custom", chat=GROUP).pack()))
+    custom = [c for c in s.calls if type(c).__name__ == "EditMessageText"][-1]
+    assert "Кастомні налаштування" in custom.text
+    labels = [b.text for r in custom.reply_markup.inline_keyboard for b in r]
+    for label in ("Реєстрація", "Розмір сім'ї", "Омерта", "Створити роль", "Мої ролі", "Скинути все"):
+        assert label in labels, label
+    back = custom.reply_markup.inline_keyboard[-1][0].callback_data
+    assert back == SetCb(action="home", chat=GROUP).pack()
     # Натискання в особистих: chat у callback - це група
     await feed(cb(ADMIN, SetCb(action="toggle", key="secret_vote", chat=GROUP).pack()))
     await feed(cb(ADMIN, SetCb(action="timer", key="night_time", delta=15, chat=GROUP).pack()))
@@ -459,9 +468,14 @@ async def test_settings_modules(env):
         return [c for c in s.calls if type(c).__name__ == "EditMessageText"][-1]
 
     for module, word in (("timers", "Таймери"), ("lobby", "Реєстрація"), ("family", "Розмір сім'ї"),
-                         ("omerta", "Омерта"), ("items", "Арсенал"), ("roles", "Хто є хто"), ("reset", "Скинути")):
+                         ("omerta", "Омерта"), ("items", "Арсенал"), ("roles", "Хто є хто"), ("reset", "Скинути"),
+                         ("custom", "Кастомні")):
         await feed(cb(ADMIN, SetCb(action=module, chat=GROUP).pack()))
         assert word in last_edit().text, module
+        # Із кастомних модулів «Назад» веде в кастомні налаштування
+        back = last_edit().reply_markup.inline_keyboard[-1][-1].callback_data
+        if module in ("lobby", "family", "omerta", "reset"):
+            assert back == SetCb(action="custom", chat=GROUP).pack(), module
     await feed(cb(ADMIN, SetCb(action="vote", chat=GROUP).pack()))
     assert len(last_edit().reply_markup.inline_keyboard) == 3  # 2 перемикачі + Назад
     await feed(cb(ADMIN, SetCb(action="refresh", chat=GROUP).pack()))

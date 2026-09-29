@@ -55,17 +55,28 @@ def back_to_menu() -> InlineKeyboardMarkup:
 
 # ---------- налаштування чату (в особистих адміна) ----------
 
-def _back_to_settings(chat: int) -> list:
-    return [btn(texts.BACK, SetCb(action="home", chat=chat), emo="back")]
+def _back_to_settings(chat: int, to: str = "home") -> list:
+    return [btn(texts.BACK, SetCb(action=to, chat=chat), emo="back")]
 
 
 def settings_home(chat: int) -> InlineKeyboardMarkup:
     grid = [btn(label, SetCb(action=key, chat=chat), emo=emo) for key, emo, label in texts.SETTINGS_MODULES]
     return InlineKeyboardMarkup(inline_keyboard=[
         *rows(grid, 2),
+        [btn(texts.SETTINGS_CUSTOM_BTN, SetCb(action="custom", chat=chat), emo="tools", style=SUCCESS)],
+        [btn(texts.SETTINGS_REFRESH, SetCb(action="refresh", chat=chat), emo="refresh", style=PRIMARY)],
+    ])
+
+
+def settings_custom(chat: int) -> InlineKeyboardMarkup:
+    """Кастомні налаштування: усе додаткове понад базові модулі."""
+    grid = [btn(label, SetCb(action=key, chat=chat), emo=emo) for key, emo, label in texts.SETTINGS_CUSTOM_MODULES]
+    return InlineKeyboardMarkup(inline_keyboard=[
+        *rows(grid, 2),
         [btn(texts.ROLES_CREATE, RoleCb(action="new", value=str(chat)), emo="sparkle", style=SUCCESS),
          btn(texts.ROLES_MINE, RoleCb(action="list", value=str(chat)), emo="theater")],
-        [btn(texts.SETTINGS_REFRESH, SetCb(action="refresh", chat=chat), emo="refresh", style=PRIMARY)],
+        [btn(texts.SETTINGS_RESET_BTN, SetCb(action="reset", chat=chat), emo="skip", style=DANGER)],
+        _back_to_settings(chat),
     ])
 
 
@@ -113,7 +124,7 @@ def settings_lobby(s: GroupSettings) -> InlineKeyboardMarkup:
         _stepper(s.chat_id, "timer", "reg_time", TIMER_LIMITS["reg_time"][2],
                  f"{label}: {texts.fmt_seconds(s.reg_time)}", emo),
         *_toggles(s, ("pin_lobby", "start_admins_only")),
-        _back_to_settings(s.chat_id),
+        _back_to_settings(s.chat_id, "custom"),
     ])
 
 
@@ -127,7 +138,7 @@ def settings_family(s: GroupSettings) -> InlineKeyboardMarkup:
         _stepper(s.chat_id, "players", key, PLAYER_LIMITS[key][2], f"{label}: {getattr(s, key)}", emo)
         for key, (emo, label) in texts.PLAYER_LABELS.items()
     ]
-    return InlineKeyboardMarkup(inline_keyboard=[ratios, *steppers, _back_to_settings(s.chat_id)])
+    return InlineKeyboardMarkup(inline_keyboard=[ratios, *steppers, _back_to_settings(s.chat_id, "custom")])
 
 
 def settings_roles(s: GroupSettings, custom: list[dict]) -> InlineKeyboardMarkup:
@@ -160,14 +171,14 @@ def settings_items(s: GroupSettings) -> InlineKeyboardMarkup:
     ])
 
 
-def settings_toggles(s: GroupSettings, keys: tuple[str, ...]) -> InlineKeyboardMarkup:
-    return InlineKeyboardMarkup(inline_keyboard=[*_toggles(s, keys), _back_to_settings(s.chat_id)])
+def settings_toggles(s: GroupSettings, keys: tuple[str, ...], back: str = "home") -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(inline_keyboard=[*_toggles(s, keys), _back_to_settings(s.chat_id, back)])
 
 
 def settings_reset(chat: int) -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(inline_keyboard=[[
         btn(texts.RESET_YES, SetCb(action="reset_ok", chat=chat), emo="ok", style=DANGER),
-        btn(texts.BACK, SetCb(action="home", chat=chat), emo="back"),
+        btn(texts.BACK, SetCb(action="custom", chat=chat), emo="back"),
     ]])
 
 
@@ -204,7 +215,7 @@ def roles_list(custom: list[dict], chat: int) -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(inline_keyboard=[
         *rows(buttons, 2),
         [btn(texts.ROLES_CREATE, RoleCb(action="new", value=str(chat)), emo="sparkle", style=SUCCESS)],
-        _back_to_settings(chat),
+        _back_to_settings(chat, "custom"),
     ])
 
 
@@ -213,7 +224,7 @@ def role_done(chat: int) -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(inline_keyboard=[
         [btn(texts.ROLES_MINE, RoleCb(action="list", value=str(chat)), emo="theater"),
          btn(texts.ROLES_CREATE, RoleCb(action="new", value=str(chat)), emo="sparkle")],
-        _back_to_settings(chat),
+        _back_to_settings(chat, "custom"),
     ])
 
 
