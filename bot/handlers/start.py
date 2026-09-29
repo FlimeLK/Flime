@@ -1,40 +1,44 @@
-"""Привітання, головне меню і правила."""
+"""Привітання, головне меню з розділами і правила.
+
+Розділи відкриваються в тому самому повідомленні (edit), кнопка «Назад» повертає меню.
+"""
 
 from __future__ import annotations
 
 import asyncpg
 from aiogram import Router
+from aiogram.exceptions import TelegramBadRequest
 from aiogram.filters import Command, CommandStart
-from aiogram.filters.callback_data import CallbackData
 from aiogram.types import CallbackQuery, InlineKeyboardMarkup, Message
 
-from bot import texts
+from bot import economy, keyboards, texts
+from bot.db import shop, users
 from bot.db.users import User
+from bot.engine.items import ITEMS
 from bot.game.manager import GameManager
-from bot.ui.buttons import PRIMARY, SUCCESS, btn
+from bot.keyboards import MenuCb, SecCb
 
 router = Router(name="start")
 
 
-class MenuCb(CallbackData, prefix="menu"):
-    action: str
-
-
-def menu_keyboard(bot_username: str) -> InlineKeyboardMarkup:
-    return InlineKeyboardMarkup(inline_keyboard=[
-        [btn("Додати бота в групу", url=f"https://t.me/{bot_username}?startgroup=true", emo="people", style=SUCCESS)],
-        [btn("Профіль", MenuCb(action="profile"), emo="profile"),
-         btn("Ярмарок", MenuCb(action="shop"), emo="shop")],
-        [btn("Гостинець", MenuCb(action="daily"), emo="gift"),
-         btn("VIP", MenuCb(action="vip"), emo="vip", style=PRIMARY)],
-        [btn("Правила та ролі", MenuCb(action="rules"), emo="rules")],
-    ])
+async def _edit(cb: CallbackQuery, text: str, markup: InlineKeyboardMarkup) -> None:
+    """Редагує повідомлення меню; якщо це повідомлення з медіа — редагує підпис."""
+    await cb.answer()
+    try:
+        if cb.message.photo or cb.message.animation or cb.message.video:
+            await cb.message.edit_caption(caption=text, reply_markup=markup)
+        else:
+            await cb.message.edit_text(text, reply_markup=markup, disable_web_page_preview=True)
+    except TelegramBadRequest:
+        # Підпис до медіа обмежений 1024 символами — тоді надсилаємо розділ окремим повідомленням.
+        await cb.message.answer(text, reply_markup=markup)
 
 
 @router.message(CommandStart())
 async def cmd_start(message: Message, manager: GameManager) -> None:
-    markup = menu_keyboard(manager.bot_username) if message.chat.type == "private" else None
-    await manager.m.send_scene(message.chat.id, "start", texts.START, markup)
+    private = message.chat.type == "private"
+    markup = keyboards.main_menu(manager.bot_username) if private else None
+    await manager.m.send_scene(message.chat.id, "start", texts.start(message.from_user.first_name), markup)
 
 
 @router.message(Command("rules", "help"))
@@ -43,19 +47,39 @@ async def cmd_rules(message: Message) -> None:
 
 
 @router.callback_query(MenuCb.filter())
-async def on_menu(cb: CallbackQuery, callback_data: MenuCb, pool: asyncpg.Pool, user: User) -> None:
-    from bot.handlers import payments, profile, shop
+async def on_menu(cb: CallbackQuery, manager: GameManager) -> None:
+    await _edit(cb, texts.start(cb.from_user.first_name), keyboards.main_menu(manager.bot_username))
 
-    await cb.answer()
-    msg = cb.message
-    match callback_data.action:
-        case "profile":
-            await profile.cmd_profile(msg, pool, user)
-        case "shop":
-            await shop.cmd_shop(msg, pool, user)
-        case "daily":
-            await profile.cmd_daily(msg, pool, user)
+
+@router.callback_query(SecCb.filter())
+async def on_section(cb: CallbackQuery, callback_data: SecCb, pool: asyncpg.Pool, user: User) -> None:
+    from bot.handlers.profile import fmt_date, fmt_left
+
+    match callback_data.name:
+        case "howto":
+            text = texts.SECTION_HOWTO
+        case "game":
+            text = texts.SECTION_GAME
+        case "roles":
+            text = texts.section_roles()
+        case "items":
+            text = texts.section_items()
         case "vip":
-            await payments.cmd_vip(msg, user)
-        case "rules":
-            await cmd_rules(msg)
+            text = texts.SECTION_VIP
+        case "profile":
+            inv = await shop.inventory(pool, user.id)
+            inventory = [f"{texts.item_title(k)} ×{v}" for k, v in inv.items() if k in ITEMS]
+            card = texts.profile(user.name, user.shagy, user.chervintsi,
+                                 fmt_date(user.vip_until) if user.is_vip else None,
+                                 user.games, user.wins, inventory)
+            text = texts.section_profile(card)
+        case "daily":
+            amount = economy.DAILY_VIP if user.is_vip else economy.DAILY
+            ok, next_at = await users.claim_daily(pool, user.id, amount, economy.DAILY_COOLDOWN)
+            result = (texts.DAILY_OK.format(amount=amount, shagy=texts.SHAGY) if ok
+                      else texts.DAILY_WAIT.format(left=fmt_left(next_at)))
+            text = texts.section_daily(result)
+        case _:
+            await cb.answer()
+            return
+    await _edit(cb, text, keyboards.back_to_menu())

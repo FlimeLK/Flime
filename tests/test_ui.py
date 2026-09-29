@@ -46,7 +46,7 @@ def test_override_and_disable():
     emoji.configure(False, {"selianyn": "123"})
     assert emoji.e("selianyn") == "👨‍🌾"
     assert emoji.icon("fire") is None
-    assert btn("Вогонь", "x", emo="fire").text == "🔥 Вогонь"
+    assert btn("Вогонь", "x", emo="fire").text == "🔥Вогонь"
 
 
 def test_button_icon_and_style():
@@ -109,7 +109,9 @@ class Checker(HTMLParser):
 def samples() -> list[str]:
     p = [(1, "Оксана <3"), (2, "Тарас")]
     out = [
-        texts.START, texts.rules(), texts.lobby(p, 75, 4), texts.lobby([], 90, 4),
+        texts.start('Оксана <b>'), texts.rules(), texts.SECTION_HOWTO, texts.SECTION_GAME, texts.section_roles(),
+        texts.section_items(), texts.section_profile('картка'), texts.section_daily('ok'), texts.SECTION_VIP,
+        texts.settings_home('Хутір <3'), texts.SETTINGS_TIMERS_HEAD, texts.SETTINGS_VOTE_HEAD, texts.SETTINGS_ITEMS_HEAD, texts.lobby(p, 75, 4), texts.lobby([], 90, 4),
         texts.game_started(5, ["a", "b"]), texts.night_start(2, p),
         texts.morning(2, [(1, "Оксана", "evil", "vidma"), (2, "Тарас", "wolf", None)], 1), texts.morning(1, [], 0),
         texts.vote_results([("x", 3), (":skip: Нікого", 1)]), texts.vote_results([]),
@@ -117,7 +119,7 @@ def samples() -> list[str]:
         texts.game_over(Team.VILLAGE, ["a"], ["b"], 3), texts.game_over("draw", [], ["b"], 3),
         texts.profile("Ім'я <b>", 10, 2, "01.01.2027", 5, 3, ["x"]), texts.profile("N", 0, 0, None, 0, 0, []),
         texts.shop(100, {"obereg": 2}, 3), texts.vip_menu(3, None, 60, 50), texts.promo_ok(1, 2, 3),
-        texts.SETTINGS_HEAD, texts.SETTINGS_ROLES_HEAD, texts.TOP_HEAD,
+        texts.SETTINGS_ROLES_HEAD, texts.TOP_HEAD,
     ]
     out += [texts.role_card(k, ["honey"], ["ally"]) for k in ROLES]
     out += list(texts.NIGHT_PROMPTS.values()) + list(texts.YOU_SAVED.values())

@@ -10,8 +10,10 @@ import asyncpg
 from aiogram import Bot, Dispatcher
 from aiogram.client.default import DefaultBotProperties
 from aiogram.enums import ParseMode
+from aiogram.exceptions import TelegramAPIError
 from aiogram.types import BotCommand, BotCommandScopeAllGroupChats, BotCommandScopeAllPrivateChats
 
+from bot import texts
 from bot.config import Settings, load_settings
 from bot.db import ui as ui_db
 from bot.db.pool import create_pool
@@ -65,6 +67,19 @@ async def load_design(pool: asyncpg.Pool, config: Settings) -> None:
     media.load(await ui_db.media_all(pool))
 
 
+async def apply_bot_profile(bot: Bot) -> None:
+    """Ім'я, About і Description бота з texts.py (аватарку ставлять у @BotFather)."""
+    try:
+        if (await bot.get_my_name()).name != texts.BOT_NAME:
+            await bot.set_my_name(name=texts.BOT_NAME)
+        if (await bot.get_my_short_description()).short_description != texts.BOT_ABOUT:
+            await bot.set_my_short_description(short_description=texts.BOT_ABOUT)
+        if (await bot.get_my_description()).description != texts.BOT_DESCRIPTION:
+            await bot.set_my_description(description=texts.BOT_DESCRIPTION)
+    except TelegramAPIError as e:
+        log.warning("Could not update bot profile: %s", e)
+
+
 def setup_logging() -> None:
     fmt = logging.Formatter("%(asctime)s %(levelname)s %(name)s: %(message)s")
     root = logging.getLogger()
@@ -90,6 +105,7 @@ async def main() -> None:
 
     await bot.set_my_commands(PRIVATE_COMMANDS, scope=BotCommandScopeAllPrivateChats())
     await bot.set_my_commands(GROUP_COMMANDS, scope=BotCommandScopeAllGroupChats())
+    await apply_bot_profile(bot)
 
     restored = await manager.restore()
     log.info("Bot @%s started, restored games: %d", me.username, restored)

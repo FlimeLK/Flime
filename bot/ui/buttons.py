@@ -22,10 +22,11 @@ def btn(
 ) -> InlineKeyboardButton:
     """Кнопка. `emo` — ключ з bot.ui.emoji: анімована іконка перед текстом.
 
-    Якщо анімації немає (ID не задано або вимкнено), перед текстом ставиться звичайний символ.
+    Якщо анімації немає (ID не задано або вимкнено), перед текстом без пробілу ставиться
+    звичайний символ: «💬Як зі мною говорити».
     """
     icon_id = icon(emo)
-    label = text if icon_id or not emo else f"{plain(emo)} {text}"
+    label = text if icon_id or not emo else f"{plain(emo)}{text}"
     kwargs: dict = {"text": label or " "}
     if icon_id:
         kwargs["icon_custom_emoji_id"] = icon_id

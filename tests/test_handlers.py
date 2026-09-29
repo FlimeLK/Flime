@@ -125,7 +125,7 @@ async def env(pool):
 async def test_private_commands(env):
     feed, s, _, pool = env
     await feed(msg(10, "/start"))
-    assert "МАФІЯ: ХУТІР" in s.last_text(10)
+    assert "Кум Опанас" in s.last_text(10) and "Гравець10" in s.last_text(10)
     await feed(msg(10, "/profile"))
     assert "Шаги: <b>100</b>" in s.last_text(10)
     await feed(msg(10, "/daily"))
@@ -199,7 +199,9 @@ async def test_settings_admin_only(env):
     await feed(msg(13, "/settings", GROUP))
     assert "лише адміністратор" in s.last_text(GROUP)
     await feed(msg(ADMIN, "/settings", GROUP))
-    assert "НАЛАШТУВАННЯ ГРИ" in s.last_text(GROUP)
+    assert "Налаштування хутора:" in s.last_text(GROUP)
+    home = [c for c in s.calls if type(c).__name__ == "SendMessage" and c.chat_id == GROUP][-1].reply_markup
+    assert [len(r) for r in home.inline_keyboard] == [2, 2, 1]
     await feed(cb(ADMIN, SetCb(action="toggle", key="secret_vote").pack(), GROUP))
     await feed(cb(ADMIN, SetCb(action="timer", key="night_time", delta=15).pack(), GROUP))
     await feed(cb(ADMIN, SetCb(action="role", key="mavka").pack(), GROUP))
@@ -274,24 +276,48 @@ async def test_design_tools(env):
     assert await pool.fetchval("SELECT file_id FROM media WHERE slot = 'start'") == "PHOTO1"
     await feed(msg(30, "/start"))
     photo = [c for c in s.calls if type(c).__name__ == "SendPhoto"][-1]
-    assert photo.photo == "PHOTO1" and "МАФІЯ: ХУТІР" in photo.caption and "<tg-emoji" in photo.caption
+    assert photo.photo == "PHOTO1" and "Кум Опанас" in photo.caption and "<tg-emoji" in photo.caption
     assert photo.reply_markup.inline_keyboard[0][0].icon_custom_emoji_id
     await feed(msg(OWNER, "/media_clear start"))
     await feed(msg(30, "/start"))
-    assert "МАФІЯ: ХУТІР" in s.last_text(30)
+    assert "Кум Опанас" in s.last_text(30)
 
     # звичайний гравець не має доступу
     await feed(msg(30, "/emoji_set fire"))
     assert emoji.custom_id("fire") == emoji.DEFAULTS["fire"].id
 
 
-async def test_menu_and_keyboards_have_icons(env):
+async def test_menu_and_sections(env):
     feed, s, _, pool = env
+
+    def edits():
+        return [c for c in s.calls if type(c).__name__ == "EditMessageText"]
+
     await feed(msg(31, "/start"))
     menu = [c for c in s.calls if type(c).__name__ == "SendMessage" and c.chat_id == 31][-1].reply_markup
+    assert [len(r) for r in menu.inline_keyboard] == [1, 2, 2, 2, 1]
     assert all(b.icon_custom_emoji_id for row in menu.inline_keyboard for b in row)
-    await feed(cb(31, "menu:profile"))
-    assert "Шаги" in s.last_text(31)
-    await feed(cb(31, "menu:shop"))
-    shop_kb = [c for c in s.calls if type(c).__name__ == "SendMessage" and c.chat_id == 31][-1].reply_markup
-    assert all(b.style == "primary" for row in shop_kb.inline_keyboard for b in row)
+    assert menu.inline_keyboard[0][0].callback_data == "sec:howto"
+
+    for name, marker in [("howto", "<code>/game</code>"), ("game", "Як грати"), ("roles", "Характерник"),
+                         ("items", "Оберіг"), ("profile", "Шаги"), ("daily", "+50"), ("vip", "VIP")]:
+        await feed(cb(31, f"sec:{name}"))
+        last = edits()[-1]
+        assert marker in last.text, name
+        assert last.reply_markup.inline_keyboard[0][0].callback_data == "menu:main"
+    await feed(cb(31, "menu:main"))
+    assert "Ознайомся з моїми можливостями" in edits()[-1].text
+
+
+async def test_settings_modules(env):
+    feed, s, _, pool = env
+
+    def last_edit():
+        return [c for c in s.calls if type(c).__name__ == "EditMessageText"][-1]
+
+    await feed(cb(ADMIN, SetCb(action="timers").pack(), GROUP))
+    assert "Таймери" in last_edit().text
+    await feed(cb(ADMIN, SetCb(action="vote").pack(), GROUP))
+    assert len(last_edit().reply_markup.inline_keyboard) == 3  # 2 перемикачі + Назад
+    await feed(cb(ADMIN, SetCb(action="refresh").pack(), GROUP))
+    assert "Налаштування хутора:" in last_edit().text
