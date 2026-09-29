@@ -1,4 +1,4 @@
-CREATE TABLE users (
+CREATE TABLE IF NOT EXISTS users (
     id          BIGINT PRIMARY KEY,
     name        TEXT NOT NULL DEFAULT '',
     username    TEXT,
@@ -12,14 +12,14 @@ CREATE TABLE users (
     created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
-CREATE TABLE inventory (
+CREATE TABLE IF NOT EXISTS inventory (
     user_id  BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     item     TEXT NOT NULL,
     qty      INTEGER NOT NULL CHECK (qty >= 0),
     PRIMARY KEY (user_id, item)
 );
 
-CREATE TABLE purchases (
+CREATE TABLE IF NOT EXISTS purchases (
     id          SERIAL PRIMARY KEY,
     user_id     BIGINT NOT NULL,
     product     TEXT NOT NULL,
@@ -29,7 +29,7 @@ CREATE TABLE purchases (
     created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
-CREATE TABLE group_settings (
+CREATE TABLE IF NOT EXISTS group_settings (
     chat_id          BIGINT PRIMARY KEY,
     title            TEXT NOT NULL DEFAULT '',
     reg_time         INTEGER NOT NULL DEFAULT 90,
@@ -43,13 +43,13 @@ CREATE TABLE group_settings (
     items_enabled    BOOLEAN NOT NULL DEFAULT TRUE
 );
 
-CREATE TABLE games (
+CREATE TABLE IF NOT EXISTS games (
     chat_id     BIGINT PRIMARY KEY,
     state       JSONB NOT NULL,
     updated_at  TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
-CREATE TABLE game_results (
+CREATE TABLE IF NOT EXISTS game_results (
     id          SERIAL PRIMARY KEY,
     chat_id     BIGINT NOT NULL,
     winner      TEXT NOT NULL,
@@ -58,17 +58,17 @@ CREATE TABLE game_results (
     created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
-CREATE TABLE game_players (
+CREATE TABLE IF NOT EXISTS game_players (
     game_id  INTEGER NOT NULL REFERENCES game_results(id) ON DELETE CASCADE,
     user_id  BIGINT NOT NULL,
     role     TEXT NOT NULL,
     won      BOOLEAN NOT NULL,
     PRIMARY KEY (game_id, user_id)
 );
-CREATE INDEX game_players_user_idx ON game_players (user_id);
-CREATE INDEX game_results_chat_idx ON game_results (chat_id);
+CREATE INDEX IF NOT EXISTS game_players_user_idx ON game_players (user_id);
+CREATE INDEX IF NOT EXISTS game_results_chat_idx ON game_results (chat_id);
 
-CREATE TABLE promocodes (
+CREATE TABLE IF NOT EXISTS promocodes (
     code        TEXT PRIMARY KEY,
     shagy       BIGINT NOT NULL DEFAULT 0,
     chervintsi  BIGINT NOT NULL DEFAULT 0,
@@ -78,7 +78,7 @@ CREATE TABLE promocodes (
     created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
-CREATE TABLE promocode_uses (
+CREATE TABLE IF NOT EXISTS promocode_uses (
     code     TEXT NOT NULL REFERENCES promocodes(code) ON DELETE CASCADE,
     user_id  BIGINT NOT NULL,
     PRIMARY KEY (code, user_id)

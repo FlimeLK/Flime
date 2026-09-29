@@ -1,4 +1,4 @@
-CREATE TABLE custom_roles (
+CREATE TABLE IF NOT EXISTS custom_roles (
     id           SERIAL PRIMARY KEY,
     chat_id      BIGINT NOT NULL,
     name         TEXT NOT NULL,
@@ -12,4 +12,4 @@ CREATE TABLE custom_roles (
     created_by   BIGINT,
     created_at   TIMESTAMPTZ NOT NULL DEFAULT now()
 );
-CREATE INDEX custom_roles_chat_idx ON custom_roles (chat_id);
+CREATE INDEX IF NOT EXISTS custom_roles_chat_idx ON custom_roles (chat_id);
