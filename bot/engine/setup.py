@@ -12,11 +12,16 @@ VILLAGE_SPECIALS = ["znaharka", "harakternyk", "kum", "storozh", "kobzar", "otam
 SOLO_ROLES = ["duren", "vovkulaka"]
 
 
-def evil_count(n: int) -> int:
-    return max(1, round(n / 3.5))
+# Розмір сім'ї (налаштування чату): скільки гравців припадає на одного мафіозі.
+MAFIA_RATIOS = {"few": 4.5, "normal": 3.5, "many": 2.8}
 
 
-def build_roles(n: int, disabled: Iterable[str] = (), custom: Iterable[str] = ()) -> list[str]:
+def evil_count(n: int, ratio: str = "normal") -> int:
+    return max(1, round(n / MAFIA_RATIOS.get(ratio, MAFIA_RATIOS["normal"])))
+
+
+def build_roles(n: int, disabled: Iterable[str] = (), custom: Iterable[str] = (),
+                ratio: str = "normal") -> list[str]:
     """Повертає список ролей довжини n (ще не перемішаний).
 
     custom - ключі власних ролей чату (уже зареєстрованих у ROLES); вони роздаються першими:
@@ -34,7 +39,7 @@ def build_roles(n: int, disabled: Iterable[str] = (), custom: Iterable[str] = ()
     from bot.engine.roles import Team
 
     custom = [k for k in custom if k in ROLES and n >= ROLES[k].min_players]
-    evil = evil_count(n)
+    evil = evil_count(n, ratio)
     roles = ["vidma"]
     for key in custom:
         if ROLES[key].team == Team.EVIL and len(roles) < evil:
@@ -63,7 +68,8 @@ def assign_roles(game: Game, rng: random.Random | None = None) -> None:
     from bot.engine.roles import register_custom
 
     custom = register_custom(game.settings.get("custom_roles", []))
-    roles = build_roles(len(ids), game.settings.get("disabled_roles", ()), custom)
+    roles = build_roles(len(ids), game.settings.get("disabled_roles", ()), custom,
+                        game.settings.get("mafia_ratio", "normal"))
     rng.shuffle(roles)
     for uid, role in zip(ids, roles, strict=True):
         p = game.players[uid]

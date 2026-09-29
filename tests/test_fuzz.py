@@ -12,7 +12,7 @@ from bot import texts
 from bot.db import shop as shop_db
 from bot.db import users as users_db
 from bot.db.groups import GroupSettings
-from bot.engine.items import POCKET_ORDER
+from bot.engine.items import ITEMS, POCKET_ORDER
 from bot.engine.models import Game, Phase
 from bot.engine.night import can_target
 from bot.engine.roles import ABILITIES
@@ -64,7 +64,9 @@ async def test_random_game(pool, seed):
     chat = -(seed + 7000)
     s = GroupSettings(chat_id=chat, night_time=1, day_time=0, vote_time=1, confirm_time=1,
                       hide_dead_roles=rng.random() < 0.5, secret_vote=rng.random() < 0.5,
-                      items_enabled=rng.random() < 0.8)
+                      items_enabled=rng.random() < 0.8, mafia_ratio=rng.choice(["few", "normal", "many"]),
+                      disabled_items=rng.sample(list(ITEMS), rng.randint(0, 3)),
+                      pin_lobby=rng.random() < 0.5, omerta_dead=rng.random() < 0.5)
     game = Game(chat_id=chat, settings={**s.to_dict(), "custom_roles": _custom(rng, seed * 10 + 50_000)},
                 starter_id=ids[0])
     m = FakeMessenger()
@@ -96,3 +98,5 @@ async def test_random_game(pool, seed):
     await asyncio.wait_for(finished.wait(), 10)
     assert game.phase == Phase.FINISHED
     assert not any(t == texts.GAME_CRASHED for _, t in m.sent)
+    for p in game.players.values():
+        assert not set(p.pocket) & set(s.disabled_items)

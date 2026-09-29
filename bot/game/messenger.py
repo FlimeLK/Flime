@@ -105,3 +105,15 @@ class Messenger:
             await self.bot.edit_message_reply_markup(chat_id=chat_id, message_id=message_id, reply_markup=None)
         except TelegramAPIError as e:
             log.debug("clear markup %s/%s failed: %s", chat_id, message_id, e)
+
+    async def pin(self, chat_id: int, message_id: int) -> None:
+        try:
+            await self.bot.pin_chat_message(chat_id, message_id, disable_notification=True)
+        except TelegramAPIError as e:  # у бота немає права закріплювати
+            log.debug("pin %s/%s failed: %s", chat_id, message_id, e)
+
+    async def unpin(self, chat_id: int, message_id: int) -> None:
+        try:
+            await self.bot.unpin_chat_message(chat_id, message_id=message_id)
+        except TelegramAPIError as e:
+            log.debug("unpin %s/%s failed: %s", chat_id, message_id, e)

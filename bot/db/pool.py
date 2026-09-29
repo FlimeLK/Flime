@@ -95,9 +95,13 @@ async def _repair_foreign_tables(conn: asyncpg.Connection) -> None:
     try:
         await conn.execute(f"DROP SCHEMA IF EXISTS {REF_SCHEMA} CASCADE; CREATE SCHEMA {REF_SCHEMA}")
         await conn.execute(f"SET LOCAL search_path TO {REF_SCHEMA}")
+        # Для кожної таблиці - колонки з моменту її створення: пізніші міграції (ADD COLUMN)
+        # ще можуть бути не застосовані, і це не робить таблицю «чужою».
+        expected: dict[str, set[str]] = {}
         for text in sql:
             await conn.execute(text)
-        expected = await _columns(conn, REF_SCHEMA)
+            for table, cols in (await _columns(conn, REF_SCHEMA)).items():
+                expected.setdefault(table, cols)
     finally:
         await tr.rollback()
 

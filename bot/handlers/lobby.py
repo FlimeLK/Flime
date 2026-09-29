@@ -12,7 +12,6 @@ from bot.config import Settings
 from bot.db import groups
 from bot.db import roles as roles_db
 from bot.db.users import User
-from bot.engine.models import MIN_PLAYERS
 from bot.game.manager import GameManager
 from bot.handlers.common import is_chat_admin, is_group
 
@@ -70,11 +69,12 @@ async def cmd_start_now(message: Message, bot: Bot, manager: GameManager, config
     if runner is None:
         await message.answer(texts.NO_GAME)
         return
-    if user.id != runner.game.starter_id and not await is_chat_admin(bot, message.chat.id, user.id, config):
+    starter_ok = user.id == runner.game.starter_id and not runner.game.settings.get("start_admins_only")
+    if not starter_ok and not await is_chat_admin(bot, message.chat.id, user.id, config):
         await message.answer(texts.ADMIN_ONLY)
         return
     if not runner.force_start():
-        await message.answer(texts.FORCE_START_FEW.format(min=MIN_PLAYERS))
+        await message.answer(texts.FORCE_START_FEW.format(min=runner.min_players))
 
 
 @router.message(Command("stop"))

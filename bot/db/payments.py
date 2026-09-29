@@ -28,3 +28,7 @@ async def mark_refunded(pool: asyncpg.Pool | asyncpg.Connection, charge_id: str)
 
 async def recent(pool: asyncpg.Pool, limit: int = 15) -> list[asyncpg.Record]:
     return await pool.fetch("SELECT * FROM purchases ORDER BY created_at DESC LIMIT $1", limit)
+
+
+async def get_by_id(pool: asyncpg.Pool, purchase_id: int) -> asyncpg.Record | None:
+    return await pool.fetchrow("SELECT * FROM purchases WHERE id = $1", purchase_id)

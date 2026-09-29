@@ -39,6 +39,12 @@ class FakeMessenger:
     async def clear_markup(self, chat_id, message_id):
         pass
 
+    async def pin(self, chat_id, message_id):
+        pass
+
+    async def unpin(self, chat_id, message_id):
+        pass
+
 
 async def wait_phase(runner: GameRunner, *phases: Phase, timeout: float = 5) -> None:
     for _ in range(int(timeout / 0.01)):

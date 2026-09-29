@@ -80,3 +80,16 @@ def test_custom_role_abilities():
     assert ROLES[k_evil].night == (NightKind.KILL,)
     assert ROLES[k_vill].night == (NightKind.CUSTOM_KILL,)
     assert ROLES[k_vill].custom and ROLES[k_vill].team == Team.VILLAGE
+
+
+def test_mafia_ratio():
+    from bot.engine.setup import build_roles, evil_count
+
+    assert evil_count(20, "few") < evil_count(20, "normal") < evil_count(20, "many")
+    evil = {"vidma", "upyr", "mavka"}
+    for ratio in ("few", "normal", "many"):
+        for n in range(4, 31):
+            roles = build_roles(n, ratio=ratio)
+            assert len(roles) == n
+            assert sum(r in evil for r in roles) == evil_count(n, ratio)
+            assert sum(r in evil for r in roles) < n / 2

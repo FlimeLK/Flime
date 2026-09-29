@@ -148,9 +148,9 @@ async def test_owner_and_promo(env):
     feed, s, _, pool = env
     await feed(msg(11, "/start"))
     await feed(msg(11, "/owner"))  # не власник - тиша
-    assert not any("ПАНЕЛЬ ВЛАСНИКА" in t for t in s.texts_to(11))
+    assert not any("КАБІНЕТ ДОНА" in t for t in s.texts_to(11))
     await feed(msg(OWNER, "/owner"))
-    assert "ПАНЕЛЬ ВЛАСНИКА" in s.last_text(OWNER)
+    assert "КАБІНЕТ ДОНА" in s.last_text(OWNER)
     await feed(msg(OWNER, "/give 11 cherv 70"))
     assert (await users_db.get(pool, 11)).chervintsi == 70
     await feed(msg(OWNER, "/promo_new HUTIR 25 0 3 10"))
@@ -163,6 +163,74 @@ async def test_owner_and_promo(env):
     before = len(s.calls)
     await feed(msg(11, "/profile"))
     assert len(s.calls) == before  # заблокованим не відповідаємо
+
+
+async def test_owner_panel(env):
+    feed, s, manager, pool = env
+    from bot.keyboards import OwnCb
+
+    def last_edit():
+        return [c for c in s.calls if type(c).__name__ == "EditMessageText"][-1].text
+
+    await feed(msg(21, "/start"))
+    await feed(msg(22, "/start"))
+    await feed(msg(OWNER, "/owner"))
+    home = [c for c in s.calls if type(c).__name__ == "SendMessage" and c.chat_id == OWNER][-1].reply_markup
+    assert [len(r) for r in home.inline_keyboard] == [2, 2, 2, 1]
+
+    # Не власник не може тиснути кнопки кабінету
+    await feed(cb(21, OwnCb(action="give", value="21.shagy.1000").pack()))
+    assert (await users_db.get(pool, 21)).shagy == 100
+
+    # Гравець: пошук за ID і кнопки
+    await feed(cb(OWNER, OwnCb(action="player").pack()))
+    await feed(msg(OWNER, "abc"))
+    assert "лише цифри" in s.last_text(OWNER)
+    await feed(msg(OWNER, "21"))
+    assert "ID <code>21</code>" in s.last_text(OWNER)
+    await feed(cb(OWNER, OwnCb(action="give", value="21.shagy.1000").pack()))
+    await feed(cb(OWNER, OwnCb(action="give", value="21.cherv.10").pack()))
+    await feed(cb(OWNER, OwnCb(action="give", value="21.cherv.-100").pack()))  # у мінус не йдемо
+    await feed(cb(OWNER, OwnCb(action="vip", value="21.30").pack()))
+    await feed(cb(OWNER, OwnCb(action="block", value="21").pack()))
+    u = await users_db.get(pool, 21)
+    assert u.shagy == 1100 and u.chervintsi == 10 and u.is_vip and u.blocked
+    assert "Заблокований" in last_edit()
+    await feed(cb(OWNER, OwnCb(action="block", value="21").pack()))
+    assert not (await users_db.get(pool, 21)).blocked
+
+    # Промокоди
+    await feed(cb(OWNER, OwnCb(action="promo_new").pack()))
+    await feed(msg(OWNER, "погано"))
+    assert "Не розібрав" in s.last_text(OWNER)
+    await feed(msg(OWNER, "CIAO 10 0 0 5"))
+    assert "CIAO" in s.last_text(OWNER)
+    await feed(cb(OWNER, OwnCb(action="promos").pack()))
+    assert "CIAO" in last_edit()
+    await feed(cb(OWNER, OwnCb(action="promo_del", value="CIAO").pack()))
+    assert "ще немає" in last_edit()
+
+    # Розсилка: превʼю, потім підтвердження
+    await feed(cb(OWNER, OwnCb(action="bc").pack()))
+    await feed(msg(OWNER, "Бонджорно, сім'я!"))
+    assert "Розіслати" in s.last_text(OWNER)
+    await feed(cb(OWNER, OwnCb(action="bc_go").pack()))
+    copies = [c for c in s.calls if type(c).__name__ == "CopyMessage"]
+    assert {c.chat_id for c in copies} >= {21, 22}
+    assert "Доставлено" in s.last_text(OWNER)
+
+    # Покупки, ігри, оформлення, назад
+    for action, word in (("buys", "покупки"), ("games", "Ігри"), ("design", "ОФОРМЛЕННЯ"), ("home", "КАБІНЕТ")):
+        await feed(cb(OWNER, OwnCb(action=action).pack()))
+        assert word in last_edit(), action
+
+    # Зупинка гри з кабінету
+    await feed(msg(21, "/game", GROUP))
+    await asyncio.sleep(0.05)
+    await feed(cb(OWNER, OwnCb(action="stop", value=str(GROUP)).pack()))
+    assert "Зупинити гру" in last_edit()
+    await feed(cb(OWNER, OwnCb(action="stop_go", value=str(GROUP)).pack()))
+    assert manager.get(GROUP) is None
 
 
 async def test_payments(env):
@@ -199,16 +267,91 @@ async def test_settings_admin_only(env):
     await feed(msg(13, "/settings", GROUP))
     assert "лише адміністратор" in s.last_text(GROUP)
     await feed(msg(ADMIN, "/settings", GROUP))
-    assert "Налаштування сім'ї:" in s.last_text(GROUP)
-    home = [c for c in s.calls if type(c).__name__ == "SendMessage" and c.chat_id == GROUP][-1].reply_markup
-    assert [len(r) for r in home.inline_keyboard] == [2, 2, 1]
-    await feed(cb(ADMIN, SetCb(action="toggle", key="secret_vote").pack(), GROUP))
-    await feed(cb(ADMIN, SetCb(action="timer", key="night_time", delta=15).pack(), GROUP))
-    await feed(cb(ADMIN, SetCb(action="role", key="mavka").pack(), GROUP))
-    await feed(cb(13, SetCb(action="toggle", key="items_enabled").pack(), GROUP))  # не адмін
+    # Панель іде в особисті адміна, у групі - коротка відповідь з кнопкою
+    assert "Налаштування сім'ї" in s.last_text(ADMIN)
+    assert "в особистих" in s.last_text(GROUP)
+    home = [c for c in s.calls if type(c).__name__ == "SendMessage" and c.chat_id == ADMIN][-1].reply_markup
+    assert [len(r) for r in home.inline_keyboard] == [2, 2, 2, 2, 2, 1]
+    labels = [b.text for r in home.inline_keyboard for b in r]
+    assert "Створити роль" in labels and "Омерта" in labels
+    # Натискання в особистих: chat у callback - це група
+    await feed(cb(ADMIN, SetCb(action="toggle", key="secret_vote", chat=GROUP).pack()))
+    await feed(cb(ADMIN, SetCb(action="timer", key="night_time", delta=15, chat=GROUP).pack()))
+    await feed(cb(ADMIN, SetCb(action="role", key="mavka", chat=GROUP).pack()))
+    await feed(cb(ADMIN, SetCb(action="item", key="honey", chat=GROUP).pack()))
+    await feed(cb(ADMIN, SetCb(action="ratio", key="many", chat=GROUP).pack()))
+    await feed(cb(ADMIN, SetCb(action="players", key="min_players", delta=2, chat=GROUP).pack()))
+    await feed(cb(ADMIN, SetCb(action="toggle", key="omerta_dead", chat=GROUP).pack()))
+    await feed(cb(13, SetCb(action="toggle", key="items_enabled", chat=GROUP).pack(), 13))  # не адмін
     row = await pool.fetchrow("SELECT * FROM group_settings WHERE chat_id = $1", GROUP)
     assert row["secret_vote"] and row["night_time"] == 75 and list(row["disabled_roles"]) == ["mavka"]
-    assert row["items_enabled"]
+    assert row["items_enabled"] and list(row["disabled_items"]) == ["honey"]
+    assert row["mafia_ratio"] == "many" and row["min_players"] == 6 and row["omerta_dead"]
+
+    # /settings в особистих - список чатів, де він адмін
+    await feed(msg(ADMIN, "/settings"))
+    assert "Обери чат" in s.last_text(ADMIN)
+
+    # Скинути все
+    await feed(cb(ADMIN, SetCb(action="reset_ok", chat=GROUP).pack()))
+    row = await pool.fetchrow("SELECT * FROM group_settings WHERE chat_id = $1", GROUP)
+    assert not row["secret_vote"] and row["mafia_ratio"] == "normal" and row["title"] == "Хутір"
+
+
+async def test_settings_pm_fallback(env):
+    feed, s, _, pool = env
+    from aiogram.exceptions import TelegramForbiddenError
+
+    original = s.make_request
+
+    async def blocked(bot, method, timeout=None):
+        if type(method).__name__ == "SendMessage" and method.chat_id == ADMIN:
+            raise TelegramForbiddenError(method=method, message="Forbidden: bot can't initiate conversation")
+        return await original(bot, method, timeout)
+
+    s.make_request = blocked
+    await feed(msg(ADMIN, "/settings", GROUP))
+    last = [c for c in s.calls if type(c).__name__ == "SendMessage" and c.chat_id == GROUP][-1]
+    assert f"start=settings{GROUP}" in last.reply_markup.inline_keyboard[0][0].url
+    s.make_request = original
+    await feed(msg(ADMIN, f"/start settings{GROUP}"))
+    assert "Налаштування сім'ї" in s.last_text(ADMIN)
+    await feed(msg(13, f"/start settings{GROUP}"))
+    assert "лише адміністратор" in s.last_text(13)
+
+
+async def test_omerta(env):
+    feed, s, manager, pool = env
+    await feed(msg(ADMIN, "/settings", GROUP))
+    await feed(cb(ADMIN, SetCb(action="toggle", key="omerta_dead", chat=GROUP).pack()))
+    await feed(cb(ADMIN, SetCb(action="toggle", key="omerta_night", chat=GROUP).pack()))
+    players = [51, 52, 53, 54]
+    await feed(msg(51, "/game", GROUP))
+    runner = manager.get(GROUP)
+    await asyncio.sleep(0.05)
+    for uid in players:
+        await feed(msg(uid, f"/start join{GROUP}"))
+    await feed(msg(51, "/start_now", GROUP))
+    for _ in range(100):
+        if runner.game.phase == Phase.NIGHT:
+            break
+        await asyncio.sleep(0.02)
+
+    def deleted() -> int:
+        return sum(type(c).__name__ == "DeleteMessage" for c in s.calls)
+
+    await feed(msg(52, "я мирний!", GROUP))  # уночі гравці мовчать
+    assert deleted() == 1
+    await feed(msg(99, "глядач", GROUP))  # не гравець - не чіпаємо
+    await feed(msg(52, "/leave", GROUP))  # команди проходять
+    assert deleted() == 1
+    runner.game.phase = Phase.DAY
+    await feed(msg(52, "вдень можна", GROUP))
+    assert deleted() == 1
+    runner.game.players[53].alive = False
+    await feed(msg(53, "мене вбили", GROUP))  # мертві мовчать
+    assert deleted() == 2
+    await feed(msg(ADMIN, "/stop", GROUP))
 
 
 async def test_game_via_handlers(env):
@@ -315,12 +458,17 @@ async def test_settings_modules(env):
     def last_edit():
         return [c for c in s.calls if type(c).__name__ == "EditMessageText"][-1]
 
+    for module, word in (("timers", "Таймери"), ("lobby", "Реєстрація"), ("family", "Розмір сім'ї"),
+                         ("omerta", "Омерта"), ("items", "Арсенал"), ("roles", "Хто є хто"), ("reset", "Скинути")):
+        await feed(cb(ADMIN, SetCb(action=module, chat=GROUP).pack()))
+        assert word in last_edit().text, module
+    await feed(cb(ADMIN, SetCb(action="vote", chat=GROUP).pack()))
+    assert len(last_edit().reply_markup.inline_keyboard) == 3  # 2 перемикачі + Назад
+    await feed(cb(ADMIN, SetCb(action="refresh", chat=GROUP).pack()))
+    assert "Налаштування сім'ї" in last_edit().text
+    # Старі панелі в групі (без chat) теж працюють
     await feed(cb(ADMIN, SetCb(action="timers").pack(), GROUP))
     assert "Таймери" in last_edit().text
-    await feed(cb(ADMIN, SetCb(action="vote").pack(), GROUP))
-    assert len(last_edit().reply_markup.inline_keyboard) == 3  # 2 перемикачі + Назад
-    await feed(cb(ADMIN, SetCb(action="refresh").pack(), GROUP))
-    assert "Налаштування сім'ї:" in last_edit().text
 
 
 async def test_custom_role_wizard_and_game(env):
@@ -353,14 +501,20 @@ async def test_custom_role_wizard_and_game(env):
     key = f"c{row['id']}"
 
     # Роль видно в /settings → Хто є хто; вимкнути й знову увімкнути
-    await feed(cb(ADMIN, SetCb(action="roles").pack(), GROUP))
+    await feed(cb(ADMIN, SetCb(action="roles", chat=GROUP).pack()))
     kb = [c for c in s.calls if type(c).__name__ == "EditMessageText"][-1].reply_markup
     labels = [b.text for r in kb.inline_keyboard for b in r]
     assert any("Мисливець" in t for t in labels)
-    assert any(b.url and "newrole" in b.url for r in kb.inline_keyboard for b in r)
-    await feed(cb(ADMIN, SetCb(action="crole", key=str(row["id"])).pack(), GROUP))
+    assert RoleCb(action="new", value=str(GROUP)).pack() in [b.callback_data for r in kb.inline_keyboard for b in r]
+    await feed(cb(ADMIN, SetCb(action="crole", key=str(row["id"]), chat=GROUP).pack()))
     assert await pool.fetchval("SELECT enabled FROM custom_roles WHERE id = $1", row["id"]) is False
-    await feed(cb(ADMIN, SetCb(action="crole", key=str(row["id"])).pack(), GROUP))
+    await feed(cb(ADMIN, SetCb(action="crole", key=str(row["id"]), chat=GROUP).pack()))
+
+    # Кнопка «Створити роль» з панелі запускає майстер
+    await feed(cb(ADMIN, RoleCb(action="new", value=str(GROUP)).pack()))
+    assert "Нова роль" in s.last_text(ADMIN)
+    await feed(msg(ADMIN, "/cancel"))
+    await feed(cb(13, RoleCb(action="new", value=str(GROUP)).pack()))  # не адмін - нічого
 
     # Гра: власна роль роздається й отримує свою нічну підказку
     players = [ADMIN, 41, 42, 43, 44]

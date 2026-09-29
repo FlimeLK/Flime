@@ -15,7 +15,7 @@ COMMANDS = [
     "/media_clear night", "/give", "/give abc", "/give 5 10", "/vip_give", "/vip_give 5 3", "/block",
     "/block 5", "/unblock 5", "/broadcast", "/promo_new", "/promo_new X 10", "/promo_list", "/promo_del X",
     "/purchases", "/refund", "/refund 1", "/games", "/start newrole-1001", "/start myroles-1001",
-    "/start join-1001", "/start newrole123", "hello",
+    "/start join-1001", "/start newrole123", "/start settings-1001", "/owner_help", "hello",
 ]
 PLAYER = 7
 

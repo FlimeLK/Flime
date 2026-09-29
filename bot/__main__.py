@@ -33,6 +33,7 @@ PRIVATE_COMMANDS = [
     BotCommand(command="daily", description="Конверт від Дона"),
     BotCommand(command="vip", description="VIP і золоті монети"),
     BotCommand(command="promo", description="Активувати промокод"),
+    BotCommand(command="settings", description="Налаштування сім'ї (для адмінів груп)"),
     BotCommand(command="rules", description="Правила та ролі"),
 ]
 GROUP_COMMANDS = [
@@ -40,7 +41,7 @@ GROUP_COMMANDS = [
     BotCommand(command="start_now", description="Почати гру негайно"),
     BotCommand(command="leave", description="Вийти з реєстрації"),
     BotCommand(command="stop", description="Зупинити гру (адмін)"),
-    BotCommand(command="settings", description="Налаштування гри (адмін)"),
+    BotCommand(command="settings", description="Налаштування сім'ї (адмін, прийдуть в особисті)"),
     BotCommand(command="top", description="Найкращі гравці чату"),
     BotCommand(command="rules", description="Правила та ролі"),
 ]

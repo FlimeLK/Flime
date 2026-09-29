@@ -1,6 +1,6 @@
 """Власні ролі чату: покроковий майстер і керування в особистих з ботом.
 
-Адмін групи потрапляє сюди з /settings → Хто є хто через deep-link:
+Адмін потрапляє сюди з панелі налаштувань (кнопки «Створити роль» / «Мої ролі») або через deep-link:
   t.me/<bot>?start=newrole<chat_id>  - створити роль
   t.me/<bot>?start=myroles<chat_id>  - мої ролі
 """
@@ -66,18 +66,36 @@ async def roles_entry(message: Message, command: CommandObject, state: FSMContex
     if kind == "myroles":
         await show_list(message, pool, chat_id)
         return
+    await start_wizard(message, state, pool, chat_id)
+
+
+async def start_wizard(message: Message, state: FSMContext, pool: asyncpg.Pool, chat_id: int) -> None:
     if await roles_db.count(pool, chat_id) >= roles_db.MAX_PER_CHAT:
-        await message.answer(texts.ROLES_LIMIT.format(max=roles_db.MAX_PER_CHAT))
+        await message.answer(texts.ROLES_LIMIT.format(max=roles_db.MAX_PER_CHAT),
+                             reply_markup=keyboards.role_done(chat_id))
         return
     await state.set_state(RoleForm.name)
     await state.update_data(chat_id=chat_id)
     await message.answer(texts.ROLE_STEP_NAME.format(chat=await chat_title(pool, chat_id)))
 
 
+@router.callback_query(RoleCb.filter(F.action == "new"))
+async def on_new(cb: CallbackQuery, callback_data: RoleCb, state: FSMContext, bot: Bot, pool: asyncpg.Pool,
+                 config: Settings, user: User) -> None:
+    chat_id = int(callback_data.value) if callback_data.value.lstrip("-").isdigit() else 0
+    if not chat_id or not await is_chat_admin(bot, chat_id, user.id, config):
+        await cb.answer(texts.ROLES_NOT_ADMIN, show_alert=True)
+        return
+    await cb.answer()
+    await state.clear()
+    await start_wizard(cb.message, state, pool, chat_id)
+
+
 @router.message(Command("cancel"), StateFilter(RoleForm))
 async def cancel_cmd(message: Message, state: FSMContext) -> None:
+    chat_id = (await state.get_data()).get("chat_id")
     await state.clear()
-    await message.answer(texts.ROLE_CANCELLED)
+    await message.answer(texts.ROLE_CANCELLED, reply_markup=keyboards.role_done(chat_id) if chat_id else None)
 
 
 # ---------- кроки майстра ----------
@@ -182,24 +200,25 @@ async def step_save(cb: CallbackQuery, state: FSMContext, bot: Bot, pool: asyncp
         description=d["description"], team=d["team"], ability=d["ability"], min_players=d["min_players"],
     )
     title = f"{emoji_html(d)} <b>{texts.escape(d['name'])}</b>"
-    await _edit(cb, texts.ROLE_SAVED.format(title=title))
+    await _edit(cb, texts.ROLE_SAVED.format(title=title), keyboards.role_done(d["chat_id"]))
 
 
 @router.callback_query(RoleCb.filter(F.action == "cancel"))
 async def step_cancel(cb: CallbackQuery, state: FSMContext) -> None:
+    chat_id = (await state.get_data()).get("chat_id")
     await state.clear()
-    await _edit(cb, texts.ROLE_CANCELLED)
+    await _edit(cb, texts.ROLE_CANCELLED, keyboards.role_done(chat_id) if chat_id else None)
 
 
 # ---------- мої ролі ----------
 
 async def show_list(message: Message, pool: asyncpg.Pool, chat_id: int, edit: bool = False) -> None:
     custom = await roles_db.list_for_chat(pool, chat_id)
+    markup = keyboards.roles_list(custom, chat_id)
     if not custom:
-        text, markup = texts.ROLES_EMPTY, None
+        text = texts.ROLES_EMPTY
     else:
         text = texts.ROLES_LIST_HEAD.format(chat=await chat_title(pool, chat_id))
-        markup = keyboards.roles_list(custom)
     if edit:
         try:
             await message.edit_text(text, reply_markup=markup)

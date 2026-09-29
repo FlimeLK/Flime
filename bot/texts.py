@@ -527,42 +527,102 @@ PAYMENT_UNKNOWN = "Невідомий товар. Спробуй ще раз ч�
 
 # ---------- налаштування чату ----------
 
-def settings_home(chat_title: str) -> str:
+ITEM_KEYS = tuple(ITEMS)
+
+
+RATIO_LABELS = {  # розмір сім'ї → (емодзі, підпис)
+    "few": ("upyr", "Мала"),
+    "normal": ("vidma", "Звична"),
+    "many": ("blood", "Велика"),
+}
+RATIO_HINTS = {"few": "1 на 4-5 гравців", "normal": "1 на 3-4 гравці", "many": "1 на 2-3 гравці"}
+PLAYER_LABELS = {"min_players": ("people", "Мінімум"), "max_players": ("people", "Максимум")}
+
+
+def settings_home(chat_title: str, s) -> str:
+    """s - GroupSettings: коротке зведення поточних налаштувань."""
+    on, off = ":ok:", ":no:"
+    items = f"{on} {len(ITEM_KEYS) - len(s.disabled_items)} з {len(ITEM_KEYS)}" if s.items_enabled else off
+    omerta = [name for flag, name in ((s.omerta_dead, "мертві"), (s.omerta_night, "ніч")) if flag]
     return (
-        ":settings: <b>Налаштування сім'ї:</b>\n"
-        f"<i>{escape(chat_title or 'цей чат')}</i>\n\n"
-        f"{CATCHPHRASE}, доне! Тут налаштовується, як я вестиму гру у вашому чаті. "
-        "Зміни діють з наступної гри."
+        ":settings: <b>Налаштування сім'ї</b>\n"
+        f"<i>{escape(chat_title or 'ваш чат')}</i>\n\n"
+        f"{CATCHPHRASE}, доне! Тут вирішується, як я вестиму гру у вашому чаті. "
+        "Зміни діють з наступної гри.\n\n"
+        "<blockquote>"
+        f":night: Ніч {fmt_seconds(s.night_time)} · :discuss: День {fmt_seconds(s.day_time)}\n"
+        f":vidma: Сім'я: {RATIO_LABELS[s.mafia_ratio][1].lower()} · :people: {s.min_players}-{s.max_players} гравців\n"
+        f":vote: {'таємне' if s.secret_vote else 'відкрите'} голосування · :bag: Арсенал: {items}\n"
+        f":secret: Омерта: {', '.join(omerta) if omerta else 'вимкнена'}"
+        "</blockquote>"
     )
 
 
 SETTINGS_MODULES = [
+    ("lobby", "bell", "Реєстрація"),
     ("timers", "timer", "Таймери"),
     ("roles", "theater", "Хто є хто"),
+    ("family", "vidma", "Розмір сім'ї"),
     ("vote", "vote", "Голосування"),
+    ("omerta", "secret", "Омерта"),
     ("items", "bag", "Арсенал"),
+    ("reset", "skip", "Скинути все"),
 ]
 SETTINGS_REFRESH = "Освіжити"
-SETTINGS_TIMERS_HEAD = ":timer: <b>Таймери</b>\n\nСкільки часу триває кожна фаза. Тисни −/+."
+SETTINGS_SENT = ":settings: Доне, налаштування сім'ї чекають на тебе в особистих."
+SETTINGS_SENT_BTN = "Відкрити особисті"
+SETTINGS_OPEN_PM = (
+    ":lock: Налаштування сім'ї обговорюють без свідків. Натисни кнопку, і я відкрию їх в особистих."
+)
+SETTINGS_OPEN_PM_BTN = "Налаштувати в особистих"
+SETTINGS_PICK_CHAT = ":settings: <b>Налаштування сім'ї</b>\n\nОбери чат, який налаштовуємо:"
+SETTINGS_NO_CHATS = (
+    ":settings: Напиши /settings у групі, де ти адмін, і я надішлю панель сюди."
+)
+SETTINGS_TIMERS_HEAD = ":timer: <b>Таймери</b>\n\nСкільки триває кожна фаза гри. Тисни −/+."
+SETTINGS_LOBBY_HEAD = (
+    ":bell: <b>Реєстрація</b>\n\nСкільки чекаємо на гравців, чи закріплювати запрошення в чаті "
+    "і хто може почати гру достроково. Для закріплення боту потрібне право закріплювати повідомлення."
+)
 SETTINGS_ROLES_HEAD = (
-    ":theater: <b>Хто є хто</b>\n\nЗелені - в грі, червоні - вимкнені. Дон, Мафія і Мирний житель - обов'язкові.\n"
-    "Можна створити й власні ролі - майстер відкриється в особистих."
+    ":theater: <b>Хто є хто</b>\n\nЗелені - в грі, червоні - вимкнені. Дон, Мафія і Мирний житель - обов'язкові. "
+    "Власні ролі сім'ї створюються кнопкою нижче."
+)
+SETTINGS_FAMILY_HEAD = (
+    ":vidma: <b>Розмір сім'ї</b>\n\nСкільки мафії за столом і скільки гравців потрібно для гри.\n"
+    + "\n".join(f":{emo}: {label}: {RATIO_HINTS[key]}" for key, (emo, label) in RATIO_LABELS.items())
 )
 SETTINGS_VOTE_HEAD = ":vote: <b>Голосування</b>\n\nЯк гравці голосують і що дізнаються про загиблих."
-SETTINGS_ITEMS_HEAD = ":bag: <b>Арсенал</b>\n\nЧи можна брати в гру предмети з чорного ринку."
+SETTINGS_OMERTA_HEAD = (
+    ":secret: <b>Омерта</b>\n\nЗакон мовчання: я видаляю повідомлення тих, кому говорити не можна. "
+    "Для цього боту потрібне право видаляти повідомлення."
+)
+SETTINGS_ITEMS_HEAD = (
+    ":bag: <b>Арсенал</b>\n\nЯкі речі з чорного ринку можна пронести в гру. Зелені - дозволені, червоні - під забороною."
+)
+SETTINGS_RESET_HEAD = (
+    ":skip: <b>Скинути все?</b>\n\nТаймери, ролі, арсенал і решта налаштувань повернуться до звичних. "
+    "Власні ролі залишаться."
+)
+SETTINGS_RESET_DONE = "Налаштування скинуто"
+RESET_YES = "Так, скинути"
 # Ключ таймера → (емодзі, підпис)
 TIMER_NAMES = {
-    "reg_time": ("timer", "Реєстрація"),
     "night_time": ("night", "Ніч"),
     "day_time": ("discuss", "Обговорення"),
     "vote_time": ("vote", "Голосування"),
     "confirm_time": ("rope", "Вирок"),
 }
+REG_TIMER = ("timer", "Реєстрація")
 # Перемикач → ((емодзі, підпис) коли вимкнено, (емодзі, підпис) коли увімкнено)
 TOGGLE_LABELS = {
     "hide_dead_roles": (("eye", "Ролі загиблих: показувати"), ("secret", "Ролі загиблих: приховувати")),
     "secret_vote": (("vote", "Голосування: відкрите"), ("secret", "Голосування: таємне")),
-    "items_enabled": (("skip", "Предмети: вимкнені"), ("bag", "Предмети: увімкнені")),
+    "items_enabled": (("skip", "Арсенал: закритий"), ("bag", "Арсенал: відкритий")),
+    "omerta_dead": (("chat", "Мертві: можуть писати"), ("coffin", "Мертві: мовчать")),
+    "omerta_night": (("chat", "Уночі: чат відкритий"), ("night", "Уночі: всі мовчать")),
+    "pin_lobby": (("bell", "Не закріплювати реєстрацію"), ("bell", "Закріплювати реєстрацію")),
+    "start_admins_only": (("people", "Почати раніше: адміни й ведучий"), ("lock", "Почати раніше: лише адміни")),
 }
 
 
@@ -618,4 +678,81 @@ def role_preview(name: str, emoji_html: str, description: str, team: str, abilit
         f":{team_emo}: Сторона: <b>{team_label}</b>\n"
         f":{ROLE_ABILITY_EMO[ability]}: Здатність: <b>{ABILITIES[ability]}</b> - {ROLE_ABILITY_HINTS[ability]}\n"
         f":people: З'являється від <b>{min_players}</b> гравців"
+    )
+
+
+# ---------- кабінет Дона (власник бота) ----------
+
+def owner_home(stats: dict, running: int) -> str:
+    return (
+        ":vip: <b>КАБІНЕТ ДОНА</b>\n\n"
+        "<blockquote>"
+        f":people: Гравців: <b>{stats['users']}</b> · :vip: VIP: <b>{stats['vips']}</b>\n"
+        f":dice: Ігор: <b>{stats['games']}</b> · за добу: <b>{stats['games_day']}</b>\n"
+        f":fire: Зараз за столами: <b>{running}</b>\n"
+        f":star: Зірок зароблено: <b>{stats['stars']}</b>"
+        "</blockquote>\n\n"
+        f"{CATCHPHRASE}, доне. Що робимо сьогодні?"
+    )
+
+
+OWNER_MODULES = [
+    ("player", "profile", "Гравець"),
+    ("bc", "megaphone", "Розсилка"),
+    ("promos", "gift", "Промокоди"),
+    ("buys", "star", "Покупки"),
+    ("games", "dice", "Ігри"),
+    ("design", "sparkle", "Оформлення"),
+]
+OWNER_REFRESH = "Освіжити"
+OWNER_ASK_PLAYER = ":profile: Надішли ID гравця (число). Передумав - /cancel"
+OWNER_BAD_ID = "Потрібен ID - лише цифри."
+OWNER_NO_PLAYER = ":no: Такого гравця я не знаю."
+OWNER_OTHER_PLAYER = "Інший гравець"
+OWNER_BLOCK = "Заблокувати"
+OWNER_UNBLOCK = "Розблокувати"
+OWNER_NO_FUNDS = "Баланс пішов би в мінус"
+OWNER_CANCELLED = "Скасовано."
+OWNER_ASK_BC = (
+    ":megaphone: Надішли повідомлення для розсилки: текст, фото, відео - що завгодно. "
+    "Спершу покажу, як воно виглядатиме. Передумав - /cancel"
+)
+OWNER_BC_CONFIRM = ":megaphone: Ось так побачать гравці. Розіслати <b>{count}</b> гравцям?"
+OWNER_BC_GO = "Розіслати"
+OWNER_BC_RUNNING = ":megaphone: Розсилаю {count} гравцям…"
+OWNER_BC_DONE = ":ok: Доставлено: {sent}/{total}"
+OWNER_PROMOS_HEAD = ":gift: <b>Промокоди</b>\n\n"
+OWNER_PROMOS_EMPTY = "Промокодів ще немає."
+OWNER_PROMO_NEW = "Новий промокод"
+OWNER_ASK_PROMO = (
+    ":gift: Надішли одним рядком:\n<code>КОД ЛІРИ МОНЕТИ VIP_ДНІВ ВИКОРИСТАНЬ</code>\n"
+    "Наприклад: <code>BONJORNO 500 0 0 100</code>. Передумав - /cancel"
+)
+OWNER_PROMO_BAD = "Не розібрав. Формат: <code>КОД ЛІРИ МОНЕТИ VIP_ДНІВ ВИКОРИСТАНЬ</code>"
+OWNER_PROMO_EXISTS = ":no: Такий код уже існує."
+OWNER_PROMO_CREATED = ":ok: Промокод <code>{code}</code> створено."
+OWNER_BUYS_HEAD = ":star: <b>Останні покупки</b>\n\n"
+OWNER_BUYS_EMPTY = "Покупок ще не було."
+OWNER_REFUND_ASK = ":star: Повернути <b>{stars}⭐</b> гравцю <code>{user}</code> за «{product}»?"
+OWNER_REFUND_GO = "Повернути зірки"
+OWNER_GAMES_HEAD = ":dice: <b>Ігри зараз</b>\n\n"
+OWNER_GAMES_EMPTY = "Зараз за столами порожньо."
+OWNER_STOP_ASK = ":dice: Зупинити гру в <b>{chat}</b>? Предмети повернуться гравцям."
+OWNER_STOP_GO = "Зупинити гру"
+OWNER_STOPPED = "Гру зупинено"
+
+
+def owner_player(u) -> str:
+    vip = f"до {u.vip_until:%d.%m.%Y}" if u.is_vip else "немає"
+    status = "\n:lock: <b>Заблокований</b>" if u.blocked else ""
+    return (
+        f":profile: <b>{escape(u.name or 'Без імені')}</b>"
+        f"{' @' + escape(u.username) if u.username else ''}\n"
+        f"ID <code>{u.id}</code>\n\n"
+        "<blockquote>"
+        f"{SHAGY} Ліри: <b>{u.shagy}</b>\n"
+        f"{CHERV} Золоті монети: <b>{u.chervintsi}</b>\n"
+        f":vip: VIP: <b>{vip}</b>\n"
+        f":dice: Ігор: <b>{u.games}</b> · :trophy: перемог: <b>{u.wins}</b>"
+        f"</blockquote>{status}"
     )

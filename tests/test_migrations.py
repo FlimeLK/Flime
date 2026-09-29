@@ -12,6 +12,7 @@ async def _fresh_conn():
     except Exception:
         pytest.skip("test database is not available")
     await conn.execute("DROP SCHEMA IF EXISTS hutir CASCADE")
+    await conn.execute("DROP SCHEMA IF EXISTS hutir_legacy CASCADE")
     return conn
 
 
@@ -74,5 +75,31 @@ async def test_foreign_table_in_schema_is_replaced():
         await p.close()
         p = await create_pool(DSN)  # повторний старт нічого не ламає
         assert len(await roles_db.list_for_chat(p, 1)) == 1
+    finally:
+        await p.close()
+
+
+async def test_new_columns_do_not_mark_table_foreign():
+    """Стара версія нашої таблиці (без колонок з пізніших міграцій) лишається на місці з даними."""
+    conn = await _fresh_conn()
+    await conn.execute("CREATE SCHEMA hutir")
+    await conn.execute("SET search_path TO hutir")
+    from bot.db.pool import MIGRATIONS_DIR
+
+    await conn.execute(
+        "CREATE TABLE schema_migrations (version TEXT PRIMARY KEY, applied_at TIMESTAMPTZ NOT NULL DEFAULT now())")
+    for path in sorted(MIGRATIONS_DIR.glob("*.sql"))[:3]:
+        await conn.execute(path.read_text(encoding="utf-8"))
+        await conn.execute("INSERT INTO schema_migrations (version) VALUES ($1)", path.stem)
+    await conn.execute("INSERT INTO group_settings (chat_id, title, night_time) VALUES (-5, 'Сім''я', 120)")
+    await conn.close()
+    from bot.db import groups
+    from bot.db.pool import create_pool
+
+    p = await create_pool(DSN)
+    try:
+        s = await groups.get(p, -5)
+        assert s.night_time == 120 and s.title == "Сім'я" and s.mafia_ratio == "normal"
+        assert await p.fetchval("SELECT to_regclass('hutir_legacy.group_settings')") is None
     finally:
         await p.close()

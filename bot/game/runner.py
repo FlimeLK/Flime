@@ -162,6 +162,14 @@ class GameRunner:
 
     # ================= лобі =================
 
+    @property
+    def min_players(self) -> int:
+        return max(MIN_PLAYERS, int(self.game.settings.get("min_players", MIN_PLAYERS)))
+
+    @property
+    def max_players(self) -> int:
+        return min(MAX_PLAYERS, max(self.min_players, int(self.game.settings.get("max_players", MAX_PLAYERS))))
+
     def join(self, user_id: int, name: str, vip: bool) -> str | None:
         """Повертає None при успіху або текст помилки."""
         g = self.game
@@ -169,8 +177,8 @@ class GameRunner:
             return texts.JOIN_CLOSED
         if user_id in g.players:
             return texts.JOIN_ALREADY_HERE
-        if len(g.players) >= MAX_PLAYERS:
-            return texts.JOIN_FULL.format(max=MAX_PLAYERS)
+        if len(g.players) >= self.max_players:
+            return texts.JOIN_FULL.format(max=self.max_players)
         g.players[user_id] = Player(user_id=user_id, name=name, vip=vip)
         return None
 
@@ -181,7 +189,7 @@ class GameRunner:
         return True
 
     def force_start(self) -> bool:
-        if self.game.phase != Phase.LOBBY or len(self.game.players) < MIN_PLAYERS:
+        if self.game.phase != Phase.LOBBY or len(self.game.players) < self.min_players:
             return False
         self._force_start = True
         self._poke()
@@ -190,7 +198,7 @@ class GameRunner:
     def _lobby_text(self) -> str:
         players = [(p.user_id, p.name) for p in self.game.players.values()]
         left = max(0, int(self._lobby_deadline - asyncio.get_running_loop().time()))
-        return texts.lobby(players, left, MIN_PLAYERS)
+        return texts.lobby(players, left, self.min_players)
 
     async def refresh_lobby(self) -> None:
         if self.game.lobby_message_id:
@@ -215,6 +223,9 @@ class GameRunner:
         g.lobby_message_id = await self.m.send_scene(
             self.chat_id, "lobby", self._lobby_text(), views.join_keyboard(self.bot_username, self.chat_id)
         )
+        pinned = bool(g.lobby_message_id and g.settings.get("pin_lobby"))
+        if pinned:
+            await self.m.pin(self.chat_id, g.lobby_message_id)
         ticker = asyncio.create_task(self._lobby_ticker())
         try:
             started = lambda: self._force_start  # noqa: E731
@@ -230,8 +241,10 @@ class GameRunner:
 
         if g.lobby_message_id:
             await self.m.clear_markup(self.chat_id, g.lobby_message_id)
-        if len(g.players) < MIN_PLAYERS:
-            await self.m.send(self.chat_id, texts.LOBBY_NOT_ENOUGH.format(min=MIN_PLAYERS))
+            if pinned:
+                await self.m.unpin(self.chat_id, g.lobby_message_id)
+        if len(g.players) < self.min_players:
+            await self.m.send(self.chat_id, texts.LOBBY_NOT_ENOUGH.format(min=self.min_players))
             g.phase = Phase.FINISHED
             return
         await self._start_game()
@@ -239,10 +252,11 @@ class GameRunner:
     async def _start_game(self) -> None:
         g = self.game
         assign_roles(g)
-        if g.settings.get("items_enabled", True):
+        allowed = [i for i in it.POCKET_ORDER if i not in g.settings.get("disabled_items", ())]
+        if g.settings.get("items_enabled", True) and allowed:
             for p in g.players.values():
                 slots = it.VIP_POCKET_SLOTS if p.vip else it.BASE_POCKET_SLOTS
-                p.pocket = await shop_db.take_for_game(self.pool, p.user_id, slots, it.POCKET_ORDER)
+                p.pocket = await shop_db.take_for_game(self.pool, p.user_id, slots, allowed)
 
         teams = Counter(p.team for p in g.players.values())
         composition = [f"{texts.TEAM_TITLES[t]}: <b>{teams[t]}</b>" for t in Team if teams[t]]

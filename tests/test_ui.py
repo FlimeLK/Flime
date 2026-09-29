@@ -10,6 +10,7 @@ from aiogram.methods import AnswerCallbackQuery, SendMessage
 from aiogram.types import InlineKeyboardMarkup
 
 from bot import texts
+from bot.db.groups import GroupSettings
 from bot.engine.items import ITEMS
 from bot.engine.roles import ROLES, Team
 from bot.ui import emoji
@@ -111,7 +112,9 @@ def samples() -> list[str]:
     out = [
         texts.start('Оксана <b>'), texts.rules(), texts.SECTION_HOWTO, texts.SECTION_GAME, texts.section_roles(),
         texts.section_items(), texts.section_profile('картка'), texts.section_daily('ok'), texts.SECTION_VIP,
-        texts.settings_home('Хутір <3'), texts.SETTINGS_TIMERS_HEAD, texts.SETTINGS_VOTE_HEAD, texts.SETTINGS_ITEMS_HEAD, texts.lobby(p, 75, 4), texts.lobby([], 90, 4),
+        texts.settings_home('Хутір <3', GroupSettings(chat_id=1, omerta_dead=True)), texts.SETTINGS_TIMERS_HEAD,
+            texts.SETTINGS_LOBBY_HEAD, texts.SETTINGS_FAMILY_HEAD, texts.SETTINGS_OMERTA_HEAD, texts.SETTINGS_RESET_HEAD,
+            texts.SETTINGS_SENT, texts.SETTINGS_OPEN_PM, texts.SETTINGS_PICK_CHAT, texts.SETTINGS_NO_CHATS, texts.SETTINGS_VOTE_HEAD, texts.SETTINGS_ITEMS_HEAD, texts.lobby(p, 75, 4), texts.lobby([], 90, 4),
         texts.game_started(5, ["a", "b"]), texts.night_start(2, p),
         texts.morning(2, [(1, "Оксана", "evil", "vidma"), (2, "Тарас", "wolf", None)], 1), texts.morning(1, [], 0),
         texts.vote_results([("x", 3), (":skip: Нікого", 1)]), texts.vote_results([]),
