@@ -5,7 +5,7 @@ from bot.engine.roles import NightKind as K
 from .helpers import make_game
 
 # Розстановка за замовчуванням:
-# 1 Відьма, 2 Упир, 3 Мавка, 4 Знахарка, 5 Характерник, 6 Кум, 7 Сторож, 8 Кобзар, 9 Селянин, 10 Вовкулака
+# 1 Дон, 2 Мафія, 3 Коханка, 4 Лікар, 5 Комісар, 6 Щасливчик, 7 Волоцюга, 8 Журналіст, 9 Мирний, 10 Маніяк
 ROLES = ["vidma", "upyr", "mavka", "znaharka", "harakternyk", "kum", "storozh", "kobzar", "selianyn", "vovkulaka"]
 
 

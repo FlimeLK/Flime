@@ -11,23 +11,23 @@ from enum import StrEnum
 
 
 class Team(StrEnum):
-    VILLAGE = "village"   # Громада
-    EVIL = "evil"         # Нечисть
-    WOLF = "wolf"         # Вовкулака (одинак)
-    FOOL = "fool"         # Іван-дурень (одинак)
+    VILLAGE = "village"   # Мирні
+    EVIL = "evil"         # Мафія
+    WOLF = "wolf"         # Маніяк (одинак)
+    FOOL = "fool"         # Самогубець (одинак)
 
 
 class NightKind(StrEnum):
-    KILL = "kill"          # голос нечисті за жертву
-    HEAL = "heal"          # знахарка
-    CHECK = "check"        # характерник: перевірка
-    SABER = "saber"        # характерник: удар шаблею (1 раз)
-    WATCH = "watch"        # сторож
-    COMPARE = "compare"    # кобзар: дві цілі
-    LURE = "lure"          # мавка
-    WOLF_KILL = "wolf"     # вовкулака
+    KILL = "kill"          # голос мафії за жертву
+    HEAL = "heal"          # лікар
+    CHECK = "check"        # комісар: перевірка
+    SABER = "saber"        # комісар: постріл (1 раз)
+    WATCH = "watch"        # волоцюга
+    COMPARE = "compare"    # журналіст: дві цілі
+    LURE = "lure"          # коханка
+    WOLF_KILL = "wolf"     # маніяк
     PITCHFORK = "pitchfork"  # предмет «Вила»
-    CUSTOM_KILL = "ckill"  # власна роль-вбивця (не з нечисті)
+    CUSTOM_KILL = "ckill"  # власна роль-вбивця (не з мафії)
 
 
 @dataclass(frozen=True)
@@ -54,26 +54,26 @@ class Role:
 ROLES: dict[str, Role] = {
     r.key: r
     for r in (
-        Role("selianyn", "Селянин", "👨‍🌾", Team.VILLAGE, optional=False),
-        Role("znaharka", "Знахарка", "🌿", Team.VILLAGE, (NightKind.HEAL,), min_players=4),
-        Role("harakternyk", "Характерник", "🗡", Team.VILLAGE, (NightKind.CHECK, NightKind.SABER), min_players=5),
-        Role("kum", "Кум", "🍀", Team.VILLAGE, min_players=6),
-        Role("storozh", "Сторож", "🏮", Team.VILLAGE, (NightKind.WATCH,), min_players=8),
-        Role("kobzar", "Кобзар", "🪕", Team.VILLAGE, (NightKind.COMPARE,), min_players=9),
-        Role("otaman", "Отаман", "🎖", Team.VILLAGE, min_players=11),
-        Role("vidma", "Відьма", "🧙‍♀️", Team.EVIL, (NightKind.KILL,), optional=False),
-        Role("upyr", "Упир", "🧛", Team.EVIL, (NightKind.KILL,), optional=False),
-        Role("mavka", "Мавка", "🧜‍♀️", Team.EVIL, (NightKind.LURE,), min_players=6),
-        Role("vovkulaka", "Вовкулака", "🐺", Team.WOLF, (NightKind.WOLF_KILL,), min_players=10),
-        Role("duren", "Іван-дурень", "🤪", Team.FOOL, min_players=7),
+        Role("selianyn", "Мирний житель", "🙂", Team.VILLAGE, optional=False),
+        Role("znaharka", "Лікар", "👨‍⚕️", Team.VILLAGE, (NightKind.HEAL,), min_players=4),
+        Role("harakternyk", "Комісар", "🕵️", Team.VILLAGE, (NightKind.CHECK, NightKind.SABER), min_players=5),
+        Role("kum", "Щасливчик", "🍀", Team.VILLAGE, min_players=6),
+        Role("storozh", "Волоцюга", "🚶", Team.VILLAGE, (NightKind.WATCH,), min_players=8),
+        Role("kobzar", "Журналіст", "📰", Team.VILLAGE, (NightKind.COMPARE,), min_players=9),
+        Role("otaman", "Мер", "🎖", Team.VILLAGE, min_players=11),
+        Role("vidma", "Дон", "🎩", Team.EVIL, (NightKind.KILL,), optional=False),
+        Role("upyr", "Мафія", "🔫", Team.EVIL, (NightKind.KILL,), optional=False),
+        Role("mavka", "Коханка", "💋", Team.EVIL, (NightKind.LURE,), min_players=6),
+        Role("vovkulaka", "Маніяк", "🔪", Team.WOLF, (NightKind.WOLF_KILL,), min_players=10),
+        Role("duren", "Самогубець", "🤡", Team.FOOL, min_players=7),
     )
 }
 
 TEAM_TITLES = {
-    Team.VILLAGE: "🌾 Громада",
-    Team.EVIL: "🌑 Нечисть",
-    Team.WOLF: "🐺 Вовкулака",
-    Team.FOOL: "🤪 Іван-дурень",
+    Team.VILLAGE: "🏠 Мирні",
+    Team.EVIL: "🌑 Мафія",
+    Team.WOLF: "🔪 Маніяк",
+    Team.FOOL: "🤡 Самогубець",
 }
 
 

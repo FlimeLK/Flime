@@ -133,7 +133,7 @@ async def test_private_commands(env):
     await feed(msg(10, "/daily"))
     assert "уже отримано" in s.last_text(10)
     await feed(msg(10, "/rules"))
-    assert "Характерник" in s.last_text(10)
+    assert "Комісар" in s.last_text(10)
 
     await feed(msg(10, "/shop"))
     assert "ЯРМАРОК" in s.last_text(10)
@@ -258,15 +258,15 @@ async def test_game_via_handlers(env):
 async def test_design_tools(env):
     feed, s, _, pool = env
     # /emoji_set з premium-емодзі в самому повідомленні
-    text = "/emoji_set selianyn 🌾"
-    ent = MessageEntity(type="custom_emoji", offset=len("/emoji_set selianyn "), length=2, custom_emoji_id="777")
+    text = "/emoji_set storozh 🌾"
+    ent = MessageEntity(type="custom_emoji", offset=len("/emoji_set storozh "), length=2, custom_emoji_id="777")
     await feed(msg(OWNER, text, entities=[ent]))
-    assert emoji.custom_id("selianyn") == "777"
-    assert await pool.fetchval("SELECT custom_id FROM emoji_overrides WHERE key = 'selianyn'") == "777"
+    assert emoji.custom_id("storozh") == "777"
+    assert await pool.fetchval("SELECT custom_id FROM emoji_overrides WHERE key = 'storozh'") == "777"
     await feed(msg(OWNER, "/emoji"))
     assert any('emoji-id="777"' in t for t in s.texts_to(OWNER))
-    await feed(msg(OWNER, "/emoji_reset selianyn"))
-    assert emoji.custom_id("selianyn") is None
+    await feed(msg(OWNER, "/emoji_reset storozh"))
+    assert emoji.custom_id("storozh") is None
 
     # /media відповіддю на фото → /start надсилає фото з підписом
     photo_msg = Message(message_id=next(ids), date=datetime.now(UTC), chat=Chat(id=OWNER, type="private"),
@@ -299,7 +299,7 @@ async def test_menu_and_sections(env):
     assert all(b.icon_custom_emoji_id for row in menu.inline_keyboard for b in row)
     assert menu.inline_keyboard[0][0].callback_data == "sec:howto"
 
-    for name, marker in [("howto", "в групу"), ("game", "Звичаї хутора"), ("roles", "Характерник"),
+    for name, marker in [("howto", "в групу"), ("game", "Звичаї хутора"), ("roles", "Комісар"),
                          ("items", "Оберіг"), ("profile", "Шаги"), ("daily", "+50"), ("vip", "VIP")]:
         await feed(cb(31, f"sec:{name}"))
         last = edits()[-1]

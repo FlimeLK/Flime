@@ -31,20 +31,20 @@ def test_every_role_and_item_has_emoji_key():
 
 def test_e_icon_render():
     cid = emoji.DEFAULTS["vovkulaka"].id
-    assert emoji.e("vovkulaka") == f'<tg-emoji emoji-id="{cid}">🐺</tg-emoji>'
-    assert emoji.e("selianyn") == "👨‍🌾"  # без ID - звичайний символ
+    assert emoji.e("vovkulaka") == f'<tg-emoji emoji-id="{cid}">🔪</tg-emoji>'
+    assert emoji.e("storozh") == "🚶"  # без ID - звичайний символ
     assert emoji.icon("vovkulaka") == cid
-    assert emoji.render(":vovkulaka: вийшов") == f'<tg-emoji emoji-id="{cid}">🐺</tg-emoji> вийшов'
-    assert emoji.render(":vovkulaka: вийшов", html=False) == "🐺 вийшов"
+    assert emoji.render(":vovkulaka: вийшов") == f'<tg-emoji emoji-id="{cid}">🔪</tg-emoji> вийшов'
+    assert emoji.render(":vovkulaka: вийшов", html=False) == "🔪 вийшов"
     assert emoji.render("о 12:30 :unknown: https://t.me/x") == "о 12:30 :unknown: https://t.me/x"
     assert emoji.strip(emoji.render(":fire::fire:")) == "🔥🔥"
 
 
 def test_override_and_disable():
-    emoji.set_override("selianyn", "123")
-    assert emoji.e("selianyn") == '<tg-emoji emoji-id="123">👨‍🌾</tg-emoji>'
-    emoji.configure(False, {"selianyn": "123"})
-    assert emoji.e("selianyn") == "👨‍🌾"
+    emoji.set_override("storozh", "123")
+    assert emoji.e("storozh") == '<tg-emoji emoji-id="123">🚶</tg-emoji>'
+    emoji.configure(False, {"storozh": "123"})
+    assert emoji.e("storozh") == "🚶"
     assert emoji.icon("fire") is None
     assert btn("Вогонь", "x", emo="fire").text == "🔥Вогонь"
 
