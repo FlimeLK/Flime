@@ -77,22 +77,22 @@ def start(first_name: str) -> str:
         f":wave: <b>{CATCHPHRASE}, {escape(first_name)}!</b>\n"
         f"Я - <b>{PERSONA}</b>, ведучий гри «{GAME_NAME}».\n"
         "На нашому хуторі завелася нечисть: вдень усі - добрі сусіди, а вночі хтось не повертається з вечорниць.\n\n"
-        "Ознайомся з моїми можливостями ↓"
+        "Обирай, куди зазирнемо ↓"
     )
 
 
 # Кнопки головного меню: ключ розділу → (емодзі, підпис). Емодзі розділу однакове всюди.
-MENU_WIDE_TOP = ("howto", "chat", "Як зі мною говорити")
+MENU_WIDE_TOP = ("howto", "chat", "Кумова порада")
 MENU_GRID = [
-    ("game", "dice", "Як грати"),
-    ("roles", "mask", "Ролі"),
-    ("items", "bag", "Предмети"),
+    ("game", "dice", "Звичаї хутора"),
+    ("roles", "mask", "Хто є хто"),
+    ("items", "bag", "Комора"),
     ("profile", "profile", "Моя хата"),
     ("daily", "gift", "Гостинець"),
-    ("vip", "vip", "VIP"),
+    ("vip", "vip", "Скарбниця"),
 ]
-MENU_ADD_GROUP = ("people", "Додати на свій хутір")
-BACK = "Назад"
+MENU_ADD_GROUP = ("people", "Покликати на вечорниці")
+BACK = "На поріг"
 
 
 def section(emo: str, title: str, intro: str, items: list[str], call: str) -> str:
@@ -102,7 +102,7 @@ def section(emo: str, title: str, intro: str, items: list[str], call: str) -> st
 
 
 SECTION_HOWTO = section(
-    "chat", "Як зі мною говорити",
+    "chat", "Кумова порада",
     f"{CATCHPHRASE}, куме, та це ж просто! Тиснеш кнопку - я роблю.",
     [
         "• :people: Додай мене в групу - там я збиратиму громаду на гру",
@@ -115,7 +115,7 @@ SECTION_HOWTO = section(
 
 
 SECTION_GAME = section(
-    "dice", "Як грати",
+    "dice", "Звичаї хутора",
     "Гра йде по колу, поки хтось не переможе. Я веду - ви хитруєте.",
     [
         "• :night: <b>Ніч</b> - кнопки дій приходять в особисті",
@@ -129,13 +129,13 @@ SECTION_GAME = section(
 
 def section_roles() -> str:
     lines = [f"• :{r.key}: <b>{r.name}</b> - {ROLE_DESCRIPTIONS[r.key]}" for r in ROLES.values()]
-    return section("mask", "Ролі", "На хуторі кожен не той, ким здається. Ось хто тут живе:", lines,
+    return section("mask", "Хто є хто", "На хуторі кожен не той, ким здається. Ось хто тут живе:", lines,
                    "Роль приходить в особисті на початку гри - нікому не показуй!")
 
 
 def section_items() -> str:
     lines = [f"• :{i.key}: <b>{i.name}</b> · {i.price} :shagy: - {i.description}" for i in ITEMS.values()]
-    return section("bag", "Предмети", "На ярмарку можна прикупити дещо корисне - у гру беруться самі.",
+    return section("bag", "Комора", "На ярмарку можна прикупити дещо корисне - у гру беруться самі.",
                    lines, "Зазирни на ярмарок, поки шаги в кишені!")
 
 
@@ -148,7 +148,7 @@ def section_daily(result: str) -> str:
 
 
 SECTION_VIP = section(
-    "vip", "VIP і червінці",
+    "vip", "Скарбниця: VIP і червінці",
     "VIP - для поважних кумів. Купується за :star: зірки або червінці.",
     [
         "• :fire: ×1.5 шагів за кожну гру",
@@ -511,18 +511,18 @@ def settings_home(chat_title: str) -> str:
 
 
 SETTINGS_MODULES = [
-    ("timers", "timer", "Таймери"),
-    ("roles", "mask", "Ролі"),
-    ("vote", "vote", "Голосування"),
-    ("items", "bag", "Предмети"),
+    ("timers", "timer", "Годинник"),
+    ("roles", "mask", "Хто є хто"),
+    ("vote", "vote", "Віче"),
+    ("items", "bag", "Комора"),
 ]
-SETTINGS_REFRESH = "Оновити меню"
-SETTINGS_TIMERS_HEAD = ":timer: <b>Таймери</b>\n\nСкільки часу триває кожна фаза. Тисни −/+."
+SETTINGS_REFRESH = "Освіжити"
+SETTINGS_TIMERS_HEAD = ":timer: <b>Годинник</b>\n\nСкільки часу триває кожна фаза. Тисни −/+."
 SETTINGS_ROLES_HEAD = (
-    ":mask: <b>Ролі</b>\n\nЗелені - в грі, червоні - вимкнені. Відьма, Упир і Селянин - обов'язкові."
+    ":mask: <b>Хто є хто</b>\n\nЗелені - в грі, червоні - вимкнені. Відьма, Упир і Селянин - обов'язкові."
 )
-SETTINGS_VOTE_HEAD = ":vote: <b>Голосування</b>\n\nЯк громада голосує і що дізнається про загиблих."
-SETTINGS_ITEMS_HEAD = ":bag: <b>Предмети</b>\n\nЧи можна брати в гру предмети з ярмарку."
+SETTINGS_VOTE_HEAD = ":vote: <b>Віче</b>\n\nЯк громада голосує і що дізнається про загиблих."
+SETTINGS_ITEMS_HEAD = ":bag: <b>Комора</b>\n\nЧи можна брати в гру предмети з ярмарку."
 # Ключ таймера → (емодзі, підпис)
 TIMER_NAMES = {
     "reg_time": ("timer", "Реєстрація"),

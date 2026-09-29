@@ -299,14 +299,14 @@ async def test_menu_and_sections(env):
     assert all(b.icon_custom_emoji_id for row in menu.inline_keyboard for b in row)
     assert menu.inline_keyboard[0][0].callback_data == "sec:howto"
 
-    for name, marker in [("howto", "в групу"), ("game", "Як грати"), ("roles", "Характерник"),
+    for name, marker in [("howto", "в групу"), ("game", "Звичаї хутора"), ("roles", "Характерник"),
                          ("items", "Оберіг"), ("profile", "Шаги"), ("daily", "+50"), ("vip", "VIP")]:
         await feed(cb(31, f"sec:{name}"))
         last = edits()[-1]
         assert marker in last.text, name
         assert last.reply_markup.inline_keyboard[0][0].callback_data == "menu:main"
     await feed(cb(31, "menu:main"))
-    assert "Ознайомся з моїми можливостями" in edits()[-1].text
+    assert "Обирай, куди зазирнемо" in edits()[-1].text
 
 
 async def test_settings_modules(env):
@@ -316,7 +316,7 @@ async def test_settings_modules(env):
         return [c for c in s.calls if type(c).__name__ == "EditMessageText"][-1]
 
     await feed(cb(ADMIN, SetCb(action="timers").pack(), GROUP))
-    assert "Таймери" in last_edit().text
+    assert "Годинник" in last_edit().text
     await feed(cb(ADMIN, SetCb(action="vote").pack(), GROUP))
     assert len(last_edit().reply_markup.inline_keyboard) == 3  # 2 перемикачі + Назад
     await feed(cb(ADMIN, SetCb(action="refresh").pack(), GROUP))
