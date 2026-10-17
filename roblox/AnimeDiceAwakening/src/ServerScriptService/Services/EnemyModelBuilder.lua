@@ -201,7 +201,8 @@ function EnemyModelBuilder.Build(def)
 	addHealthBar(model, hitbox, def, height / 2)
 
 	model.PrimaryPart = hitbox
-	model.WorldPivot = CFrame.new()
+	-- Точка опори = ноги (через PivotOffset: з PrimaryPart присвоєння WorldPivot не діє)
+	hitbox.PivotOffset = hitbox.CFrame:Inverse()
 	return model
 end
 

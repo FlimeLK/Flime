@@ -33,6 +33,18 @@ local function addPart(model, name, size, cframe, color, material, shape)
 	return part
 end
 
+-- Точка опори моделі = (0,0,0) світу, тобто "ноги" героя.
+-- Якщо в моделі є PrimaryPart, опора задається через його PivotOffset
+-- (присвоєння WorldPivot у такій моделі не спрацьовує, і модель "тоне" в підлогу).
+function HeroModelBuilder.SetPivotAtOrigin(model)
+	local primary = model.PrimaryPart
+	if primary then
+		primary.PivotOffset = primary.CFrame:Inverse()
+	else
+		model.WorldPivot = CFrame.new()
+	end
+end
+
 -- Зброя / аксесуар залежно від класу героя.
 local ACCESSORIES = {
 	Ninja = function(model, s, accent, top)
@@ -209,7 +221,7 @@ local function buildFromCustom(heroDef, template, level, infoText, awakened)
 	local box, boxSize = model:GetBoundingBox()
 	local feet = Vector3.new(box.Position.X, box.Position.Y - boxSize.Y / 2, box.Position.Z)
 	model:PivotTo(model:GetPivot() - feet)
-	model.WorldPivot = CFrame.new()
+	HeroModelBuilder.SetPivotAtOrigin(model)
 
 	local head = findPart(model, { "Head" })
 	local torso = findPart(model, { "UpperTorso", "Torso", "HumanoidRootPart" })
@@ -259,7 +271,7 @@ function HeroModelBuilder.Build(heroDef, level, infoText, awakened)
 	end
 
 	model.PrimaryPart = torso
-	model.WorldPivot = CFrame.new() -- точка опори = ноги
+	HeroModelBuilder.SetPivotAtOrigin(model) -- точка опори = ноги
 	return model
 end
 
