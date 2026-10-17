@@ -165,6 +165,9 @@ local EconomyConfig = {
 	OfflineMaxSeconds = 2 * 60 * 60, -- офлайн-дохід максимум за 2 години
 	OfflineRate = 0.5, -- офлайн герої заробляють 50% від звичайного
 
+	-- Колекція: кожен відкритий герой дає +2% до доходу бази
+	CollectionIncomeBonus = 0.02,
+
 	-- Кидки
 	RollCooldown = 0.5, -- мінімальна пауза між кидками (сервер)
 
@@ -248,15 +251,16 @@ EnemyConfig.Enemies = {
 }
 
 -- Точки появи. offset — відносно центру світу (Y = 0 — рівень землі).
+-- zone — номер зони з WorldConfig (ворогів закритої зони не можна атакувати).
 EnemyConfig.WorldSpawns = {
 	NinjaVillage = {
-		{ enemy = "bandit_genin", offset = Vector3.new(-22, 0, -65) },
-		{ enemy = "bandit_genin", offset = Vector3.new(22, 0, -65) },
-		{ enemy = "shadow_puppet", offset = Vector3.new(-38, 0, -15) },
-		{ enemy = "shadow_puppet", offset = Vector3.new(38, 0, -15) },
-		{ enemy = "rogue_ronin", offset = Vector3.new(-32, 0, 35) },
-		{ enemy = "rogue_ronin", offset = Vector3.new(32, 0, 35) },
-		{ enemy = "oni_kurogane", offset = Vector3.new(0, 0, 92) },
+		{ enemy = "bandit_genin", offset = Vector3.new(-22, 0, -65), zone = 1 },
+		{ enemy = "bandit_genin", offset = Vector3.new(22, 0, -65), zone = 1 },
+		{ enemy = "shadow_puppet", offset = Vector3.new(-38, 0, -15), zone = 1 },
+		{ enemy = "shadow_puppet", offset = Vector3.new(38, 0, -15), zone = 1 },
+		{ enemy = "rogue_ronin", offset = Vector3.new(-32, 0, 35), zone = 2 },
+		{ enemy = "rogue_ronin", offset = Vector3.new(32, 0, 35), zone = 2 },
+		{ enemy = "oni_kurogane", offset = Vector3.new(0, 0, 92), zone = 3 },
 	},
 }
 
@@ -617,6 +621,66 @@ return HeroConfig
         </Item>
         <Item class="ModuleScript" referent="9">
           <Properties>
+            <string name="Name">QuestConfig</string>
+            <string name="Source"><![CDATA[-- QuestConfig: завдання та нагороди.
+--
+-- Main  — сюжетний ланцюжок: одне активне завдання, після нагороди відкривається наступне.
+--         metric — що рахуємо (див. GameMath.GetMetric), target — скільки треба.
+-- Daily — щоденні завдання: щодня (за UTC) сервер вибирає 3 з пулу.
+--         event — подія, яку рахуємо від початку дня: roll, kill, boss, merge, upgrade.
+-- reward — { coins = N, crystals = N }
+
+local QuestConfig = {}
+
+QuestConfig.Main = {
+	{ id = "first_roll", title = "Перший кидок", description = "Кинь кубик", metric = "totalRolls", target = 1, reward = { coins = 50 } },
+	{ id = "builder", title = "Будівничий", description = "Постав 3 героїв на базу", metric = "placedHeroes", target = 3, reward = { coins = 150 } },
+	{ id = "collector", title = "Колекціонер", description = "Відкрий 5 різних героїв", metric = "discovered", target = 5, reward = { crystals = 3 } },
+	{ id = "squad", title = "Бойовий загін", description = "Збери команду з 3 героїв у ⚔️ Team", metric = "teamSize", target = 3, reward = { coins = 200 } },
+	{ id = "first_blood", title = "Перші перемоги", description = "Переможи 5 ворогів у Ninja Village", metric = "enemiesDefeated", target = 5, reward = { crystals = 5 } },
+	{ id = "expansion", title = "Розширення бази", description = "Відкрий 5 слотів бази в ⬆️ Upgrades", metric = "slotCount", target = 5, reward = { coins = 500 } },
+	{ id = "fire_path", title = "Шлях вогню", description = "Зроби 25 кидків — відкриється Fire Dice", metric = "totalRolls", target = 25, reward = { crystals = 5 } },
+	{ id = "dojo", title = "Ворота Dojo", description = "Переможи 15 ворогів — відкриється зона Dojo", metric = "enemiesDefeated", target = 15, reward = { coins = 1000 } },
+	{ id = "merge_master", title = "Майстер злиття", description = "Підніми будь-якого героя до 5 рівня (Merge)", metric = "maxHeroLevel", target = 5, reward = { crystals = 10 } },
+	{ id = "shrine", title = "Святилище Оні", description = "Переможи 40 ворогів — відкриється арена боса", metric = "enemiesDefeated", target = 40, reward = { crystals = 10 } },
+	{ id = "oni_slayer", title = "Переможець Оні", description = "Переможи Oni Warlord Kurogane", metric = "bossesDefeated", target = 1, reward = { crystals = 25 } },
+}
+
+QuestConfig.DailyPool = {
+	{ id = "d_roll_small", title = "Щоденні кидки", description = "Зроби 20 кидків", event = "roll", target = 20, reward = { coins = 300 } },
+	{ id = "d_kill_small", title = "Розминка", description = "Переможи 15 ворогів", event = "kill", target = 15, reward = { coins = 400, crystals = 1 } },
+	{ id = "d_merge", title = "Тренування", description = "Злий героїв 2 рази (Merge)", event = "merge", target = 2, reward = { crystals = 2 } },
+	{ id = "d_roll_big", title = "Азартний день", description = "Зроби 60 кидків", event = "roll", target = 60, reward = { coins = 800, crystals = 1 } },
+	{ id = "d_kill_big", title = "Зачистка села", description = "Переможи 40 ворогів", event = "kill", target = 40, reward = { crystals = 3 } },
+	{ id = "d_upgrade", title = "Будівництво", description = "Купи 2 покращення в ⬆️ Upgrades", event = "upgrade", target = 2, reward = { coins = 500 } },
+}
+
+QuestConfig.DailyCount = 3
+
+-- Щоденні завдання дня day (номер доби UTC). Однакові для всіх гравців і серверів.
+function QuestConfig.GetDaily(day)
+	local pool = QuestConfig.DailyPool
+	local result = {}
+	for i = 0, QuestConfig.DailyCount - 1 do
+		table.insert(result, pool[(day + i * 2) % #pool + 1])
+	end
+	return result
+end
+
+-- Нагороди за колекцію: відкрив count різних героїв — забирай кристали.
+QuestConfig.CollectionMilestones = {
+	{ count = 5, crystals = 5 },
+	{ count = 10, crystals = 10 },
+	{ count = 15, crystals = 20 },
+	{ count = 22, crystals = 50 },
+}
+
+return QuestConfig
+]]></string>
+          </Properties>
+        </Item>
+        <Item class="ModuleScript" referent="10">
+          <Properties>
             <string name="Name">RarityConfig</string>
             <string name="Source"><![CDATA[-- RarityConfig: рідкості героїв.
 -- rank          — порядок (чим більше, тим рідкісніше)
@@ -707,7 +771,57 @@ return RarityConfig
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="10">
+        <Item class="ModuleScript" referent="11">
+          <Properties>
+            <string name="Name">ShopConfig</string>
+            <string name="Source"><![CDATA[-- ShopConfig: покупки за Crystals.
+-- Boosts — тимчасові підсилення (діють за серверним часом, навіть офлайн спливає час).
+-- Items  — товари магазину.
+
+local ShopConfig = {}
+
+ShopConfig.Boosts = {
+	luck = { displayName = "🍀 Удача", multiplier = 2 },
+	income = { displayName = "💰 Дохід", multiplier = 2 },
+}
+
+ShopConfig.Order = { "LuckPotion", "CoinPotion", "BigBag" }
+
+ShopConfig.Items = {
+	LuckPotion = {
+		displayName = "🍀 Зілля удачі",
+		description = "Удача ×2 для всіх кубиків на 10 хв",
+		kind = "boost",
+		boost = "luck",
+		price = 5,
+		duration = 10 * 60,
+		maxDuration = 60 * 60, -- можна накопичити максимум годину
+	},
+	CoinPotion = {
+		displayName = "💰 Зілля монет",
+		description = "Дохід бази ×2 на 10 хв",
+		kind = "boost",
+		boost = "income",
+		price = 5,
+		duration = 10 * 60,
+		maxDuration = 60 * 60,
+	},
+	BigBag = {
+		displayName = "🎒 Більша сумка",
+		description = "+25 місць в інвентарі назавжди",
+		kind = "inventory",
+		amount = 25,
+		basePrice = 10, -- 10, 20, 30, 40 💎
+		priceStep = 10,
+		maxPurchases = 4,
+	},
+}
+
+return ShopConfig
+]]></string>
+          </Properties>
+        </Item>
+        <Item class="ModuleScript" referent="12">
           <Properties>
             <string name="Name">WorldConfig</string>
             <string name="Source"><![CDATA[-- WorldConfig: світи гри.
@@ -726,6 +840,13 @@ WorldConfig.Worlds = {
 		color = Color3.fromRGB(90, 230, 140),
 		available = true,
 		center = Vector3.new(1500, 200, 0),
+		-- Зони відкриваються за кількістю перемог (stats.enemiesDefeated).
+		-- gateZ — де стоїть ворота зони (відносно центру світу).
+		zones = {
+			{ id = "Outskirts", name = "Outskirts", requiredKills = 0 },
+			{ id = "Dojo", name = "Dojo", requiredKills = 15, gateZ = 10 },
+			{ id = "OniShrine", name = "Oni Shrine", requiredKills = 40, gateZ = 62 },
+		},
 	},
 	PirateIsland = {
 		displayName = "Pirate Island",
@@ -762,7 +883,7 @@ return WorldConfig
           </Properties>
         </Item>
       </Item>
-      <Item class="ModuleScript" referent="11">
+      <Item class="ModuleScript" referent="13">
         <Properties>
           <string name="Name">GameMath</string>
           <string name="Source"><![CDATA[-- GameMath: формули балансу, спільні для сервера й клієнта.
@@ -774,6 +895,8 @@ local RarityConfig = require(Config:WaitForChild("RarityConfig"))
 local EconomyConfig = require(Config:WaitForChild("EconomyConfig"))
 local HeroConfig = require(Config:WaitForChild("HeroConfig"))
 local CombatConfig = require(Config:WaitForChild("CombatConfig"))
+local ShopConfig = require(Config:WaitForChild("ShopConfig"))
+local WorldConfig = require(Config:WaitForChild("WorldConfig"))
 
 local GameMath = {}
 
@@ -839,8 +962,127 @@ function GameMath.GetIncomeUpgradePrice(incomeLevel)
 	return math.floor(upgrade.basePrice * upgrade.growth ^ incomeLevel)
 end
 
--- Загальний дохід бази за секунду.
-function GameMath.GetTotalIncome(data)
+-- Номер доби UTC (для щоденних завдань).
+function GameMath.GetDay(now)
+	return math.floor(now / 86400)
+end
+
+-- Чи діє буст ("luck" / "income") у момент now. now = nil — бусти не враховуються.
+function GameMath.IsBoostActive(data, boostId, now)
+	return now ~= nil and (data.boosts[boostId] or 0) > now
+end
+
+function GameMath.GetBoostMultiplier(data, boostId, now)
+	if GameMath.IsBoostActive(data, boostId, now) then
+		return ShopConfig.Boosts[boostId].multiplier
+	end
+	return 1
+end
+
+-- Удача гравця (множиться на удачу кубика).
+function GameMath.GetLuck(data, now)
+	return GameMath.GetBoostMultiplier(data, "luck", now)
+end
+
+function GameMath.CountDiscovered(data)
+	local count = 0
+	for heroId in data.discovered do
+		if HeroConfig.Heroes[heroId] then
+			count += 1
+		end
+	end
+	return count
+end
+
+-- Бонус колекції: +2% доходу за кожного відкритого героя.
+function GameMath.GetCollectionMultiplier(data)
+	return 1 + GameMath.CountDiscovered(data) * EconomyConfig.CollectionIncomeBonus
+end
+
+function GameMath.GetMaxInventory(data)
+	return EconomyConfig.MaxInventory + (data.inventoryBonus or 0)
+end
+
+-- Ціна наступної "Більшої сумки" або nil, якщо куплено максимум.
+function GameMath.GetBagPrice(data)
+	local item = ShopConfig.Items.BigBag
+	local purchases = math.floor((data.inventoryBonus or 0) / item.amount)
+	if purchases >= item.maxPurchases then
+		return nil
+	end
+	return item.basePrice + item.priceStep * purchases
+end
+
+-- Чи відкрита зона zoneIndex світу worldId (зони без вимог відкриті завжди).
+function GameMath.IsZoneUnlocked(data, worldId, zoneIndex)
+	local world = WorldConfig.Worlds[worldId]
+	local zone = world and world.zones and world.zones[zoneIndex]
+	if not zone then
+		return true
+	end
+	return data.stats.enemiesDefeated >= zone.requiredKills
+end
+
+-- Значення для сюжетних завдань (QuestConfig.Main[].metric).
+function GameMath.GetMetric(data, metric)
+	if metric == "totalRolls" then
+		return data.totalRolls
+	elseif metric == "slotCount" then
+		return data.slotCount
+	elseif metric == "discovered" then
+		return GameMath.CountDiscovered(data)
+	elseif metric == "placedHeroes" then
+		local count = 0
+		for i = 1, data.slotCount do
+			if data.slots[i] ~= "" then
+				count += 1
+			end
+		end
+		return count
+	elseif metric == "teamSize" then
+		local count = 0
+		for i = 1, CombatConfig.TeamSize do
+			if data.team[i] ~= "" then
+				count += 1
+			end
+		end
+		return count
+	elseif metric == "maxHeroLevel" then
+		local best = 0
+		for _, hero in data.heroes do
+			best = math.max(best, hero.level)
+		end
+		return best
+	elseif data.stats[metric] ~= nil then
+		return data.stats[metric]
+	end
+	return 0
+end
+
+-- "+300 🪙 +1 💎"
+function GameMath.FormatReward(reward)
+	local parts = {}
+	if reward.coins and reward.coins > 0 then
+		table.insert(parts, "+" .. GameMath.FormatNumber(reward.coins) .. " 🪙")
+	end
+	if reward.crystals and reward.crystals > 0 then
+		table.insert(parts, "+" .. GameMath.FormatNumber(reward.crystals) .. " 💎")
+	end
+	return table.concat(parts, " ")
+end
+
+-- 125 -> "2:05"
+function GameMath.FormatTime(seconds)
+	seconds = math.max(0, math.floor(seconds))
+	if seconds >= 3600 then
+		return string.format("%d:%02d:%02d", seconds // 3600, (seconds % 3600) // 60, seconds % 60)
+	end
+	return string.format("%d:%02d", seconds // 60, seconds % 60)
+end
+
+-- Загальний дохід бази за секунду з бонусом колекції.
+-- now — серверний час; якщо передано, враховується буст доходу.
+function GameMath.GetTotalIncome(data, now)
 	local total = 0
 	for i = 1, data.slotCount do
 		local uid = data.slots[i]
@@ -850,7 +1092,7 @@ function GameMath.GetTotalIncome(data)
 			total += GameMath.GetHeroIncome(heroDef, hero.level, data.incomeLevel)
 		end
 	end
-	return total
+	return total * GameMath.GetCollectionMultiplier(data) * GameMath.GetBoostMultiplier(data, "income", now)
 end
 
 -- Шкода героя за секунду.
@@ -937,7 +1179,7 @@ return GameMath
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="12">
+      <Item class="ModuleScript" referent="14">
         <Properties>
           <string name="Name">HeroModelBuilder</string>
           <string name="Source"><![CDATA[-- HeroModelBuilder: будує просту модель героя з Part (без платних моделей).
@@ -1102,7 +1344,7 @@ return HeroModelBuilder
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="13">
+      <Item class="ModuleScript" referent="15">
         <Properties>
           <string name="Name">Remotes</string>
           <string name="Source"><![CDATA[-- Remotes: єдиний список усіх RemoteEvent / RemoteFunction гри.
@@ -1123,6 +1365,8 @@ local DEFINITIONS = {
 	TeamAction = "RemoteFunction", -- (action, uid) -> { ok, message }
 	CombatAction = "RemoteFunction", -- (action) -> { ok, message }
 	Travel = "RemoteFunction", -- (worldId) -> { ok, message }
+	QuestAction = "RemoteFunction", -- (action, arg) -> { ok, message }
+	BuyShopItem = "RemoteFunction", -- (itemId) -> { ok, message }
 	-- Сервер -> клієнт
 	DataSync = "RemoteEvent", -- повні дані гравця
 	Notify = "RemoteEvent", -- (text, kind) спливаюче повідомлення
@@ -1180,11 +1424,11 @@ return Remotes
       </Item>
     </Item>
   </Item>
-  <Item class="ServerScriptService" referent="14">
+  <Item class="ServerScriptService" referent="16">
     <Properties>
       <string name="Name">ServerScriptService</string>
     </Properties>
-    <Item class="Script" referent="15">
+    <Item class="Script" referent="17">
       <Properties>
         <string name="Name">Main</string>
         <token name="RunContext">0</token>
@@ -1208,6 +1452,8 @@ local SettingsService = require(Services.SettingsService)
 local TeamService = require(Services.TeamService)
 local CombatService = require(Services.CombatService)
 local WorldService = require(Services.WorldService)
+local QuestService = require(Services.QuestService)
+local ShopService = require(Services.ShopService)
 
 DataService.Init()
 PlotService.Init()
@@ -1219,6 +1465,8 @@ SettingsService.Init()
 TeamService.Init()
 CombatService.Init()
 WorldService.Init() -- після PlotService: підключає портали лобі
+QuestService.Init()
+ShopService.Init()
 
 local function onPlayerAdded(player)
 	WorldService.SetupPlayer(player)
@@ -1238,6 +1486,7 @@ local function onPlayerAdded(player)
 
 	-- 3. Офлайн-дохід, герої на базі, перша синхронізація з клієнтом
 	--    (MarkChanged також оновлює атрибут команди TeamData)
+	QuestService.SetupData(data)
 	IncomeService.GrantOfflineIncome(player)
 	PlotService.RefreshPlot(player)
 	DataService.MarkChanged(player)
@@ -1260,11 +1509,11 @@ print("[Main] Anime Dice: Awakening — сервер запущено")
 ]]></string>
       </Properties>
     </Item>
-    <Item class="Folder" referent="16">
+    <Item class="Folder" referent="18">
       <Properties>
         <string name="Name">Services</string>
       </Properties>
-      <Item class="ModuleScript" referent="17">
+      <Item class="ModuleScript" referent="19">
         <Properties>
           <string name="Name">BuildUtil</string>
           <string name="Source"><![CDATA[-- BuildUtil: спільні функції для будівництва карти з простих Part.
@@ -1334,7 +1583,7 @@ return BuildUtil
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="18">
+      <Item class="ModuleScript" referent="20">
         <Properties>
           <string name="Name">CombatService</string>
           <string name="Source"><![CDATA[-- CombatService: вибір цілі та автоатака бойової команди.
@@ -1410,6 +1659,9 @@ function CombatService.SetTarget(player, enemyId)
 	if not data or GameMath.GetTeamDps(data) <= 0 then
 		return false, "Команда порожня! Додай героїв у ⚔️ Team"
 	end
+	if not GameMath.IsZoneUnlocked(data, enemy.world, enemy.zone) then
+		return false, "Ця зона ще закрита — перемагай ворогів, щоб відкрити ворота"
+	end
 	getState(player).targetId = enemyId
 	player:SetAttribute("TargetId", enemyId)
 	return true, "Ціль: " .. enemy.def.name
@@ -1421,9 +1673,10 @@ local function targetNearest(player)
 		return false, "Персонаж ще не з'явився"
 	end
 	local world = player:GetAttribute("World")
+	local data = DataService.Get(player)
 	local bestId, bestDistance = nil, math.huge
 	for id, enemy in EnemyService.GetAll() do
-		if enemy.alive and enemy.world == world then
+		if enemy.alive and enemy.world == world and data and GameMath.IsZoneUnlocked(data, enemy.world, enemy.zone) then
 			local distance = distanceTo(root, enemy)
 			if distance < bestDistance and distance <= CombatConfig.TargetSelectRange then
 				bestId, bestDistance = id, distance
@@ -1553,7 +1806,7 @@ return CombatService
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="19">
+      <Item class="ModuleScript" referent="21">
         <Properties>
           <string name="Name">DataService</string>
           <string name="Source"><![CDATA[-- DataService: завантаження, зберігання та синхронізація даних гравців.
@@ -1575,6 +1828,7 @@ local Shared = ReplicatedStorage:WaitForChild("Shared")
 local EconomyConfig = require(Shared.Config.EconomyConfig)
 local CombatConfig = require(Shared.Config.CombatConfig)
 local HeroConfig = require(Shared.Config.HeroConfig)
+local QuestConfig = require(Shared.Config.QuestConfig)
 local Remotes = require(Shared.Remotes)
 
 local DataService = {}
@@ -1623,7 +1877,12 @@ local function makeTemplate()
 		discovered = {}, -- [heroId] = true (колекція)
 		tutorial = { freeRollUsed = false, completed = false },
 		settings = { sound = true, effects = true, skipAnimations = false },
-		stats = { enemiesDefeated = 0, bossesDefeated = 0 },
+		stats = { enemiesDefeated = 0, bossesDefeated = 0, merges = 0 },
+		quests = { main = 1 }, -- номер активного сюжетного завдання
+		daily = { day = 0, progress = {}, claimed = {} }, -- щоденні завдання
+		collectionClaimed = {}, -- ["m1"] = true — забрані нагороди колекції
+		boosts = { luck = 0, income = 0 }, -- час (os.time), до якого діє буст
+		inventoryBonus = 0, -- додаткові місця в інвентарі
 		lastSeen = 0,
 	}
 end
@@ -1656,6 +1915,8 @@ end
 local function sanitize(data)
 	data.slotCount = math.clamp(math.floor(data.slotCount), EconomyConfig.StartSlots, EconomyConfig.MaxSlots)
 	data.coins = math.max(0, math.floor(data.coins))
+	data.crystals = math.max(0, math.floor(data.crystals))
+	data.quests.main = math.clamp(math.floor(data.quests.main), 1, #QuestConfig.Main + 1)
 	for _, hero in data.heroes do
 		hero.level = math.max(1, math.floor(tonumber(hero.level) or 1))
 		hero.locked = hero.locked == true
@@ -1909,6 +2170,22 @@ function DataService.AddCrystals(player, amount)
 	return true
 end
 
+-- Списує кристали, лише якщо їх вистачає. Повертає true/false.
+function DataService.SpendCrystals(player, amount)
+	local profile = DataService.GetProfile(player)
+	amount = math.floor(tonumber(amount) or -1)
+	if not profile or amount < 0 or profile.data.crystals < amount then
+		return false
+	end
+	profile.data.crystals -= amount
+	local leaderstats = player:FindFirstChild("leaderstats")
+	local crystals = leaderstats and leaderstats:FindFirstChild("Crystals")
+	if crystals then
+		crystals.Value = profile.data.crystals
+	end
+	return true
+end
+
 -- Списує монети, лише якщо їх вистачає. Повертає true/false.
 function DataService.SpendCoins(player, amount)
 	local profile = DataService.GetProfile(player)
@@ -1981,7 +2258,7 @@ return DataService
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="20">
+      <Item class="ModuleScript" referent="22">
         <Properties>
           <string name="Name">EnemyModelBuilder</string>
           <string name="Source"><![CDATA[-- EnemyModelBuilder: прості моделі ворогів з Part + смуга здоров'я над головою.
@@ -2120,7 +2397,7 @@ return EnemyModelBuilder
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="21">
+      <Item class="ModuleScript" referent="23">
         <Properties>
           <string name="Name">EnemyService</string>
           <string name="Source"><![CDATA[-- EnemyService: вороги та боси — поява, здоров'я, нагороди, атаки боса.
@@ -2139,6 +2416,7 @@ local Remotes = require(Shared.Remotes)
 
 local DataService = require(script.Parent.DataService)
 local EnemyModelBuilder = require(script.Parent.EnemyModelBuilder)
+local QuestService = require(script.Parent.QuestService)
 
 local EnemyService = {}
 
@@ -2263,6 +2541,7 @@ local function spawnEnemy(state)
 	model:SetAttribute("EnemyId", state.id)
 	model:SetAttribute("EnemyName", state.def.name)
 	model:SetAttribute("World", state.world)
+	model:SetAttribute("Zone", state.zone)
 	model:SetAttribute("IsBoss", state.def.isBoss == true)
 	model:SetAttribute("MaxHealth", state.def.health)
 	model:SetAttribute("Attack", "")
@@ -2294,13 +2573,9 @@ local function rewardContributors(state)
 		if player.Parent and damage >= minimum then
 			DataService.AddCoins(player, def.coins)
 			DataService.AddCrystals(player, def.crystals)
-			local data = DataService.Get(player)
-			if data then
-				data.stats.enemiesDefeated += 1
-				if def.isBoss then
-					data.stats.bossesDefeated += 1
-				end
-				DataService.MarkChanged(player)
+			QuestService.Track(player, "kill")
+			if def.isBoss then
+				QuestService.Track(player, "boss")
 			end
 			local text = ("Переможено %s! +%s 🪙"):format(def.name, GameMath.FormatNumber(def.coins))
 			if def.crystals > 0 then
@@ -2347,6 +2622,7 @@ function EnemyService.SpawnWorldEnemies(worldId, worldCFrame, parent)
 			id = "e" .. nextId,
 			def = def,
 			world = worldId,
+			zone = spawnInfo.zone or 1,
 			-- Ворог дивиться в бік входу у світ (-Z)
 			spawnCFrame = worldCFrame * CFrame.new(spawnInfo.offset),
 			parent = parent,
@@ -2401,7 +2677,7 @@ return EnemyService
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="22">
+      <Item class="ModuleScript" referent="24">
         <Properties>
           <string name="Name">IncomeService</string>
           <string name="Source"><![CDATA[-- IncomeService: нарахування монет від героїв на базі та офлайн-дохід.
@@ -2425,6 +2701,7 @@ function IncomeService.GrantOfflineIncome(player)
 		return
 	end
 	local elapsed = math.clamp(os.time() - data.lastSeen, 0, EconomyConfig.OfflineMaxSeconds)
+	-- Бусти офлайн не діють (GetTotalIncome без часу), бонус колекції — діє
 	local amount = math.floor(GameMath.GetTotalIncome(data) * elapsed * EconomyConfig.OfflineRate)
 	data.lastSeen = os.time() -- не дати нарахувати двічі
 	if amount > 0 then
@@ -2446,7 +2723,7 @@ function IncomeService.Init()
 				local profile = DataService.GetProfile(player)
 				if profile then
 					-- Дробові монети накопичуються й нараховуються, коли набереться ціла.
-					profile.incomeRemainder += GameMath.GetTotalIncome(profile.data) * dt
+					profile.incomeRemainder += GameMath.GetTotalIncome(profile.data, os.time()) * dt
 					local whole = math.floor(profile.incomeRemainder)
 					if whole > 0 then
 						profile.incomeRemainder -= whole
@@ -2462,7 +2739,7 @@ return IncomeService
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="23">
+      <Item class="ModuleScript" referent="25">
         <Properties>
           <string name="Name">InventoryService</string>
           <string name="Source"><![CDATA[-- InventoryService: герої гравця — видача, розміщення на базі, блокування,
@@ -2480,6 +2757,7 @@ local Remotes = require(Shared.Remotes)
 
 local DataService = require(script.Parent.DataService)
 local PlotService = require(script.Parent.PlotService)
+local QuestService = require(script.Parent.QuestService)
 local RateLimiter = require(script.Parent.RateLimiter)
 
 local InventoryService = {}
@@ -2589,7 +2867,7 @@ function heroActions.Sell(player, data, uid, hero, heroDef)
 end
 
 -- Злиття: один дублікат того ж героя (не заблокований, не на базі) -> +1 рівень.
-function heroActions.Merge(_player, data, uid, hero, heroDef)
+function heroActions.Merge(player, data, uid, hero, heroDef)
 	local maxLevel = RarityConfig.Info[heroDef.rarity].maxLevel
 	if hero.level >= maxLevel then
 		return false, "Вже максимальний рівень"
@@ -2607,6 +2885,7 @@ function heroActions.Merge(_player, data, uid, hero, heroDef)
 	end
 	data.heroes[fodderUid] = nil
 	hero.level += 1
+	QuestService.Track(player, "merge")
 	return true, ("%s тепер рівня %d!"):format(heroDef.name, hero.level)
 end
 
@@ -2687,7 +2966,7 @@ return InventoryService
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="24">
+      <Item class="ModuleScript" referent="26">
         <Properties>
           <string name="Name">PlotService</string>
           <string name="Source"><![CDATA[-- PlotService: будує лобі й ділянки, видає кожному гравцеві власну базу,
@@ -2974,7 +3253,178 @@ return PlotService
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="25">
+      <Item class="ModuleScript" referent="27">
+        <Properties>
+          <string name="Name">QuestService</string>
+          <string name="Source"><![CDATA[-- QuestService: сюжетні та щоденні завдання, нагороди колекції, відкриття зон.
+--
+-- Інші сервіси повідомляють про події через QuestService.Track(player, event):
+--   "roll" (RollService), "kill" / "boss" (EnemyService), "merge" (InventoryService),
+--   "upgrade" (UpgradeService). Прогрес і нагороди перевіряє лише сервер.
+
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+local Shared = ReplicatedStorage:WaitForChild("Shared")
+local QuestConfig = require(Shared.Config.QuestConfig)
+local WorldConfig = require(Shared.Config.WorldConfig)
+local GameMath = require(Shared.GameMath)
+local Remotes = require(Shared.Remotes)
+
+local DataService = require(script.Parent.DataService)
+local RateLimiter = require(script.Parent.RateLimiter)
+
+local QuestService = {}
+
+local limiter = RateLimiter.new(6, 3)
+
+-- Події, що також ведуть довічну статистику
+local LIFETIME_STATS = {
+	kill = "enemiesDefeated",
+	boss = "bossesDefeated",
+	merge = "merges",
+}
+
+-- Новий день (UTC) — обнуляємо щоденний прогрес.
+local function ensureDaily(data)
+	local today = GameMath.GetDay(os.time())
+	if data.daily.day ~= today then
+		data.daily.day = today
+		data.daily.progress = {}
+		data.daily.claimed = {}
+	end
+end
+
+local function grant(player, reward)
+	DataService.AddCoins(player, reward.coins or 0)
+	DataService.AddCrystals(player, reward.crystals or 0)
+end
+
+-- Повідомляє про відкриті зони, якщо кількість перемог перетнула поріг.
+local function announceZones(player, killsBefore, killsAfter)
+	for _, worldId in WorldConfig.Order do
+		local world = WorldConfig.Worlds[worldId]
+		for _, zone in world.zones or {} do
+			if zone.requiredKills > 0 and killsBefore < zone.requiredKills and killsAfter >= zone.requiredKills then
+				Remotes.Notify(player, ("🔓 Відкрито зону %s у %s!"):format(zone.name, world.displayName), "success")
+			end
+		end
+	end
+end
+
+function QuestService.Track(player, event, amount)
+	local data = DataService.Get(player)
+	if not data then
+		return
+	end
+	amount = amount or 1
+	local stat = LIFETIME_STATS[event]
+	if stat then
+		local before = data.stats[stat]
+		data.stats[stat] += amount
+		if event == "kill" then
+			announceZones(player, before, data.stats[stat])
+		end
+	end
+	ensureDaily(data)
+	data.daily.progress[event] = (data.daily.progress[event] or 0) + amount
+	DataService.MarkChanged(player)
+end
+
+local function claimMain(player, data)
+	local quest = QuestConfig.Main[data.quests.main]
+	if not quest then
+		return false, "Усі сюжетні завдання виконано!"
+	end
+	if GameMath.GetMetric(data, quest.metric) < quest.target then
+		return false, "Завдання ще не виконано"
+	end
+	data.quests.main += 1
+	grant(player, quest.reward)
+	return true, ("«%s» виконано! %s"):format(quest.title, GameMath.FormatReward(quest.reward))
+end
+
+local function claimDaily(player, data, questId)
+	if typeof(questId) ~= "string" then
+		return false, "Невідоме завдання"
+	end
+	ensureDaily(data)
+	for _, quest in QuestConfig.GetDaily(data.daily.day) do
+		if quest.id == questId then
+			if data.daily.claimed[questId] then
+				return false, "Нагороду вже отримано"
+			end
+			if (data.daily.progress[quest.event] or 0) < quest.target then
+				return false, "Завдання ще не виконано"
+			end
+			data.daily.claimed[questId] = true
+			grant(player, quest.reward)
+			return true, ("«%s» виконано! %s"):format(quest.title, GameMath.FormatReward(quest.reward))
+		end
+	end
+	return false, "Це завдання сьогодні недоступне"
+end
+
+local function claimCollection(player, data, index)
+	if typeof(index) ~= "number" or index ~= math.floor(index) then
+		return false, "Невідома нагорода"
+	end
+	local milestone = QuestConfig.CollectionMilestones[index]
+	if not milestone then
+		return false, "Невідома нагорода"
+	end
+	local key = "m" .. index
+	if data.collectionClaimed[key] then
+		return false, "Нагороду вже отримано"
+	end
+	if GameMath.CountDiscovered(data) < milestone.count then
+		return false, ("Потрібно відкрити %d героїв"):format(milestone.count)
+	end
+	data.collectionClaimed[key] = true
+	grant(player, { crystals = milestone.crystals })
+	return true, ("Нагорода колекції: +%d 💎"):format(milestone.crystals)
+end
+
+local function onQuestAction(player, action, arg)
+	if typeof(action) ~= "string" then
+		return { ok = false, message = "Невідома дія" }
+	end
+	if not limiter:Check(player) then
+		return { ok = false, message = "Занадто швидко!" }
+	end
+	local data = DataService.Get(player)
+	if not data then
+		return { ok = false, message = "Дані ще завантажуються" }
+	end
+	local ok, message
+	if action == "ClaimMain" then
+		ok, message = claimMain(player, data)
+	elseif action == "ClaimDaily" then
+		ok, message = claimDaily(player, data, arg)
+	elseif action == "ClaimCollection" then
+		ok, message = claimCollection(player, data, arg)
+	else
+		return { ok = false, message = "Невідома дія" }
+	end
+	if ok then
+		DataService.MarkChanged(player)
+	end
+	return { ok = ok, message = message }
+end
+
+-- Викликається при вході: новий день — нові щоденні завдання.
+function QuestService.SetupData(data)
+	ensureDaily(data)
+end
+
+function QuestService.Init()
+	Remotes.Handle("QuestAction", onQuestAction)
+end
+
+return QuestService
+]]></string>
+        </Properties>
+      </Item>
+      <Item class="ModuleScript" referent="28">
         <Properties>
           <string name="Name">RateLimiter</string>
           <string name="Source"><![CDATA[-- RateLimiter: обмеження частоти запитів (алгоритм "відро з жетонами").
@@ -3013,7 +3463,7 @@ return RateLimiter
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="26">
+      <Item class="ModuleScript" referent="29">
         <Properties>
           <string name="Name">RollService</string>
           <string name="Source"><![CDATA[-- RollService: кидки кубиків. Результат визначає ТІЛЬКИ сервер;
@@ -3031,6 +3481,7 @@ local Remotes = require(Shared.Remotes)
 
 local DataService = require(script.Parent.DataService)
 local InventoryService = require(script.Parent.InventoryService)
+local QuestService = require(script.Parent.QuestService)
 local RateLimiter = require(script.Parent.RateLimiter)
 
 local RollService = {}
@@ -3076,7 +3527,8 @@ local function getGuaranteedRank(data)
 end
 
 local function pickRarity(data, dice)
-	local weights = GameMath.GetRarityWeights(dice, 1)
+	-- Удача гравця (зілля удачі) множиться на удачу кубика
+	local weights = GameMath.GetRarityWeights(dice, GameMath.GetLuck(data, os.time()))
 	local rarity = weightedPick(weights, RarityConfig.Order) or "Common"
 	local pityUsed = false
 
@@ -3141,7 +3593,7 @@ local function onRoll(player, diceId)
 	if data.totalRolls < dice.requiredRolls then
 		return fail(("Кубик відкриється після %d кидків"):format(dice.requiredRolls))
 	end
-	if InventoryService.CountHeroes(data) >= EconomyConfig.MaxInventory then
+	if InventoryService.CountHeroes(data) >= GameMath.GetMaxInventory(data) then
 		return fail("Інвентар заповнений! Продай або злий зайвих героїв.")
 	end
 
@@ -3159,6 +3611,7 @@ local function onRoll(player, diceId)
 	local isNew = not data.discovered[heroId]
 	local uid = InventoryService.GiveHero(player, heroId)
 	data.totalRolls += 1
+	QuestService.Track(player, "roll")
 	DataService.MarkChanged(player)
 
 	return {
@@ -3184,7 +3637,7 @@ return RollService
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="27">
+      <Item class="ModuleScript" referent="30">
         <Properties>
           <string name="Name">SettingsService</string>
           <string name="Source"><![CDATA[-- SettingsService: збереження налаштувань гравця (звук, ефекти, пропуск анімацій).
@@ -3230,7 +3683,86 @@ return SettingsService
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="28">
+      <Item class="ModuleScript" referent="31">
+        <Properties>
+          <string name="Name">ShopService</string>
+          <string name="Source"><![CDATA[-- ShopService: покупки за Crystals — зілля (тимчасові бусти) і більша сумка.
+-- Бусти зберігаються як час закінчення за серверним часом os.time().
+
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+local Shared = ReplicatedStorage:WaitForChild("Shared")
+local ShopConfig = require(Shared.Config.ShopConfig)
+local GameMath = require(Shared.GameMath)
+local Remotes = require(Shared.Remotes)
+
+local DataService = require(script.Parent.DataService)
+local RateLimiter = require(script.Parent.RateLimiter)
+
+local ShopService = {}
+
+local limiter = RateLimiter.new(4, 2)
+
+local function buyBoost(player, data, item)
+	local now = os.time()
+	local current = math.max(now, data.boosts[item.boost] or 0)
+	if current + item.duration > now + item.maxDuration then
+		return false, ("Максимум — %d хв запасу"):format(item.maxDuration // 60)
+	end
+	if not DataService.SpendCrystals(player, item.price) then
+		return false, "Не вистачає кристалів 💎"
+	end
+	data.boosts[item.boost] = current + item.duration
+	return true, ("%s активовано! Лишилось %s"):format(item.displayName, GameMath.FormatTime(data.boosts[item.boost] - now))
+end
+
+local function buyInventory(player, data, item)
+	local price = GameMath.GetBagPrice(data)
+	if not price then
+		return false, "Сумку вже покращено до максимуму"
+	end
+	if not DataService.SpendCrystals(player, price) then
+		return false, "Не вистачає кристалів 💎"
+	end
+	data.inventoryBonus += item.amount
+	return true, ("Інвентар: %d місць"):format(GameMath.GetMaxInventory(data))
+end
+
+local function onBuy(player, itemId)
+	if typeof(itemId) ~= "string" or not ShopConfig.Items[itemId] then
+		return { ok = false, message = "Невідомий товар" }
+	end
+	if not limiter:Check(player) then
+		return { ok = false, message = "Занадто швидко!" }
+	end
+	local data = DataService.Get(player)
+	if not data then
+		return { ok = false, message = "Дані ще завантажуються" }
+	end
+	local item = ShopConfig.Items[itemId]
+	local ok, message
+	if item.kind == "boost" then
+		ok, message = buyBoost(player, data, item)
+	elseif item.kind == "inventory" then
+		ok, message = buyInventory(player, data, item)
+	else
+		return { ok = false, message = "Невідомий товар" }
+	end
+	if ok then
+		DataService.MarkChanged(player)
+	end
+	return { ok = ok, message = message }
+end
+
+function ShopService.Init()
+	Remotes.Handle("BuyShopItem", onBuy)
+end
+
+return ShopService
+]]></string>
+        </Properties>
+      </Item>
+      <Item class="ModuleScript" referent="32">
         <Properties>
           <string name="Name">TeamService</string>
           <string name="Source"><![CDATA[-- TeamService: бойова команда з 3 героїв.
@@ -3397,7 +3929,7 @@ return TeamService
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="29">
+      <Item class="ModuleScript" referent="33">
         <Properties>
           <string name="Name">UpgradeService</string>
           <string name="Source"><![CDATA[-- UpgradeService: покупка покращень бази (слоти та дохід).
@@ -3410,6 +3942,7 @@ local Remotes = require(Shared.Remotes)
 
 local DataService = require(script.Parent.DataService)
 local PlotService = require(script.Parent.PlotService)
+local QuestService = require(script.Parent.QuestService)
 local RateLimiter = require(script.Parent.RateLimiter)
 
 local UpgradeService = {}
@@ -3458,6 +3991,7 @@ local function onBuyUpgrade(player, upgradeId)
 		return { ok = false, message = "Не вистачає монет" }
 	end
 	local message = upgrade.apply(data)
+	QuestService.Track(player, "upgrade")
 	DataService.MarkChanged(player)
 	PlotService.RefreshPlot(player)
 	return { ok = true, message = message }
@@ -3471,12 +4005,13 @@ return UpgradeService
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="30">
+      <Item class="ModuleScript" referent="34">
         <Properties>
           <string name="Name">WorldService</string>
           <string name="Source"><![CDATA[-- WorldService: будує світи, переносить гравців через портали та кнопку Worlds.
 -- Поточний світ гравця зберігається в атрибуті "World" ("Lobby" або id світу).
 
+local CollectionService = game:GetService("CollectionService")
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
@@ -3493,6 +4028,7 @@ local RateLimiter = require(script.Parent.RateLimiter)
 local WorldService = {}
 
 local LOBBY = "Lobby"
+local GATE_TAG = "ZoneGate" -- клієнт робить відкриті ворота прохідними для свого гравця
 local WORLD_SIZE = 260
 local PORTAL_COOLDOWN = 2
 
@@ -3566,7 +4102,7 @@ local function buildNinjaVillage(folder, center)
 	end
 
 	torii(folder, center * CFrame.new(0, 0, -95))
-	for _, offset in { Vector3.new(-62, 0, -70), Vector3.new(62, 0, -70), Vector3.new(-70, 0, 10), Vector3.new(70, 0, 10), Vector3.new(-60, 0, 60), Vector3.new(60, 0, 60) } do
+	for _, offset in { Vector3.new(-62, 0, -70), Vector3.new(62, 0, -70), Vector3.new(-70, 0, -25), Vector3.new(70, 0, -25), Vector3.new(-60, 0, 40), Vector3.new(60, 0, 40) } do
 		-- Будинки дверима до дороги
 		local position = (center * CFrame.new(offset)).Position
 		local roadPoint = (center * CFrame.new(0, 0, offset.Z)).Position
@@ -3581,6 +4117,38 @@ local function buildNinjaVillage(folder, center)
 	for i = 0, 3 do
 		local angle = math.rad(45 + i * 90)
 		lantern(folder, (center * CFrame.new(math.cos(angle) * 30, 0, 92 + math.sin(angle) * 30)).Position)
+	end
+
+	-- Ворота зон: світна стіна через усе село. Сервер робить її твердою для всіх,
+	-- а клієнт гравця, який уже відкрив зону, робить її прохідною лише для себе.
+	-- Навіть якщо хтось обійде стіну, атакувати ворогів закритої зони сервер не дасть.
+	for zoneIndex, zone in WorldConfig.Worlds.NinjaVillage.zones do
+		if zone.gateZ then
+			local gate = BuildUtil.Part({
+				Name = "Gate_" .. zone.id,
+				Size = Vector3.new(WORLD_SIZE, 30, 1),
+				CFrame = center * CFrame.new(0, 15, zone.gateZ),
+				Color = Color3.fromRGB(255, 80, 120),
+				Material = Enum.Material.ForceField,
+				Transparency = 0.3,
+				CanQuery = false,
+			}, folder)
+			gate:SetAttribute("World", "NinjaVillage")
+			gate:SetAttribute("ZoneIndex", zoneIndex)
+			gate:SetAttribute("ZoneName", zone.name)
+			gate:SetAttribute("RequiredKills", zone.requiredKills)
+			-- Напис на воротах (клієнт оновлює його своїм прогресом)
+			local sign = BuildUtil.Part({
+				Name = "Sign",
+				Size = Vector3.new(30, 6, 0.2),
+				CFrame = center * CFrame.new(0, 8, zone.gateZ - 0.7),
+				Transparency = 1,
+				CanCollide = false,
+				CanQuery = false,
+			}, gate)
+			BuildUtil.SurfaceText(sign, Enum.NormalId.Front, ("🔒 %s — переможи %d ворогів"):format(zone.name, zone.requiredKills))
+			CollectionService:AddTag(gate, GATE_TAG)
+		end
 	end
 
 	-- Портал назад у лобі біля входу
@@ -3702,19 +4270,19 @@ return WorldService
       </Item>
     </Item>
   </Item>
-  <Item class="StarterPlayer" referent="31">
+  <Item class="StarterPlayer" referent="35">
     <Properties>
       <string name="Name">StarterPlayer</string>
     </Properties>
-    <Item class="StarterPlayerScripts" referent="32">
+    <Item class="StarterPlayerScripts" referent="36">
       <Properties>
         <string name="Name">StarterPlayerScripts</string>
       </Properties>
-      <Item class="Folder" referent="33">
+      <Item class="Folder" referent="37">
         <Properties>
           <string name="Name">Client</string>
         </Properties>
-        <Item class="ModuleScript" referent="34">
+        <Item class="ModuleScript" referent="38">
           <Properties>
             <string name="Name">ClientState</string>
             <string name="Source"><![CDATA[-- ClientState: копія даних гравця на клієнті + запити до сервера.
@@ -3818,7 +4386,7 @@ return ClientState
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="35">
+        <Item class="ModuleScript" referent="39">
           <Properties>
             <string name="Name">CombatUI</string>
             <string name="Source"><![CDATA[-- CombatUI: інтерфейс бою — поточна ціль, смуга здоров'я боса з попередженням
@@ -4066,7 +4634,7 @@ return CombatUI
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="36">
+        <Item class="ModuleScript" referent="40">
           <Properties>
             <string name="Name">EnemyRegistry</string>
             <string name="Source"><![CDATA[-- EnemyRegistry: швидкий пошук моделі ворога за EnemyId на клієнті.
@@ -4118,7 +4686,7 @@ return EnemyRegistry
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="37">
+        <Item class="ModuleScript" referent="41">
           <Properties>
             <string name="Name">FollowerController</string>
             <string name="Source"><![CDATA[-- FollowerController: герої бойової команди йдуть за своїм гравцем.
@@ -4257,7 +4825,7 @@ return FollowerController
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="38">
+        <Item class="ModuleScript" referent="42">
           <Properties>
             <string name="Name">Hud</string>
             <string name="Source"><![CDATA[-- Hud: верхня панель валют, нижнє меню кнопок, підказки навчання
@@ -4268,6 +4836,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Shared = ReplicatedStorage:WaitForChild("Shared")
 local GameMath = require(Shared:WaitForChild("GameMath"))
 local CombatConfig = require(Shared:WaitForChild("Config"):WaitForChild("CombatConfig"))
+local ShopConfig = require(Shared:WaitForChild("Config"):WaitForChild("ShopConfig"))
 
 local Client = script.Parent
 local UIKit = require(Client:WaitForChild("UIKit"))
@@ -4323,6 +4892,31 @@ function Hud.GetMenuButton(name)
 	return menuButtons[name]
 end
 
+-- Червона позначка "!" на кнопці меню (наприклад, є нагорода в Quests).
+function Hud.SetBadge(name, visible)
+	local button = menuButtons[name]
+	if not button then
+		return
+	end
+	local badge = button:FindFirstChild("Badge")
+	if not badge then
+		badge = UIKit.Label({
+			Name = "Badge",
+			AnchorPoint = Vector2.new(0.5, 0.5),
+			Position = UDim2.new(1, -4, 0, 4),
+			Size = UDim2.fromOffset(24, 24),
+			BackgroundColor3 = UIKit.Colors.Danger,
+			Font = UIKit.Font,
+			TextSize = 16,
+			Text = "!",
+			ZIndex = 5,
+			Parent = button,
+		})
+		UIKit.Corner(badge, 12)
+	end
+	badge.Visible = visible
+end
+
 local function buildTopBar(gui)
 	local bar = UIKit.Create("Frame", {
 		Name = "TopBar",
@@ -4366,8 +4960,64 @@ local function buildTopBar(gui)
 		coinsLabel.Text = "🪙 " .. GameMath.FormatNumber(coins)
 		crystalsLabel.Text = "💎 " .. GameMath.FormatNumber(crystals)
 	end)
-	ClientState.OnDataChanged(function(data)
-		incomeLabel.Text = "+" .. GameMath.FormatNumber(GameMath.GetTotalIncome(data)) .. "/s"
+	-- Дохід залежить і від часу (буст може закінчитись), тому оновлюємо щосекунди
+	local function updateIncome()
+		local data = ClientState.Data
+		if data then
+			incomeLabel.Text = "+" .. GameMath.FormatNumber(GameMath.GetTotalIncome(data, workspace:GetServerTimeNow())) .. "/s"
+		end
+	end
+	ClientState.OnDataChanged(updateIncome)
+	task.spawn(function()
+		while true do
+			task.wait(1)
+			updateIncome()
+		end
+	end)
+end
+
+-- Активні бусти (зілля) у верхньому лівому куті з таймером
+local function buildBoostBar(gui)
+	local bar = UIKit.Create("Frame", {
+		Name = "Boosts",
+		Position = UDim2.fromOffset(10, 8),
+		Size = UDim2.fromOffset(190, 70),
+		BackgroundTransparency = 1,
+		Parent = gui,
+	})
+	UIKit.AddScale(bar)
+	UIKit.Create("UIListLayout", { Padding = UDim.new(0, 4), SortOrder = Enum.SortOrder.LayoutOrder, Parent = bar })
+	local labels = {}
+	local order = 0
+	for boostId, boost in ShopConfig.Boosts do
+		order += 1
+		local label = UIKit.Label({
+			LayoutOrder = order,
+			Size = UDim2.fromOffset(190, 30),
+			BackgroundColor3 = UIKit.Colors.Background,
+			BackgroundTransparency = 0.2,
+			Font = UIKit.Font,
+			TextSize = 17,
+			TextColor3 = UIKit.Colors.Success,
+			Visible = false,
+			Parent = bar,
+		})
+		UIKit.Corner(label, 8)
+		labels[boostId] = { label = label, boost = boost }
+	end
+	task.spawn(function()
+		while true do
+			local data = ClientState.Data
+			local now = workspace:GetServerTimeNow()
+			for boostId, entry in labels do
+				local active = data ~= nil and GameMath.IsBoostActive(data, boostId, now)
+				entry.label.Visible = active
+				if active then
+					entry.label.Text = ("%s ×%d  %s"):format(entry.boost.displayName, entry.boost.multiplier, GameMath.FormatTime(data.boosts[boostId] - now))
+				end
+			end
+			task.wait(1)
+		end
 	end)
 end
 
@@ -4453,38 +5103,18 @@ local function buildTutorialHint(gui)
 	end)
 end
 
--- Вікна, які з'являться на наступних етапах
-local COMING_SOON = {
-	Quests = "Завдання з нагородами в Coins і Crystals,\nколекція героїв і відкриття зон.\nЗ'являться на етапі 3.",
-}
-
-local function buildComingSoon(gui)
-	for name, text in COMING_SOON do
-		local panel, content = UIKit.Panel(gui, name, name)
-		UIKit.Label({
-			Size = UDim2.fromScale(1, 1),
-			Font = UIKit.Font,
-			TextSize = 24,
-			TextColor3 = UIKit.Colors.SubText,
-			Text = "🚧 Скоро!\n\n" .. text,
-			Parent = content,
-		})
-		Hud.RegisterPanel(name, panel)
-	end
-end
-
 function Hud.Init(gui)
 	buildTopBar(gui)
+	buildBoostBar(gui)
 	buildMenu(gui)
 	buildTutorialHint(gui)
-	buildComingSoon(gui)
 end
 
 return Hud
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="39">
+        <Item class="ModuleScript" referent="43">
           <Properties>
             <string name="Name">InventoryUI</string>
             <string name="Source"><![CDATA[-- InventoryUI: сітка героїв, сортування, Equip Best і дії з вибраним героєм
@@ -4494,7 +5124,6 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Shared = ReplicatedStorage:WaitForChild("Shared")
 local Config = Shared:WaitForChild("Config")
-local EconomyConfig = require(Config:WaitForChild("EconomyConfig"))
 local HeroConfig = require(Config:WaitForChild("HeroConfig"))
 local RarityConfig = require(Config:WaitForChild("RarityConfig"))
 local GameMath = require(Shared:WaitForChild("GameMath"))
@@ -4703,7 +5332,7 @@ function refreshAll()
 	for order, entry in list do
 		makeCard(entry, placed, order)
 	end
-	ui.countLabel.Text = ("Герої: %d / %d"):format(#list, EconomyConfig.MaxInventory)
+	ui.countLabel.Text = ("Герої: %d / %d"):format(#list, GameMath.GetMaxInventory(data))
 	ui.sortButton.Text = "↕ " .. SORTS[sortIndex].label
 	refreshDetails(data, placed)
 end
@@ -4857,7 +5486,432 @@ return InventoryUI
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="40">
+        <Item class="ModuleScript" referent="44">
+          <Properties>
+            <string name="Name">QuestsUI</string>
+            <string name="Source"><![CDATA[-- QuestsUI: вікно Quests з вкладками "Завдання" (сюжет + щоденні) і "Колекція"
+-- (усі герої, бонус доходу, нагороди за відкриття). Нагороди видає сервер.
+
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+local Shared = ReplicatedStorage:WaitForChild("Shared")
+local Config = Shared:WaitForChild("Config")
+local EconomyConfig = require(Config:WaitForChild("EconomyConfig"))
+local HeroConfig = require(Config:WaitForChild("HeroConfig"))
+local QuestConfig = require(Config:WaitForChild("QuestConfig"))
+local RarityConfig = require(Config:WaitForChild("RarityConfig"))
+local GameMath = require(Shared:WaitForChild("GameMath"))
+
+local Client = script.Parent
+local UIKit = require(Client:WaitForChild("UIKit"))
+local ClientState = require(Client:WaitForChild("ClientState"))
+local Hud = require(Client:WaitForChild("Hud"))
+
+local QuestsUI = {}
+
+local ui: { [string]: any } = {}
+local activeTab = "Quests"
+local busy = false
+
+local function serverNow()
+	return workspace:GetServerTimeNow()
+end
+
+local function request(action, arg)
+	if busy then
+		return
+	end
+	busy = true
+	local result = ClientState.Request("QuestAction", action, arg)
+	busy = false
+	UIKit.Toast(result.message or "", if result.ok then "success" else "error")
+end
+
+-- Щоденний прогрес з урахуванням нового дня (поки сервер ще не обнулив)
+local function dailyState(data)
+	local today = GameMath.GetDay(serverNow())
+	if data.daily.day ~= today then
+		return today, {}, {}
+	end
+	return today, data.daily.progress, data.daily.claimed
+end
+
+---------------------------------------------------------------------
+-- Картка завдання
+---------------------------------------------------------------------
+
+local function makeQuestCard(parent, order, height)
+	local card = UIKit.Create("Frame", {
+		LayoutOrder = order,
+		Size = UDim2.new(1, -12, 0, height),
+		BackgroundColor3 = UIKit.Colors.Background,
+		BackgroundTransparency = 0.25,
+		Parent = parent,
+	})
+	UIKit.Corner(card, 12)
+	local stroke = UIKit.Stroke(card, UIKit.Colors.PanelLight, 2)
+	local title = UIKit.Label({
+		Position = UDim2.fromOffset(12, 4),
+		Size = UDim2.new(1, -200, 0, 26),
+		Font = UIKit.Font,
+		TextSize = 20,
+		TextXAlignment = Enum.TextXAlignment.Left,
+		Parent = card,
+	})
+	local description = UIKit.Label({
+		Position = UDim2.fromOffset(12, 30),
+		Size = UDim2.new(1, -200, 0, 20),
+		TextSize = 14,
+		TextColor3 = UIKit.Colors.SubText,
+		TextXAlignment = Enum.TextXAlignment.Left,
+		TextTruncate = Enum.TextTruncate.AtEnd,
+		Parent = card,
+	})
+	local back = UIKit.Create("Frame", {
+		Position = UDim2.new(0, 12, 1, -24),
+		Size = UDim2.new(1, -200, 0, 16),
+		BackgroundColor3 = Color3.fromRGB(30, 25, 50),
+		Parent = card,
+	})
+	UIKit.Corner(back, 6)
+	local fill = UIKit.Create("Frame", { Size = UDim2.fromScale(0, 1), BackgroundColor3 = UIKit.Colors.Accent2, Parent = back })
+	UIKit.Corner(fill, 6)
+	local progress = UIKit.Label({ Size = UDim2.fromScale(1, 1), TextSize = 12, TextStrokeTransparency = 0.4, Parent = back })
+	local reward = UIKit.Label({
+		AnchorPoint = Vector2.new(1, 0),
+		Position = UDim2.new(1, -12, 0, 4),
+		Size = UDim2.fromOffset(170, 24),
+		Font = UIKit.Font,
+		TextSize = 17,
+		TextColor3 = UIKit.Colors.Gold,
+		Parent = card,
+	})
+	local button = UIKit.Button({
+		AnchorPoint = Vector2.new(1, 1),
+		Position = UDim2.new(1, -12, 1, -6),
+		Size = UDim2.fromOffset(170, 34),
+		TextSize = 18,
+		Parent = card,
+	})
+	return { card = card, stroke = stroke, title = title, description = description, fill = fill, progress = progress, reward = reward, button = button }
+end
+
+-- state: "claim" | "progress" | "done"
+local function fillCard(refs, title, description, current, target, reward, state)
+	refs.title.Text = title
+	refs.description.Text = description
+	refs.fill.Size = UDim2.fromScale(math.clamp(current / math.max(target, 1), 0, 1), 1)
+	refs.progress.Text = GameMath.FormatNumber(math.min(current, target)) .. " / " .. GameMath.FormatNumber(target)
+	refs.reward.Text = GameMath.FormatReward(reward)
+	if state == "claim" then
+		refs.button.Text = "🎁 Claim"
+		refs.button.BackgroundColor3 = UIKit.Colors.Success
+		refs.stroke.Color = UIKit.Colors.Success
+	elseif state == "done" then
+		refs.button.Text = "✅ Отримано"
+		refs.button.BackgroundColor3 = UIKit.Colors.Disabled
+		refs.stroke.Color = UIKit.Colors.PanelLight
+	else
+		refs.button.Text = "У процесі"
+		refs.button.BackgroundColor3 = UIKit.Colors.Disabled
+		refs.stroke.Color = UIKit.Colors.PanelLight
+	end
+end
+
+---------------------------------------------------------------------
+-- Підрахунок доступних нагород (для червоної позначки на кнопці Quests)
+---------------------------------------------------------------------
+
+local function countClaimable(data)
+	local count = 0
+	local main = QuestConfig.Main[data.quests.main]
+	if main and GameMath.GetMetric(data, main.metric) >= main.target then
+		count += 1
+	end
+	local today, progress, claimed = dailyState(data)
+	for _, quest in QuestConfig.GetDaily(today) do
+		if not claimed[quest.id] and (progress[quest.event] or 0) >= quest.target then
+			count += 1
+		end
+	end
+	local discovered = GameMath.CountDiscovered(data)
+	for index, milestone in QuestConfig.CollectionMilestones do
+		if not data.collectionClaimed["m" .. index] and discovered >= milestone.count then
+			count += 1
+		end
+	end
+	return count
+end
+
+---------------------------------------------------------------------
+-- Вкладка "Завдання"
+---------------------------------------------------------------------
+
+local function refreshQuests(data)
+	local mainQuest = QuestConfig.Main[data.quests.main]
+	if mainQuest then
+		local current = GameMath.GetMetric(data, mainQuest.metric)
+		fillCard(ui.main, ("%d. %s"):format(data.quests.main, mainQuest.title), mainQuest.description, current, mainQuest.target, mainQuest.reward, if current >= mainQuest.target then "claim" else "progress")
+	else
+		fillCard(ui.main, "🏆 Сюжет пройдено!", "Нові завдання з'являться разом з новими світами", 1, 1, {}, "done")
+	end
+
+	local today, progress, claimed = dailyState(data)
+	for index, quest in QuestConfig.GetDaily(today) do
+		local refs = ui.daily[index]
+		local current = progress[quest.event] or 0
+		local state = if claimed[quest.id] then "done" elseif current >= quest.target then "claim" else "progress"
+		fillCard(refs, quest.title, quest.description, current, quest.target, quest.reward, state)
+		refs.questId = quest.id
+	end
+end
+
+local function refreshTimer()
+	local now = serverNow()
+	local nextDay = (GameMath.GetDay(now) + 1) * 86400
+	ui.dailyHeader.Text = "📅 Щоденні завдання • нові через " .. GameMath.FormatTime(nextDay - now)
+end
+
+---------------------------------------------------------------------
+-- Вкладка "Колекція"
+---------------------------------------------------------------------
+
+local function refreshCollection(data)
+	local discovered = GameMath.CountDiscovered(data)
+	ui.collectionHeader.Text = ("📖 Відкрито %d / %d • бонус доходу бази +%d%%"):format(
+		discovered,
+		#HeroConfig.List,
+		math.floor(discovered * EconomyConfig.CollectionIncomeBonus * 100 + 0.5)
+	)
+	for index, milestone in QuestConfig.CollectionMilestones do
+		local button = ui.milestones[index]
+		local claimed = data.collectionClaimed["m" .. index]
+		local ready = discovered >= milestone.count
+		button.Text = ("%s %d героїв\n+%d 💎"):format(if claimed then "✅" elseif ready then "🎁" else "🔒", milestone.count, milestone.crystals)
+		button.BackgroundColor3 = if claimed then UIKit.Colors.Disabled elseif ready then UIKit.Colors.Success else UIKit.Colors.PanelLight
+	end
+
+	for _, child in ui.collectionGrid:GetChildren() do
+		if child:IsA("Frame") then
+			child:Destroy()
+		end
+	end
+	for order, heroDef in HeroConfig.List do
+		local known = data.discovered[heroDef.id] == true
+		local color = RarityConfig.GetColor(heroDef.rarity)
+		local cell = UIKit.Create("Frame", {
+			LayoutOrder = order,
+			BackgroundColor3 = if known then color:Lerp(UIKit.Colors.Background, 0.6) else Color3.fromRGB(25, 22, 35),
+			Parent = ui.collectionGrid,
+		})
+		UIKit.Corner(cell, 10)
+		UIKit.Stroke(cell, if known then color else UIKit.Colors.Disabled, 2)
+		UIKit.Label({
+			Position = UDim2.fromOffset(4, 4),
+			Size = UDim2.new(1, -8, 0, 40),
+			Font = UIKit.Font,
+			TextSize = 15,
+			TextColor3 = if known then color else UIKit.Colors.Disabled,
+			Text = if known then heroDef.name else "???",
+			Parent = cell,
+		})
+		UIKit.Label({
+			Position = UDim2.fromOffset(4, 46),
+			Size = UDim2.new(1, -8, 0, 22),
+			TextSize = 13,
+			TextColor3 = color,
+			Text = (if known then (HeroConfig.ElementIcons[heroDef.element] or "") .. " " else "") .. heroDef.rarity,
+			Parent = cell,
+		})
+	end
+end
+
+---------------------------------------------------------------------
+
+local function refresh()
+	local data = ClientState.Data
+	if not data then
+		return
+	end
+	Hud.SetBadge("Quests", countClaimable(data) > 0)
+	if not ui.panel.Visible then
+		return
+	end
+	if activeTab == "Quests" then
+		refreshQuests(data)
+		refreshTimer()
+	else
+		refreshCollection(data)
+	end
+end
+
+local function selectTab(name)
+	activeTab = name
+	ui.questsBody.Visible = name == "Quests"
+	ui.collectionBody.Visible = name == "Collection"
+	ui.tabQuests.BackgroundColor3 = if name == "Quests" then UIKit.Colors.Accent else UIKit.Colors.PanelLight
+	ui.tabCollection.BackgroundColor3 = if name == "Collection" then UIKit.Colors.Accent else UIKit.Colors.PanelLight
+	refresh()
+end
+
+local function buildQuestsBody(content)
+	local body = UIKit.Create("ScrollingFrame", {
+		Position = UDim2.fromOffset(0, 52),
+		Size = UDim2.new(1, 0, 1, -52),
+		BackgroundTransparency = 1,
+		BorderSizePixel = 0,
+		ScrollBarThickness = 8,
+		CanvasSize = UDim2.new(),
+		AutomaticCanvasSize = Enum.AutomaticSize.Y,
+		ScrollingDirection = Enum.ScrollingDirection.Y,
+		Parent = content,
+	})
+	UIKit.Create("UIListLayout", { Padding = UDim.new(0, 8), SortOrder = Enum.SortOrder.LayoutOrder, Parent = body })
+	ui.questsBody = body
+
+	UIKit.Label({
+		LayoutOrder = 1,
+		Size = UDim2.new(1, -12, 0, 26),
+		Font = UIKit.Font,
+		TextSize = 20,
+		TextXAlignment = Enum.TextXAlignment.Left,
+		Text = "📖 Сюжет",
+		Parent = body,
+	})
+	ui.main = makeQuestCard(body, 2, 92)
+	ui.main.button.Activated:Connect(function()
+		request("ClaimMain")
+	end)
+
+	ui.dailyHeader = UIKit.Label({
+		LayoutOrder = 3,
+		Size = UDim2.new(1, -12, 0, 26),
+		Font = UIKit.Font,
+		TextSize = 20,
+		TextXAlignment = Enum.TextXAlignment.Left,
+		Parent = body,
+	})
+	ui.daily = {}
+	for index = 1, QuestConfig.DailyCount do
+		local refs = makeQuestCard(body, 3 + index, 86)
+		refs.button.Activated:Connect(function()
+			if refs.questId then
+				request("ClaimDaily", refs.questId)
+			end
+		end)
+		ui.daily[index] = refs
+	end
+end
+
+local function buildCollectionBody(content)
+	local body = UIKit.Create("Frame", {
+		Position = UDim2.fromOffset(0, 52),
+		Size = UDim2.new(1, 0, 1, -52),
+		BackgroundTransparency = 1,
+		Visible = false,
+		Parent = content,
+	})
+	ui.collectionBody = body
+	ui.collectionHeader = UIKit.Label({
+		Size = UDim2.new(1, 0, 0, 28),
+		Font = UIKit.Font,
+		TextSize = 19,
+		TextColor3 = UIKit.Colors.Gold,
+		TextXAlignment = Enum.TextXAlignment.Left,
+		Parent = body,
+	})
+	local row = UIKit.Create("Frame", { Position = UDim2.fromOffset(0, 32), Size = UDim2.new(1, 0, 0, 52), BackgroundTransparency = 1, Parent = body })
+	UIKit.Create("UIListLayout", { FillDirection = Enum.FillDirection.Horizontal, Padding = UDim.new(0, 8), SortOrder = Enum.SortOrder.LayoutOrder, Parent = row })
+	ui.milestones = {}
+	local count = #QuestConfig.CollectionMilestones
+	for index = 1, count do
+		ui.milestones[index] = UIKit.Button({
+			LayoutOrder = index,
+			Size = UDim2.new(1 / count, -6, 1, 0),
+			TextSize = 16,
+			Parent = row,
+		}, function()
+			request("ClaimCollection", index)
+		end)
+	end
+
+	ui.collectionGrid = UIKit.Create("ScrollingFrame", {
+		Position = UDim2.fromOffset(0, 92),
+		Size = UDim2.new(1, 0, 1, -92),
+		BackgroundColor3 = UIKit.Colors.Background,
+		BackgroundTransparency = 0.4,
+		BorderSizePixel = 0,
+		ScrollBarThickness = 8,
+		CanvasSize = UDim2.new(),
+		AutomaticCanvasSize = Enum.AutomaticSize.Y,
+		ScrollingDirection = Enum.ScrollingDirection.Y,
+		Parent = body,
+	})
+	UIKit.Corner(ui.collectionGrid, 12)
+	UIKit.Create("UIGridLayout", {
+		CellSize = UDim2.fromOffset(112, 74),
+		CellPadding = UDim2.fromOffset(8, 8),
+		SortOrder = Enum.SortOrder.LayoutOrder,
+		Parent = ui.collectionGrid,
+	})
+	UIKit.Create("UIPadding", {
+		PaddingTop = UDim.new(0, 8),
+		PaddingLeft = UDim.new(0, 8),
+		PaddingRight = UDim.new(0, 8),
+		PaddingBottom = UDim.new(0, 8),
+		Parent = ui.collectionGrid,
+	})
+end
+
+function QuestsUI.Init(gui)
+	local panel, content = UIKit.Panel(gui, "Quests", "📜 Quests")
+	ui.panel = panel
+	Hud.RegisterPanel("Quests", panel)
+
+	ui.tabQuests = UIKit.Button({
+		Size = UDim2.fromOffset(200, 44),
+		Text = "📜 Завдання",
+		Parent = content,
+	}, function()
+		selectTab("Quests")
+	end)
+	ui.tabCollection = UIKit.Button({
+		Position = UDim2.fromOffset(210, 0),
+		Size = UDim2.fromOffset(200, 44),
+		Text = "📖 Колекція",
+		Parent = content,
+	}, function()
+		selectTab("Collection")
+	end)
+
+	buildQuestsBody(content)
+	buildCollectionBody(content)
+	selectTab("Quests")
+
+	panel:GetPropertyChangedSignal("Visible"):Connect(refresh)
+	ClientState.OnDataChanged(refresh)
+
+	-- Таймер щоденних завдань і зміна дня
+	task.spawn(function()
+		local lastDay = nil
+		while true do
+			task.wait(1)
+			local day = GameMath.GetDay(serverNow())
+			if day ~= lastDay then
+				lastDay = day
+				refresh()
+			elseif panel.Visible and activeTab == "Quests" then
+				refreshTimer()
+			end
+		end
+	end)
+end
+
+return QuestsUI
+]]></string>
+          </Properties>
+        </Item>
+        <Item class="ModuleScript" referent="45">
           <Properties>
             <string name="Name">RollUI</string>
             <string name="Source"><![CDATA[-- RollUI: вікно кубиків (вибір кубика, шанси, гарантія), кнопки Roll / Auto / Skip
@@ -5186,10 +6240,11 @@ end
 local function refreshInfo()
 	local data = ClientState.Data
 	local dice = DiceConfig.Dice[selectedDice]
+	local playerLuck = if data then GameMath.GetLuck(data, workspace:GetServerTimeNow()) else 1
 	ui.diceTitle.Text = dice.icon .. " " .. dice.displayName
-	ui.diceDesc.Text = ("%s Удача: ×%.2f"):format(dice.description, dice.luck)
+	ui.diceDesc.Text = ("%s Удача: ×%.2f%s"):format(dice.description, dice.luck * playerLuck, if playerLuck > 1 then " 🍀 зілля активне!" else "")
 
-	local chances = GameMath.GetChances(dice, 1)
+	local chances = GameMath.GetChances(dice, playerLuck)
 	for _, rarity in RarityConfig.Order do
 		ui.chanceLabels[rarity].Text = GameMath.FormatChance(chances[rarity])
 	end
@@ -5247,6 +6302,7 @@ end
 
 local function buildPanel(gui)
 	local panel, content = UIKit.Panel(gui, "Roll", "🎲 Dice")
+	ui.panel = panel
 	Hud.RegisterPanel("Roll", panel)
 
 	-- Ліва колонка: список кубиків
@@ -5391,13 +6447,22 @@ function RollUI.Init(gui)
 	ClientState.OnSettingChanged(function()
 		refreshButtons()
 	end)
+	-- Зілля удачі може закінчитись — оновлюємо шанси, поки вікно відкрите
+	task.spawn(function()
+		while true do
+			task.wait(2)
+			if ui.panel and ui.panel.Visible then
+				refreshInfo()
+			end
+		end
+	end)
 end
 
 return RollUI
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="41">
+        <Item class="ModuleScript" referent="46">
           <Properties>
             <string name="Name">SettingsUI</string>
             <string name="Source"><![CDATA[-- SettingsUI: перемикачі звуку, ефектів і пропуску анімацій.
@@ -5478,7 +6543,7 @@ return SettingsUI
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="42">
+        <Item class="ModuleScript" referent="47">
           <Properties>
             <string name="Name">TeamUI</string>
             <string name="Source"><![CDATA[-- TeamUI: вікно бойової команди. Зверху 3 слоти, нижче — усі герої за шкодою.
@@ -5740,7 +6805,7 @@ return TeamUI
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="43">
+        <Item class="ModuleScript" referent="48">
           <Properties>
             <string name="Name">UIKit</string>
             <string name="Source"><![CDATA[-- UIKit: кольори, шрифти й готові елементи інтерфейсу.
@@ -6022,15 +7087,17 @@ return UIKit
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="44">
+        <Item class="ModuleScript" referent="49">
           <Properties>
             <string name="Name">UpgradesUI</string>
-            <string name="Source"><![CDATA[-- UpgradesUI: покупка нових слотів бази та покращення доходу.
+            <string name="Source"><![CDATA[-- UpgradesUI: покращення бази за Coins і магазин за Crystals (зілля, більша сумка).
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Shared = ReplicatedStorage:WaitForChild("Shared")
-local EconomyConfig = require(Shared:WaitForChild("Config"):WaitForChild("EconomyConfig"))
+local Config = Shared:WaitForChild("Config")
+local EconomyConfig = require(Config:WaitForChild("EconomyConfig"))
+local ShopConfig = require(Config:WaitForChild("ShopConfig"))
 local GameMath = require(Shared:WaitForChild("GameMath"))
 
 local Client = script.Parent
@@ -6041,21 +7108,26 @@ local Hud = require(Client:WaitForChild("Hud"))
 local UpgradesUI = {}
 
 local rows = {}
+local panel = nil
 
-local UPGRADES = {
+-- Кожен рядок: currency ("Coins" | "Crystals"), describe(data, now), getPrice(data, now) -> ціна або nil (MAX), buy()
+local ENTRIES = {
 	{
 		id = "Slots",
 		title = "🧱 Слоти бази",
+		currency = "Coins",
 		describe = function(data)
 			return ("Слотів: %d / %d. Більше героїв на базі — більше монет."):format(data.slotCount, EconomyConfig.MaxSlots)
 		end,
 		getPrice = function(data)
 			return GameMath.GetSlotPrice(data.slotCount)
 		end,
+		remote = "BuyUpgrade",
 	},
 	{
 		id = "Income",
 		title = "💰 Дохід бази",
+		currency = "Coins",
 		describe = function(data)
 			return ("Рівень %d. Множник доходу: ×%.1f (+%d%% за рівень)."):format(
 				data.incomeLevel,
@@ -6066,21 +7138,53 @@ local UPGRADES = {
 		getPrice = function(data)
 			return GameMath.GetIncomeUpgradePrice(data.incomeLevel)
 		end,
+		remote = "BuyUpgrade",
 	},
 }
+
+for _, itemId in ShopConfig.Order do
+	local item = ShopConfig.Items[itemId]
+	table.insert(ENTRIES, {
+		id = itemId,
+		title = item.displayName,
+		currency = "Crystals",
+		describe = function(data, now)
+			if item.kind == "boost" then
+				local left = (data.boosts[item.boost] or 0) - now
+				if left > 0 then
+					return item.description .. " • діє ще " .. GameMath.FormatTime(left)
+				end
+				return item.description
+			end
+			return ("%s • зараз %d місць"):format(item.description, GameMath.GetMaxInventory(data))
+		end,
+		getPrice = function(data)
+			if item.kind == "inventory" then
+				return GameMath.GetBagPrice(data)
+			end
+			return item.price
+		end,
+		remote = "BuyShopItem",
+	})
+end
 
 local function refresh()
 	local data = ClientState.Data
 	if not data then
 		return
 	end
-	for _, upgrade in UPGRADES do
-		local row = rows[upgrade.id]
-		row.description.Text = upgrade.describe(data)
-		local price = upgrade.getPrice(data)
+	local now = workspace:GetServerTimeNow()
+	for _, entry in ENTRIES do
+		local row = rows[entry.id]
+		row.description.Text = entry.describe(data, now)
+		local price = entry.getPrice(data, now)
 		if price then
-			row.button.Text = "Buy 🪙 " .. GameMath.FormatNumber(price)
-			row.button.BackgroundColor3 = if ClientState.Coins >= price then UIKit.Colors.Success else UIKit.Colors.Disabled
+			local icon = if entry.currency == "Crystals" then "💎" else "🪙"
+			local balance = if entry.currency == "Crystals" then ClientState.Crystals else ClientState.Coins
+			row.button.Text = ("Buy %s %s"):format(icon, GameMath.FormatNumber(price))
+			row.button.BackgroundColor3 = if balance >= price
+				then (if entry.currency == "Crystals" then UIKit.Colors.Accent2 else UIKit.Colors.Success)
+				else UIKit.Colors.Disabled
 		else
 			row.button.Text = "MAX"
 			row.button.BackgroundColor3 = UIKit.Colors.Disabled
@@ -6088,59 +7192,99 @@ local function refresh()
 	end
 end
 
-function UpgradesUI.Init(gui)
-	local panel, content = UIKit.Panel(gui, "Upgrades", "⬆️ Upgrades")
-	Hud.RegisterPanel("Upgrades", panel)
-	UIKit.Create("UIListLayout", { Padding = UDim.new(0, 12), SortOrder = Enum.SortOrder.LayoutOrder, Parent = content })
+local function sectionHeader(parent, order, text)
+	UIKit.Label({
+		LayoutOrder = order,
+		Size = UDim2.new(1, -12, 0, 28),
+		Font = UIKit.Font,
+		TextSize = 21,
+		TextColor3 = UIKit.Colors.Gold,
+		TextXAlignment = Enum.TextXAlignment.Left,
+		Text = text,
+		Parent = parent,
+	})
+end
 
-	for index, upgrade in UPGRADES do
+function UpgradesUI.Init(gui)
+	local content
+	panel, content = UIKit.Panel(gui, "Upgrades", "⬆️ Upgrades & Shop")
+	Hud.RegisterPanel("Upgrades", panel)
+
+	local list = UIKit.Create("ScrollingFrame", {
+		Size = UDim2.fromScale(1, 1),
+		BackgroundTransparency = 1,
+		BorderSizePixel = 0,
+		ScrollBarThickness = 8,
+		CanvasSize = UDim2.new(),
+		AutomaticCanvasSize = Enum.AutomaticSize.Y,
+		ScrollingDirection = Enum.ScrollingDirection.Y,
+		Parent = content,
+	})
+	UIKit.Create("UIListLayout", { Padding = UDim.new(0, 8), SortOrder = Enum.SortOrder.LayoutOrder, Parent = list })
+
+	sectionHeader(list, 0, "🪙 Покращення бази")
+	local shopHeaderAdded = false
+	for index, entry in ENTRIES do
+		if entry.currency == "Crystals" and not shopHeaderAdded then
+			sectionHeader(list, index * 2 - 1, "💎 Crystal Shop — кристали дають боси, завдання й колекція")
+			shopHeaderAdded = true
+		end
 		local row = UIKit.Create("Frame", {
-			LayoutOrder = index,
-			Size = UDim2.new(1, 0, 0, 100),
+			LayoutOrder = index * 2,
+			Size = UDim2.new(1, -12, 0, 84),
 			BackgroundColor3 = UIKit.Colors.Background,
 			BackgroundTransparency = 0.3,
-			Parent = content,
+			Parent = list,
 		})
 		UIKit.Corner(row, 14)
 		UIKit.Label({
-			Position = UDim2.fromOffset(16, 10),
-			Size = UDim2.new(1, -260, 0, 36),
+			Position = UDim2.fromOffset(16, 6),
+			Size = UDim2.new(1, -250, 0, 32),
 			Font = UIKit.Font,
-			TextSize = 26,
+			TextSize = 23,
 			TextXAlignment = Enum.TextXAlignment.Left,
-			Text = upgrade.title,
+			Text = entry.title,
 			Parent = row,
 		})
 		local description = UIKit.Label({
-			Position = UDim2.fromOffset(16, 48),
-			Size = UDim2.new(1, -260, 0, 44),
-			TextSize = 16,
+			Position = UDim2.fromOffset(16, 40),
+			Size = UDim2.new(1, -250, 0, 38),
+			TextSize = 15,
 			TextColor3 = UIKit.Colors.SubText,
 			TextXAlignment = Enum.TextXAlignment.Left,
 			Parent = row,
 		})
 		local button = UIKit.Button({
 			AnchorPoint = Vector2.new(1, 0.5),
-			Position = UDim2.new(1, -16, 0.5, 0),
-			Size = UDim2.fromOffset(220, 64),
-			TextSize = 22,
+			Position = UDim2.new(1, -14, 0.5, 0),
+			Size = UDim2.fromOffset(210, 58),
+			TextSize = 21,
 			Parent = row,
 		}, function()
-			local result = ClientState.Request("BuyUpgrade", upgrade.id)
+			local result = ClientState.Request(entry.remote, entry.id)
 			UIKit.Toast(result.message or "", if result.ok then "success" else "error")
 		end)
-		rows[upgrade.id] = { description = description, button = button }
+		rows[entry.id] = { description = description, button = button }
 	end
 
 	ClientState.OnDataChanged(refresh)
 	ClientState.OnCurrencyChanged(refresh)
+	-- Таймери зілля
+	task.spawn(function()
+		while true do
+			task.wait(1)
+			if panel.Visible then
+				refresh()
+			end
+		end
+	end)
 end
 
 return UpgradesUI
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="45">
+        <Item class="ModuleScript" referent="50">
           <Properties>
             <string name="Name">WorldEffects</string>
             <string name="Source"><![CDATA[-- WorldEffects: локально вмикає/вимикає аури героїв за налаштуванням "Ефекти".
@@ -6186,7 +7330,7 @@ return WorldEffects
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="46">
+        <Item class="ModuleScript" referent="51">
           <Properties>
             <string name="Name">WorldsUI</string>
             <string name="Source"><![CDATA[-- WorldsUI: список світів і кнопки подорожі. Переносить гравця сервер.
@@ -6295,8 +7439,65 @@ return WorldsUI
 ]]></string>
           </Properties>
         </Item>
+        <Item class="ModuleScript" referent="52">
+          <Properties>
+            <string name="Name">ZoneGates</string>
+            <string name="Source"><![CDATA[-- ZoneGates: ворота зон на екрані цього гравця.
+-- Відкрита зона — ворота стають прозорими й прохідними (тільки для нього:
+-- персонажем керує його клієнт). Закрита — показуємо прогрес перемог.
+
+local CollectionService = game:GetService("CollectionService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+local GameMath = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("GameMath"))
+
+local Client = script.Parent
+local ClientState = require(Client:WaitForChild("ClientState"))
+
+local ZoneGates = {}
+
+local GATE_TAG = "ZoneGate" -- той самий тег, що у WorldService
+
+local function apply(gate)
+	local data = ClientState.Data
+	if not data then
+		return
+	end
+	local zoneIndex = gate:GetAttribute("ZoneIndex")
+	local unlocked = GameMath.IsZoneUnlocked(data, gate:GetAttribute("World"), zoneIndex)
+	gate.CanCollide = not unlocked
+	gate.Transparency = if unlocked then 0.9 else 0.3
+
+	local sign = gate:FindFirstChild("Sign")
+	local label = sign and sign:FindFirstChild("Gui") and sign.Gui:FindFirstChild("Label")
+	if label then
+		local name = gate:GetAttribute("ZoneName") or "?"
+		if unlocked then
+			label.Text = "✅ " .. name
+		else
+			label.Text = ("🔒 %s — перемоги: %d / %d"):format(name, data.stats.enemiesDefeated, gate:GetAttribute("RequiredKills") or 0)
+		end
+	end
+end
+
+local function applyAll()
+	for _, gate in CollectionService:GetTagged(GATE_TAG) do
+		apply(gate)
+	end
+end
+
+function ZoneGates.Init()
+	CollectionService:GetInstanceAddedSignal(GATE_TAG):Connect(apply)
+	ClientState.OnDataChanged(applyAll)
+	applyAll()
+end
+
+return ZoneGates
+]]></string>
+          </Properties>
+        </Item>
       </Item>
-      <Item class="LocalScript" referent="47">
+      <Item class="LocalScript" referent="53">
         <Properties>
           <string name="Name">ClientMain</string>
           <string name="Source"><![CDATA[-- ClientMain: точка входу клієнта. Будує інтерфейс і підключає модулі.
@@ -6320,6 +7521,8 @@ local FollowerController = require(Client:WaitForChild("FollowerController"))
 local TeamUI = require(Client:WaitForChild("TeamUI"))
 local WorldsUI = require(Client:WaitForChild("WorldsUI"))
 local CombatUI = require(Client:WaitForChild("CombatUI"))
+local QuestsUI = require(Client:WaitForChild("QuestsUI"))
+local ZoneGates = require(Client:WaitForChild("ZoneGates"))
 
 local gui = UIKit.CreateScreenGui()
 
@@ -6333,6 +7536,8 @@ WorldsUI.Init(gui)
 EnemyRegistry.Init()
 FollowerController.Init()
 CombatUI.Init(gui)
+QuestsUI.Init(gui)
+ZoneGates.Init()
 WorldEffects.Init()
 
 Remotes.Get("Notify").OnClientEvent:Connect(function(text, kind)

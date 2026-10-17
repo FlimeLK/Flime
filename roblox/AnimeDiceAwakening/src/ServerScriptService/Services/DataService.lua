@@ -17,6 +17,7 @@ local Shared = ReplicatedStorage:WaitForChild("Shared")
 local EconomyConfig = require(Shared.Config.EconomyConfig)
 local CombatConfig = require(Shared.Config.CombatConfig)
 local HeroConfig = require(Shared.Config.HeroConfig)
+local QuestConfig = require(Shared.Config.QuestConfig)
 local Remotes = require(Shared.Remotes)
 
 local DataService = {}
@@ -65,7 +66,12 @@ local function makeTemplate()
 		discovered = {}, -- [heroId] = true (колекція)
 		tutorial = { freeRollUsed = false, completed = false },
 		settings = { sound = true, effects = true, skipAnimations = false },
-		stats = { enemiesDefeated = 0, bossesDefeated = 0 },
+		stats = { enemiesDefeated = 0, bossesDefeated = 0, merges = 0 },
+		quests = { main = 1 }, -- номер активного сюжетного завдання
+		daily = { day = 0, progress = {}, claimed = {} }, -- щоденні завдання
+		collectionClaimed = {}, -- ["m1"] = true — забрані нагороди колекції
+		boosts = { luck = 0, income = 0 }, -- час (os.time), до якого діє буст
+		inventoryBonus = 0, -- додаткові місця в інвентарі
 		lastSeen = 0,
 	}
 end
@@ -98,6 +104,8 @@ end
 local function sanitize(data)
 	data.slotCount = math.clamp(math.floor(data.slotCount), EconomyConfig.StartSlots, EconomyConfig.MaxSlots)
 	data.coins = math.max(0, math.floor(data.coins))
+	data.crystals = math.max(0, math.floor(data.crystals))
+	data.quests.main = math.clamp(math.floor(data.quests.main), 1, #QuestConfig.Main + 1)
 	for _, hero in data.heroes do
 		hero.level = math.max(1, math.floor(tonumber(hero.level) or 1))
 		hero.locked = hero.locked == true
@@ -343,6 +351,22 @@ function DataService.AddCrystals(player, amount)
 		return false
 	end
 	profile.data.crystals += amount
+	local leaderstats = player:FindFirstChild("leaderstats")
+	local crystals = leaderstats and leaderstats:FindFirstChild("Crystals")
+	if crystals then
+		crystals.Value = profile.data.crystals
+	end
+	return true
+end
+
+-- Списує кристали, лише якщо їх вистачає. Повертає true/false.
+function DataService.SpendCrystals(player, amount)
+	local profile = DataService.GetProfile(player)
+	amount = math.floor(tonumber(amount) or -1)
+	if not profile or amount < 0 or profile.data.crystals < amount then
+		return false
+	end
+	profile.data.crystals -= amount
 	local leaderstats = player:FindFirstChild("leaderstats")
 	local crystals = leaderstats and leaderstats:FindFirstChild("Crystals")
 	if crystals then

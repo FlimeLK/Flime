@@ -5,7 +5,6 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Shared = ReplicatedStorage:WaitForChild("Shared")
 local Config = Shared:WaitForChild("Config")
-local EconomyConfig = require(Config:WaitForChild("EconomyConfig"))
 local HeroConfig = require(Config:WaitForChild("HeroConfig"))
 local RarityConfig = require(Config:WaitForChild("RarityConfig"))
 local GameMath = require(Shared:WaitForChild("GameMath"))
@@ -214,7 +213,7 @@ function refreshAll()
 	for order, entry in list do
 		makeCard(entry, placed, order)
 	end
-	ui.countLabel.Text = ("Герої: %d / %d"):format(#list, EconomyConfig.MaxInventory)
+	ui.countLabel.Text = ("Герої: %d / %d"):format(#list, GameMath.GetMaxInventory(data))
 	ui.sortButton.Text = "↕ " .. SORTS[sortIndex].label
 	refreshDetails(data, placed)
 end

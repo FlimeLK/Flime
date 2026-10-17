@@ -71,6 +71,9 @@ function CombatService.SetTarget(player, enemyId)
 	if not data or GameMath.GetTeamDps(data) <= 0 then
 		return false, "Команда порожня! Додай героїв у ⚔️ Team"
 	end
+	if not GameMath.IsZoneUnlocked(data, enemy.world, enemy.zone) then
+		return false, "Ця зона ще закрита — перемагай ворогів, щоб відкрити ворота"
+	end
 	getState(player).targetId = enemyId
 	player:SetAttribute("TargetId", enemyId)
 	return true, "Ціль: " .. enemy.def.name
@@ -82,9 +85,10 @@ local function targetNearest(player)
 		return false, "Персонаж ще не з'явився"
 	end
 	local world = player:GetAttribute("World")
+	local data = DataService.Get(player)
 	local bestId, bestDistance = nil, math.huge
 	for id, enemy in EnemyService.GetAll() do
-		if enemy.alive and enemy.world == world then
+		if enemy.alive and enemy.world == world and data and GameMath.IsZoneUnlocked(data, enemy.world, enemy.zone) then
 			local distance = distanceTo(root, enemy)
 			if distance < bestDistance and distance <= CombatConfig.TargetSelectRange then
 				bestId, bestDistance = id, distance

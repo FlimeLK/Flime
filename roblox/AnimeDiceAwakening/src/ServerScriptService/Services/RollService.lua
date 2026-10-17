@@ -13,6 +13,7 @@ local Remotes = require(Shared.Remotes)
 
 local DataService = require(script.Parent.DataService)
 local InventoryService = require(script.Parent.InventoryService)
+local QuestService = require(script.Parent.QuestService)
 local RateLimiter = require(script.Parent.RateLimiter)
 
 local RollService = {}
@@ -58,7 +59,8 @@ local function getGuaranteedRank(data)
 end
 
 local function pickRarity(data, dice)
-	local weights = GameMath.GetRarityWeights(dice, 1)
+	-- Удача гравця (зілля удачі) множиться на удачу кубика
+	local weights = GameMath.GetRarityWeights(dice, GameMath.GetLuck(data, os.time()))
 	local rarity = weightedPick(weights, RarityConfig.Order) or "Common"
 	local pityUsed = false
 
@@ -123,7 +125,7 @@ local function onRoll(player, diceId)
 	if data.totalRolls < dice.requiredRolls then
 		return fail(("Кубик відкриється після %d кидків"):format(dice.requiredRolls))
 	end
-	if InventoryService.CountHeroes(data) >= EconomyConfig.MaxInventory then
+	if InventoryService.CountHeroes(data) >= GameMath.GetMaxInventory(data) then
 		return fail("Інвентар заповнений! Продай або злий зайвих героїв.")
 	end
 
@@ -141,6 +143,7 @@ local function onRoll(player, diceId)
 	local isNew = not data.discovered[heroId]
 	local uid = InventoryService.GiveHero(player, heroId)
 	data.totalRolls += 1
+	QuestService.Track(player, "roll")
 	DataService.MarkChanged(player)
 
 	return {

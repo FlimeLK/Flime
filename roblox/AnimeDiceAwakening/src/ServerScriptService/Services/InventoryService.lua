@@ -13,6 +13,7 @@ local Remotes = require(Shared.Remotes)
 
 local DataService = require(script.Parent.DataService)
 local PlotService = require(script.Parent.PlotService)
+local QuestService = require(script.Parent.QuestService)
 local RateLimiter = require(script.Parent.RateLimiter)
 
 local InventoryService = {}
@@ -122,7 +123,7 @@ function heroActions.Sell(player, data, uid, hero, heroDef)
 end
 
 -- Злиття: один дублікат того ж героя (не заблокований, не на базі) -> +1 рівень.
-function heroActions.Merge(_player, data, uid, hero, heroDef)
+function heroActions.Merge(player, data, uid, hero, heroDef)
 	local maxLevel = RarityConfig.Info[heroDef.rarity].maxLevel
 	if hero.level >= maxLevel then
 		return false, "Вже максимальний рівень"
@@ -140,6 +141,7 @@ function heroActions.Merge(_player, data, uid, hero, heroDef)
 	end
 	data.heroes[fodderUid] = nil
 	hero.level += 1
+	QuestService.Track(player, "merge")
 	return true, ("%s тепер рівня %d!"):format(heroDef.name, hero.level)
 end
 

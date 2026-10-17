@@ -14,6 +14,7 @@ local Remotes = require(Shared.Remotes)
 
 local DataService = require(script.Parent.DataService)
 local EnemyModelBuilder = require(script.Parent.EnemyModelBuilder)
+local QuestService = require(script.Parent.QuestService)
 
 local EnemyService = {}
 
@@ -138,6 +139,7 @@ local function spawnEnemy(state)
 	model:SetAttribute("EnemyId", state.id)
 	model:SetAttribute("EnemyName", state.def.name)
 	model:SetAttribute("World", state.world)
+	model:SetAttribute("Zone", state.zone)
 	model:SetAttribute("IsBoss", state.def.isBoss == true)
 	model:SetAttribute("MaxHealth", state.def.health)
 	model:SetAttribute("Attack", "")
@@ -169,13 +171,9 @@ local function rewardContributors(state)
 		if player.Parent and damage >= minimum then
 			DataService.AddCoins(player, def.coins)
 			DataService.AddCrystals(player, def.crystals)
-			local data = DataService.Get(player)
-			if data then
-				data.stats.enemiesDefeated += 1
-				if def.isBoss then
-					data.stats.bossesDefeated += 1
-				end
-				DataService.MarkChanged(player)
+			QuestService.Track(player, "kill")
+			if def.isBoss then
+				QuestService.Track(player, "boss")
 			end
 			local text = ("Переможено %s! +%s 🪙"):format(def.name, GameMath.FormatNumber(def.coins))
 			if def.crystals > 0 then
@@ -222,6 +220,7 @@ function EnemyService.SpawnWorldEnemies(worldId, worldCFrame, parent)
 			id = "e" .. nextId,
 			def = def,
 			world = worldId,
+			zone = spawnInfo.zone or 1,
 			-- Ворог дивиться в бік входу у світ (-Z)
 			spawnCFrame = worldCFrame * CFrame.new(spawnInfo.offset),
 			parent = parent,

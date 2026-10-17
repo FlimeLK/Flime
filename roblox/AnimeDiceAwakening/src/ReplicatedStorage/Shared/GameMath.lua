@@ -7,6 +7,8 @@ local RarityConfig = require(Config:WaitForChild("RarityConfig"))
 local EconomyConfig = require(Config:WaitForChild("EconomyConfig"))
 local HeroConfig = require(Config:WaitForChild("HeroConfig"))
 local CombatConfig = require(Config:WaitForChild("CombatConfig"))
+local ShopConfig = require(Config:WaitForChild("ShopConfig"))
+local WorldConfig = require(Config:WaitForChild("WorldConfig"))
 
 local GameMath = {}
 
@@ -72,8 +74,127 @@ function GameMath.GetIncomeUpgradePrice(incomeLevel)
 	return math.floor(upgrade.basePrice * upgrade.growth ^ incomeLevel)
 end
 
--- Загальний дохід бази за секунду.
-function GameMath.GetTotalIncome(data)
+-- Номер доби UTC (для щоденних завдань).
+function GameMath.GetDay(now)
+	return math.floor(now / 86400)
+end
+
+-- Чи діє буст ("luck" / "income") у момент now. now = nil — бусти не враховуються.
+function GameMath.IsBoostActive(data, boostId, now)
+	return now ~= nil and (data.boosts[boostId] or 0) > now
+end
+
+function GameMath.GetBoostMultiplier(data, boostId, now)
+	if GameMath.IsBoostActive(data, boostId, now) then
+		return ShopConfig.Boosts[boostId].multiplier
+	end
+	return 1
+end
+
+-- Удача гравця (множиться на удачу кубика).
+function GameMath.GetLuck(data, now)
+	return GameMath.GetBoostMultiplier(data, "luck", now)
+end
+
+function GameMath.CountDiscovered(data)
+	local count = 0
+	for heroId in data.discovered do
+		if HeroConfig.Heroes[heroId] then
+			count += 1
+		end
+	end
+	return count
+end
+
+-- Бонус колекції: +2% доходу за кожного відкритого героя.
+function GameMath.GetCollectionMultiplier(data)
+	return 1 + GameMath.CountDiscovered(data) * EconomyConfig.CollectionIncomeBonus
+end
+
+function GameMath.GetMaxInventory(data)
+	return EconomyConfig.MaxInventory + (data.inventoryBonus or 0)
+end
+
+-- Ціна наступної "Більшої сумки" або nil, якщо куплено максимум.
+function GameMath.GetBagPrice(data)
+	local item = ShopConfig.Items.BigBag
+	local purchases = math.floor((data.inventoryBonus or 0) / item.amount)
+	if purchases >= item.maxPurchases then
+		return nil
+	end
+	return item.basePrice + item.priceStep * purchases
+end
+
+-- Чи відкрита зона zoneIndex світу worldId (зони без вимог відкриті завжди).
+function GameMath.IsZoneUnlocked(data, worldId, zoneIndex)
+	local world = WorldConfig.Worlds[worldId]
+	local zone = world and world.zones and world.zones[zoneIndex]
+	if not zone then
+		return true
+	end
+	return data.stats.enemiesDefeated >= zone.requiredKills
+end
+
+-- Значення для сюжетних завдань (QuestConfig.Main[].metric).
+function GameMath.GetMetric(data, metric)
+	if metric == "totalRolls" then
+		return data.totalRolls
+	elseif metric == "slotCount" then
+		return data.slotCount
+	elseif metric == "discovered" then
+		return GameMath.CountDiscovered(data)
+	elseif metric == "placedHeroes" then
+		local count = 0
+		for i = 1, data.slotCount do
+			if data.slots[i] ~= "" then
+				count += 1
+			end
+		end
+		return count
+	elseif metric == "teamSize" then
+		local count = 0
+		for i = 1, CombatConfig.TeamSize do
+			if data.team[i] ~= "" then
+				count += 1
+			end
+		end
+		return count
+	elseif metric == "maxHeroLevel" then
+		local best = 0
+		for _, hero in data.heroes do
+			best = math.max(best, hero.level)
+		end
+		return best
+	elseif data.stats[metric] ~= nil then
+		return data.stats[metric]
+	end
+	return 0
+end
+
+-- "+300 🪙 +1 💎"
+function GameMath.FormatReward(reward)
+	local parts = {}
+	if reward.coins and reward.coins > 0 then
+		table.insert(parts, "+" .. GameMath.FormatNumber(reward.coins) .. " 🪙")
+	end
+	if reward.crystals and reward.crystals > 0 then
+		table.insert(parts, "+" .. GameMath.FormatNumber(reward.crystals) .. " 💎")
+	end
+	return table.concat(parts, " ")
+end
+
+-- 125 -> "2:05"
+function GameMath.FormatTime(seconds)
+	seconds = math.max(0, math.floor(seconds))
+	if seconds >= 3600 then
+		return string.format("%d:%02d:%02d", seconds // 3600, (seconds % 3600) // 60, seconds % 60)
+	end
+	return string.format("%d:%02d", seconds // 60, seconds % 60)
+end
+
+-- Загальний дохід бази за секунду з бонусом колекції.
+-- now — серверний час; якщо передано, враховується буст доходу.
+function GameMath.GetTotalIncome(data, now)
 	local total = 0
 	for i = 1, data.slotCount do
 		local uid = data.slots[i]
@@ -83,7 +204,7 @@ function GameMath.GetTotalIncome(data)
 			total += GameMath.GetHeroIncome(heroDef, hero.level, data.incomeLevel)
 		end
 	end
-	return total
+	return total * GameMath.GetCollectionMultiplier(data) * GameMath.GetBoostMultiplier(data, "income", now)
 end
 
 -- Шкода героя за секунду.

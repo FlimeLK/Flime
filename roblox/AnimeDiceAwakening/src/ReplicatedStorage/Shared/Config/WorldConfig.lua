@@ -14,6 +14,13 @@ WorldConfig.Worlds = {
 		color = Color3.fromRGB(90, 230, 140),
 		available = true,
 		center = Vector3.new(1500, 200, 0),
+		-- Зони відкриваються за кількістю перемог (stats.enemiesDefeated).
+		-- gateZ — де стоїть ворота зони (відносно центру світу).
+		zones = {
+			{ id = "Outskirts", name = "Outskirts", requiredKills = 0 },
+			{ id = "Dojo", name = "Dojo", requiredKills = 15, gateZ = 10 },
+			{ id = "OniShrine", name = "Oni Shrine", requiredKills = 40, gateZ = 62 },
+		},
 	},
 	PirateIsland = {
 		displayName = "Pirate Island",

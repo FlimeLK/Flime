@@ -19,6 +19,7 @@ function IncomeService.GrantOfflineIncome(player)
 		return
 	end
 	local elapsed = math.clamp(os.time() - data.lastSeen, 0, EconomyConfig.OfflineMaxSeconds)
+	-- Бусти офлайн не діють (GetTotalIncome без часу), бонус колекції — діє
 	local amount = math.floor(GameMath.GetTotalIncome(data) * elapsed * EconomyConfig.OfflineRate)
 	data.lastSeen = os.time() -- не дати нарахувати двічі
 	if amount > 0 then
@@ -40,7 +41,7 @@ function IncomeService.Init()
 				local profile = DataService.GetProfile(player)
 				if profile then
 					-- Дробові монети накопичуються й нараховуються, коли набереться ціла.
-					profile.incomeRemainder += GameMath.GetTotalIncome(profile.data) * dt
+					profile.incomeRemainder += GameMath.GetTotalIncome(profile.data, os.time()) * dt
 					local whole = math.floor(profile.incomeRemainder)
 					if whole > 0 then
 						profile.incomeRemainder -= whole

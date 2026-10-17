@@ -63,15 +63,16 @@ EnemyConfig.Enemies = {
 }
 
 -- Точки появи. offset — відносно центру світу (Y = 0 — рівень землі).
+-- zone — номер зони з WorldConfig (ворогів закритої зони не можна атакувати).
 EnemyConfig.WorldSpawns = {
 	NinjaVillage = {
-		{ enemy = "bandit_genin", offset = Vector3.new(-22, 0, -65) },
-		{ enemy = "bandit_genin", offset = Vector3.new(22, 0, -65) },
-		{ enemy = "shadow_puppet", offset = Vector3.new(-38, 0, -15) },
-		{ enemy = "shadow_puppet", offset = Vector3.new(38, 0, -15) },
-		{ enemy = "rogue_ronin", offset = Vector3.new(-32, 0, 35) },
-		{ enemy = "rogue_ronin", offset = Vector3.new(32, 0, 35) },
-		{ enemy = "oni_kurogane", offset = Vector3.new(0, 0, 92) },
+		{ enemy = "bandit_genin", offset = Vector3.new(-22, 0, -65), zone = 1 },
+		{ enemy = "bandit_genin", offset = Vector3.new(22, 0, -65), zone = 1 },
+		{ enemy = "shadow_puppet", offset = Vector3.new(-38, 0, -15), zone = 1 },
+		{ enemy = "shadow_puppet", offset = Vector3.new(38, 0, -15), zone = 1 },
+		{ enemy = "rogue_ronin", offset = Vector3.new(-32, 0, 35), zone = 2 },
+		{ enemy = "rogue_ronin", offset = Vector3.new(32, 0, 35), zone = 2 },
+		{ enemy = "oni_kurogane", offset = Vector3.new(0, 0, 92), zone = 3 },
 	},
 }
 

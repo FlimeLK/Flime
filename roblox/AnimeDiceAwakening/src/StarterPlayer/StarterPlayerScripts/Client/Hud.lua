@@ -6,6 +6,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Shared = ReplicatedStorage:WaitForChild("Shared")
 local GameMath = require(Shared:WaitForChild("GameMath"))
 local CombatConfig = require(Shared:WaitForChild("Config"):WaitForChild("CombatConfig"))
+local ShopConfig = require(Shared:WaitForChild("Config"):WaitForChild("ShopConfig"))
 
 local Client = script.Parent
 local UIKit = require(Client:WaitForChild("UIKit"))
@@ -61,6 +62,31 @@ function Hud.GetMenuButton(name)
 	return menuButtons[name]
 end
 
+-- Червона позначка "!" на кнопці меню (наприклад, є нагорода в Quests).
+function Hud.SetBadge(name, visible)
+	local button = menuButtons[name]
+	if not button then
+		return
+	end
+	local badge = button:FindFirstChild("Badge")
+	if not badge then
+		badge = UIKit.Label({
+			Name = "Badge",
+			AnchorPoint = Vector2.new(0.5, 0.5),
+			Position = UDim2.new(1, -4, 0, 4),
+			Size = UDim2.fromOffset(24, 24),
+			BackgroundColor3 = UIKit.Colors.Danger,
+			Font = UIKit.Font,
+			TextSize = 16,
+			Text = "!",
+			ZIndex = 5,
+			Parent = button,
+		})
+		UIKit.Corner(badge, 12)
+	end
+	badge.Visible = visible
+end
+
 local function buildTopBar(gui)
 	local bar = UIKit.Create("Frame", {
 		Name = "TopBar",
@@ -104,8 +130,64 @@ local function buildTopBar(gui)
 		coinsLabel.Text = "🪙 " .. GameMath.FormatNumber(coins)
 		crystalsLabel.Text = "💎 " .. GameMath.FormatNumber(crystals)
 	end)
-	ClientState.OnDataChanged(function(data)
-		incomeLabel.Text = "+" .. GameMath.FormatNumber(GameMath.GetTotalIncome(data)) .. "/s"
+	-- Дохід залежить і від часу (буст може закінчитись), тому оновлюємо щосекунди
+	local function updateIncome()
+		local data = ClientState.Data
+		if data then
+			incomeLabel.Text = "+" .. GameMath.FormatNumber(GameMath.GetTotalIncome(data, workspace:GetServerTimeNow())) .. "/s"
+		end
+	end
+	ClientState.OnDataChanged(updateIncome)
+	task.spawn(function()
+		while true do
+			task.wait(1)
+			updateIncome()
+		end
+	end)
+end
+
+-- Активні бусти (зілля) у верхньому лівому куті з таймером
+local function buildBoostBar(gui)
+	local bar = UIKit.Create("Frame", {
+		Name = "Boosts",
+		Position = UDim2.fromOffset(10, 8),
+		Size = UDim2.fromOffset(190, 70),
+		BackgroundTransparency = 1,
+		Parent = gui,
+	})
+	UIKit.AddScale(bar)
+	UIKit.Create("UIListLayout", { Padding = UDim.new(0, 4), SortOrder = Enum.SortOrder.LayoutOrder, Parent = bar })
+	local labels = {}
+	local order = 0
+	for boostId, boost in ShopConfig.Boosts do
+		order += 1
+		local label = UIKit.Label({
+			LayoutOrder = order,
+			Size = UDim2.fromOffset(190, 30),
+			BackgroundColor3 = UIKit.Colors.Background,
+			BackgroundTransparency = 0.2,
+			Font = UIKit.Font,
+			TextSize = 17,
+			TextColor3 = UIKit.Colors.Success,
+			Visible = false,
+			Parent = bar,
+		})
+		UIKit.Corner(label, 8)
+		labels[boostId] = { label = label, boost = boost }
+	end
+	task.spawn(function()
+		while true do
+			local data = ClientState.Data
+			local now = workspace:GetServerTimeNow()
+			for boostId, entry in labels do
+				local active = data ~= nil and GameMath.IsBoostActive(data, boostId, now)
+				entry.label.Visible = active
+				if active then
+					entry.label.Text = ("%s ×%d  %s"):format(entry.boost.displayName, entry.boost.multiplier, GameMath.FormatTime(data.boosts[boostId] - now))
+				end
+			end
+			task.wait(1)
+		end
 	end)
 end
 
@@ -191,31 +273,11 @@ local function buildTutorialHint(gui)
 	end)
 end
 
--- Вікна, які з'являться на наступних етапах
-local COMING_SOON = {
-	Quests = "Завдання з нагородами в Coins і Crystals,\nколекція героїв і відкриття зон.\nЗ'являться на етапі 3.",
-}
-
-local function buildComingSoon(gui)
-	for name, text in COMING_SOON do
-		local panel, content = UIKit.Panel(gui, name, name)
-		UIKit.Label({
-			Size = UDim2.fromScale(1, 1),
-			Font = UIKit.Font,
-			TextSize = 24,
-			TextColor3 = UIKit.Colors.SubText,
-			Text = "🚧 Скоро!\n\n" .. text,
-			Parent = content,
-		})
-		Hud.RegisterPanel(name, panel)
-	end
-end
-
 function Hud.Init(gui)
 	buildTopBar(gui)
+	buildBoostBar(gui)
 	buildMenu(gui)
 	buildTutorialHint(gui)
-	buildComingSoon(gui)
 end
 
 return Hud

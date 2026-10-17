@@ -19,6 +19,8 @@ local FollowerController = require(Client:WaitForChild("FollowerController"))
 local TeamUI = require(Client:WaitForChild("TeamUI"))
 local WorldsUI = require(Client:WaitForChild("WorldsUI"))
 local CombatUI = require(Client:WaitForChild("CombatUI"))
+local QuestsUI = require(Client:WaitForChild("QuestsUI"))
+local ZoneGates = require(Client:WaitForChild("ZoneGates"))
 
 local gui = UIKit.CreateScreenGui()
 
@@ -32,6 +34,8 @@ WorldsUI.Init(gui)
 EnemyRegistry.Init()
 FollowerController.Init()
 CombatUI.Init(gui)
+QuestsUI.Init(gui)
+ZoneGates.Init()
 WorldEffects.Init()
 
 Remotes.Get("Notify").OnClientEvent:Connect(function(text, kind)

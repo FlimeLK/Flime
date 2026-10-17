@@ -8,6 +8,7 @@ local Remotes = require(Shared.Remotes)
 
 local DataService = require(script.Parent.DataService)
 local PlotService = require(script.Parent.PlotService)
+local QuestService = require(script.Parent.QuestService)
 local RateLimiter = require(script.Parent.RateLimiter)
 
 local UpgradeService = {}
@@ -56,6 +57,7 @@ local function onBuyUpgrade(player, upgradeId)
 		return { ok = false, message = "Не вистачає монет" }
 	end
 	local message = upgrade.apply(data)
+	QuestService.Track(player, "upgrade")
 	DataService.MarkChanged(player)
 	PlotService.RefreshPlot(player)
 	return { ok = true, message = message }

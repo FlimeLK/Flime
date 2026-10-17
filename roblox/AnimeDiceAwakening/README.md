@@ -1,4 +1,4 @@
-# Anime Dice: Awakening — етапи 1–2
+# Anime Dice: Awakening — етапи 1–3
 
 Аніме-симулятор для Roblox: кидаєш кубик → отримуєш героя → ставиш його на базу або в бойову команду → герої заробляють монети й б'ються → купуєш покращення й сильніші кубики.
 
@@ -6,6 +6,7 @@
 
 - **Етап 1:** вхід у гру → видача бази → кидок кубика → отримання героя → інвентар → розміщення героя → нарахування монет → збереження прогресу.
 - **Етап 2:** бойова команда з 3 героїв → герої йдуть за гравцем → портал у **Ninja Village** → вибір ворога → автоатака (шкоду рахує сервер) → 3 види ворогів і бос **Oni Warlord Kurogane** з помітними атаками → нагороди в Coins і Crystals.
+- **Етап 3:** вікно **Quests** (11 сюжетних і 3 щоденні завдання) → **колекція** героїв (+2% доходу за кожного відкритого й нагороди в Crystals) → **зони** Ninja Village відкриваються перемогами → **Crystal Shop**: зілля удачі, зілля монет, більша сумка.
 
 ---
 
@@ -15,8 +16,8 @@
 |---|---|---|
 | **1. Основний цикл** | Бази, 5 кубиків, 6 рідкостей, 22 герої, шанси в UI, удача, гарантія (pity), анімація з пропуском, Auto Roll після навчання, інвентар (сортування, Lock, Merge, Sell, Equip Best), дохід і офлайн-дохід, покращення, налаштування, DataStore | ✅ готово |
 | **2. Бої** | Team з 3 героїв (герой або на базі, або в команді), герої йдуть за гравцем і б'ють вибраного ворога, світ «Ninja Village», 3 вороги + бос, Crystals за боса | ✅ готово |
-| 3. Прогрес | Завдання (Quests), колекція героїв з нагородами, відкриття зон | далі |
-| 4. Світи | Pirate Island, Demon Night City, Magic Academy, Sky Arena, портали | |
+| **3. Прогрес** | Завдання (Quests), колекція героїв з нагородами, відкриття зон, покупки за Crystals | ✅ готово |
+| 4. Світи | Pirate Island, Demon Night City, Magic Academy, Sky Arena, портали | далі |
 | 5. Пробудження | Awakened-форми, Rebirth, складні еволюції | |
 | 6. Поліровка | Звуки, частинки, бусти удачі, баланс | |
 
@@ -34,10 +35,12 @@ ReplicatedStorage
    │  ├─ HeroConfig             (ModuleScript)  усі герої
    │  ├─ EconomyConfig          (ModuleScript)  баланс: слоти, дохід, гарантія
    │  ├─ WorldConfig            (ModuleScript)  світи
-   │  ├─ CombatConfig           (ModuleScript)  🆕 команда, дальність атаки
-   │  └─ EnemyConfig            (ModuleScript)  🆕 вороги, бос, точки появи
+   │  ├─ CombatConfig           (ModuleScript)  команда, дальність атаки
+   │  ├─ EnemyConfig            (ModuleScript)  вороги, бос, точки появи, зони
+   │  ├─ QuestConfig            (ModuleScript)  ⭐ завдання, нагороди колекції
+   │  └─ ShopConfig             (ModuleScript)  ⭐ зілля, сумка, бусти
    ├─ GameMath                  (ModuleScript)  формули для сервера й клієнта
-   ├─ HeroModelBuilder          (ModuleScript)  🔁 модель героя з Part (тепер тут!)
+   ├─ HeroModelBuilder          (ModuleScript)  🔁 модель героя з Part (з етапу 2 — тут!)
    └─ Remotes                   (ModuleScript)  список RemoteEvent/RemoteFunction
 ServerScriptService
 ├─ Main                         (Script)        запуск сервера
@@ -55,7 +58,9 @@ ServerScriptService
    ├─ EnemyModelBuilder         (ModuleScript)  🆕 моделі ворогів
    ├─ EnemyService              (ModuleScript)  🆕 вороги, нагороди, атаки боса
    ├─ CombatService             (ModuleScript)  🆕 вибір цілі й автоатака
-   └─ WorldService              (ModuleScript)  🆕 Ninja Village, портали, подорожі
+   ├─ WorldService              (ModuleScript)  🆕 Ninja Village, портали, ворота зон
+   ├─ QuestService              (ModuleScript)  ⭐ завдання, колекція, відкриття зон
+   └─ ShopService               (ModuleScript)  ⭐ покупки за Crystals
 StarterPlayer
 └─ StarterPlayerScripts
    ├─ ClientMain                (LocalScript)   запуск інтерфейсу
@@ -72,10 +77,12 @@ StarterPlayer
       ├─ FollowerController     (ModuleScript)  🆕 герої йдуть за гравцем
       ├─ CombatUI               (ModuleScript)  🆕 ціль, смуга боса, цифри шкоди
       ├─ TeamUI                 (ModuleScript)  🆕 вікно Team
-      └─ WorldsUI               (ModuleScript)  🆕 вікно Worlds
+      ├─ WorldsUI               (ModuleScript)  🆕 вікно Worlds
+      ├─ QuestsUI               (ModuleScript)  ⭐ вікно Quests (завдання + колекція)
+      └─ ZoneGates              (ModuleScript)  ⭐ ворота зон на екрані гравця
 ```
 
-🆕 — нове на етапі 2, 🔁 — перенесено.
+🆕 — з'явилось на етапі 2, ⭐ — на етапі 3, 🔁 — перенесено.
 
 Папку `ReplicatedStorage.Remotes` створювати **не потрібно** — сервер створює її сам.
 
@@ -115,14 +122,14 @@ StarterPlayer
 
 1. **ReplicatedStorage**
    - Folder `Shared`
-     - Folder `Config` → 7 ModuleScript з `src/ReplicatedStorage/Shared/Config/*.lua`
+     - Folder `Config` → 9 ModuleScript з `src/ReplicatedStorage/Shared/Config/*.lua`
      - ModuleScript `GameMath`, `HeroModelBuilder`, `Remotes` ← `src/ReplicatedStorage/Shared/*.lua`
 2. **ServerScriptService**
    - Script `Main` ← `src/ServerScriptService/Main.server.lua`
-   - Folder `Services` → 14 ModuleScript з `src/ServerScriptService/Services/*.lua`
+   - Folder `Services` → 16 ModuleScript з `src/ServerScriptService/Services/*.lua`
 3. **StarterPlayer → StarterPlayerScripts**
    - LocalScript `ClientMain` ← `src/StarterPlayer/StarterPlayerScripts/ClientMain.client.lua`
-   - Folder `Client` → 13 ModuleScript з `src/StarterPlayer/StarterPlayerScripts/Client/*.lua`
+   - Folder `Client` → 15 ModuleScript з `src/StarterPlayer/StarterPlayerScripts/Client/*.lua`
 
 Звір свій Explorer зі схемою з розділу 2 — кожна назва має збігатися літера в літеру.
 
@@ -133,6 +140,13 @@ StarterPlayer
 3. **Заміни код повністю** у змінених скриптах: `WorldConfig`, `GameMath`, `Remotes`, `Main`, `DataService`, `InventoryService`, `PlotService`, `Hud`, `InventoryUI`, `ClientMain`.
 
 Прогрес гравців з етапу 1 зберігається: нові поля (команда, статистика) додаються автоматично.
+
+#### Оновлення з етапу 2 до етапу 3 (якщо ставив вручну)
+
+1. **Створи нові** ModuleScript (позначені ⭐): `QuestConfig`, `ShopConfig` у `Config`; `QuestService`, `ShopService` у `Services`; `QuestsUI`, `ZoneGates` у `Client`.
+2. **Заміни код повністю**: `WorldConfig`, `EnemyConfig`, `EconomyConfig`, `GameMath`, `Remotes`, `Main`, `DataService`, `RollService`, `InventoryService`, `UpgradeService`, `IncomeService`, `EnemyService`, `CombatService`, `WorldService`, `Hud`, `RollUI`, `InventoryUI`, `UpgradesUI`, `ClientMain`.
+
+Збережений прогрес не губиться: завдання, колекція (уже відкриті герої зараховуються) та бусти додаються автоматично.
 
 ### Спосіб C — Rojo (для тих, хто працює у VS Code)
 
@@ -193,7 +207,25 @@ rojo build -o AnimeDiceAwakening.rbxlx   # перезібрати готовий
 | 13 | Inventory: спробуй продати героя з команди | «Спершу прибери героя з команди». На картці героя з команди значок ⚔️. |
 | 14 | Stop → Play | Команда збереглась. |
 
-> Для швидкої перевірки боса: у `EnemyConfig` тимчасово зменш `health` боса до `300`.
+> Для швидкої перевірки боса: у `EnemyConfig` тимчасово зменш `health` боса до `300` і в `WorldConfig` — `requiredKills` зон до `1`.
+
+### Перевірка етапу 3 — прогрес
+
+| # | Дія | Що має статися |
+|---|---|---|
+| 1 | Зроби перший кидок | На кнопці **📜 Quests** з'являється червоний «!». |
+| 2 | **Quests → 📜 Завдання** | Сюжетне «1. Перший кидок» з повною смугою і кнопкою **🎁 Claim**. Нижче — 3 щоденні завдання й таймер «нові через …». |
+| 3 | **Claim** | «+50 🪙», відкривається завдання 2 «Будівничий». «!» зникає, якщо більше нічого забирати. |
+| 4 | Зроби 20 кидків / переможи ворогів | Смуги щоденних завдань ростуть; виконані — зелені з Claim. |
+| 5 | **📖 Колекція** | «Відкрито N / 22 • бонус доходу +X%». Відкриті герої кольорові, невідомі — «???» з рідкістю. Дохід зверху (+N/s) став більшим на 2% за кожного героя. |
+| 6 | Відкрий 5 героїв → кнопка «🎁 5 героїв +5 💎» | Кристали зараховано, кнопка стає «✅». |
+| 7 | **Ninja Village** | Між ляльками та ронінами — рожева стіна-ворота «🔒 Dojo — перемоги: 3 / 15». Крізь неї не пройти, ронінів не можна вибрати («Ця зона ще закрита»). |
+| 8 | Переможи 15 ворогів | «🔓 Відкрито зону Dojo у Ninja Village!», ворота стають прозорими й прохідними **лише для тебе**. Арена боса — після 40 перемог. |
+| 9 | **⬆️ Upgrades** → прокрути вниз до **💎 Crystal Shop** | Зілля удачі / монет по 5 💎, сумка 10 → 20 → 30 → 40 💎. |
+| 10 | Купи **Зілля удачі** | Зліва вгорі «🍀 Удача ×2 9:59», у вікні Roll шанси рідкісних героїв зросли, «🍀 зілля активне!». Можна накопичити до 60 хв. |
+| 11 | Купи **Зілля монет** | Дохід зверху подвоюється, поки йде таймер. |
+| 12 | Купи **Більшу сумку** | В Inventory «Герої: N / 175». |
+| 13 | Stop → Play | Завдання, колекція, бусти (таймер іде й офлайн) збережені. |
 
 ---
 
@@ -217,6 +249,8 @@ rojo build -o AnimeDiceAwakening.rbxlx   # перезібрати готовий
 | Спільний бій | Обидва б'ють одного ворога — обидва отримують нагороду (якщо зняли хоча б 3% його здоров'я). |
 | Атаки боса | Shuriken Rain з'являється під **кожним** гравцем поруч із босом. |
 | Різні світи | Player1 у лобі, Player2 у Ninja Village: у Player1 немає кнопок бою, у Player2 — є; смуга боса видна лише Player2. |
+| Зони | Player1 відкрив Dojo, Player2 — ні: Player1 проходить крізь ворота, Player2 упирається в стіну. |
+| Завдання | Щоденні завдання однакові в обох, прогрес — у кожного свій. |
 
 Помилки сервера дивись в Output **вікна Server**, помилки інтерфейсу — в Output вікна клієнта.
 
@@ -231,6 +265,9 @@ rojo build -o AnimeDiceAwakening.rbxlx   # перезібрати готовий
 - **Покращення / налаштування**: білий список назв і типів значень.
 - **Бій** (`CombatService`, `EnemyService`): клієнт лише вибирає ціль. Сервер перевіряє, що ворог живий, у тому ж світі й не далі 120 studs, а шкоду рахує сам за рівнем героя та швидкістю атаки, лише коли гравець не далі 45 studs. Нагорода — тільки тим, хто зняв ≥ 3% здоров'я ворога. Супутників малює кожен клієнт сам, але на шкоду це не впливає.
 - **Команда** (`TeamService`): герой або на базі, або в команді — сервер сам переносить його між ними; продати чи «злити» героя з команди не можна.
+- **Завдання й колекція** (`QuestService`): сервер сам рахує прогрес (кидки, перемоги, злиття, покупки), перевіряє виконання перед видачею нагороди й не дає забрати її двічі. Щоденні завдання змінюються за серверним часом UTC.
+- **Магазин** (`ShopService`): ціни з `ShopConfig`, кристали списуються лише якщо їх вистачає; час дії зілля зберігається як серверний час закінчення, тож перевести годинник на телефоні марно.
+- **Зони**: ворота прохідні тільки на екрані гравця, який їх відкрив. Навіть якщо хтось обійде стіну, сервер не дасть атакувати ворогів закритої зони.
 - **RateLimiter** — «відро з жетонами» для кожного RemoteFunction: спам кнопками не перевантажує сервер.
 - `Remotes.Handle` обгортає кожен обробник у `pcall` — помилка в коді не «підвішує» клієнта.
 
@@ -255,6 +292,10 @@ rojo build -o AnimeDiceAwakening.rbxlx   # перезібрати готовий
 | Додати героя | `Config/HeroConfig` — скопіюй блок і дай **новий унікальний** `id` |
 | Здоров'я й нагороди ворогів, атаки боса, точки появи | `Config/EnemyConfig` |
 | Розмір команди, дальність атаки, поріг нагороди | `Config/CombatConfig` |
+| Завдання, щоденні завдання, нагороди колекції | `Config/QuestConfig` |
+| Ціни й тривалість зіль, сумка, сила бустів | `Config/ShopConfig` |
+| Скільки перемог потрібно для зон | `Config/WorldConfig` → `zones` |
+| Бонус колекції до доходу | `Config/EconomyConfig` → `CollectionIncomeBonus` |
 
 ⚠️ Ніколи не видаляй і не перейменовуй `id` героя після того, як гравці його отримали — він зберігається в їхньому прогресі.
 
@@ -279,7 +320,7 @@ rojo build -o AnimeDiceAwakening.rbxlx   # перезібрати готовий
 
 ## 10. Автотести (необов'язково)
 
-У папці `tests/` — симуляція серверної логіки без Roblox Studio: 3000 кидків (перевірка гарантії), інвентар, покращення, збереження, замок сесії, збій DataStore, офлайн-дохід, зламані дані; команда (база ↔ команда), вибір цілі, дальність атаки, шкода за формулою, швидкість атаки, нагороди, поріг внеску, кристали боса.
+У папці `tests/` — симуляція серверної логіки без Roblox Studio: 3000 кидків (перевірка гарантії), інвентар, покращення, збереження, замок сесії, збій DataStore, офлайн-дохід, зламані дані; команда (база ↔ команда), вибір цілі, дальність атаки, шкода за формулою, швидкість атаки, нагороди, поріг внеску, кристали боса; сюжетні й щоденні завдання, зміна дня, нагороди колекції, бонус доходу, зілля (накопичення, закінчення), сумка, закриті зони.
 
 ```bash
 # потрібен luau CLI: https://github.com/luau-lang/luau/releases
@@ -288,6 +329,6 @@ python3 tests/run_tests.py path/to/luau
 
 ---
 
-## Наступний крок — етап 3
+## Наступний крок — етап 4
 
-Вікно **Quests** із завданнями (кидки, перемоги, бос) і нагородами в Coins/Crystals, **колекція героїв** з бонусами за відкриття, **зони** всередині Ninja Village, що відкриваються за прогресом, і перші покупки за Crystals.
+Нові світи: **Pirate Island** (вороги-пірати, бос-капітан), потім Demon Night City, Magic Academy і Sky Arena; вимоги для відкриття світів, сильніші кубики як нагорода за світи, нові сюжетні завдання.

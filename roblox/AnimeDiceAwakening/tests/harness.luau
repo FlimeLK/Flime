@@ -328,14 +328,14 @@ end
 local RS = services.ReplicatedStorage
 local shared = folder(RS, "Shared")
 local config = folder(shared, "Config")
-for _, n in { "RarityConfig", "DiceConfig", "HeroConfig", "EconomyConfig", "WorldConfig", "CombatConfig", "EnemyConfig" } do
+for _, n in { "RarityConfig", "DiceConfig", "HeroConfig", "EconomyConfig", "WorldConfig", "CombatConfig", "EnemyConfig", "QuestConfig", "ShopConfig" } do
 	makeModule(config, n, ROOT .. "ReplicatedStorage/Shared/Config/" .. n .. ".lua")
 end
 makeModule(shared, "GameMath", ROOT .. "ReplicatedStorage/Shared/GameMath.lua")
 makeModule(shared, "Remotes", ROOT .. "ReplicatedStorage/Shared/Remotes.lua")
 
 local servicesFolder = folder(services.ServerScriptService, "Services")
-for _, n in { "RateLimiter", "DataService", "InventoryService", "RollService", "IncomeService", "UpgradeService", "SettingsService", "TeamService", "EnemyService", "CombatService" } do
+for _, n in { "RateLimiter", "DataService", "InventoryService", "RollService", "IncomeService", "UpgradeService", "SettingsService", "TeamService", "EnemyService", "CombatService", "QuestService", "ShopService" } do
 	makeModule(servicesFolder, n, ROOT .. "ServerScriptService/Services/" .. n .. ".lua")
 end
 -- PlotService / HeroModelBuilder are visual: stub them

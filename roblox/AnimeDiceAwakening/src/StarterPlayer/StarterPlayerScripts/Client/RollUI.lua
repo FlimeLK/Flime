@@ -324,10 +324,11 @@ end
 local function refreshInfo()
 	local data = ClientState.Data
 	local dice = DiceConfig.Dice[selectedDice]
+	local playerLuck = if data then GameMath.GetLuck(data, workspace:GetServerTimeNow()) else 1
 	ui.diceTitle.Text = dice.icon .. " " .. dice.displayName
-	ui.diceDesc.Text = ("%s Удача: ×%.2f"):format(dice.description, dice.luck)
+	ui.diceDesc.Text = ("%s Удача: ×%.2f%s"):format(dice.description, dice.luck * playerLuck, if playerLuck > 1 then " 🍀 зілля активне!" else "")
 
-	local chances = GameMath.GetChances(dice, 1)
+	local chances = GameMath.GetChances(dice, playerLuck)
 	for _, rarity in RarityConfig.Order do
 		ui.chanceLabels[rarity].Text = GameMath.FormatChance(chances[rarity])
 	end
@@ -385,6 +386,7 @@ end
 
 local function buildPanel(gui)
 	local panel, content = UIKit.Panel(gui, "Roll", "🎲 Dice")
+	ui.panel = panel
 	Hud.RegisterPanel("Roll", panel)
 
 	-- Ліва колонка: список кубиків
@@ -528,6 +530,15 @@ function RollUI.Init(gui)
 	end)
 	ClientState.OnSettingChanged(function()
 		refreshButtons()
+	end)
+	-- Зілля удачі може закінчитись — оновлюємо шанси, поки вікно відкрите
+	task.spawn(function()
+		while true do
+			task.wait(2)
+			if ui.panel and ui.panel.Visible then
+				refreshInfo()
+			end
+		end
 	end)
 end
 

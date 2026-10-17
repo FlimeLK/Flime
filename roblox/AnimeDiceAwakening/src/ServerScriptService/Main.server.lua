@@ -18,6 +18,8 @@ local SettingsService = require(Services.SettingsService)
 local TeamService = require(Services.TeamService)
 local CombatService = require(Services.CombatService)
 local WorldService = require(Services.WorldService)
+local QuestService = require(Services.QuestService)
+local ShopService = require(Services.ShopService)
 
 DataService.Init()
 PlotService.Init()
@@ -29,6 +31,8 @@ SettingsService.Init()
 TeamService.Init()
 CombatService.Init()
 WorldService.Init() -- після PlotService: підключає портали лобі
+QuestService.Init()
+ShopService.Init()
 
 local function onPlayerAdded(player)
 	WorldService.SetupPlayer(player)
@@ -48,6 +52,7 @@ local function onPlayerAdded(player)
 
 	-- 3. Офлайн-дохід, герої на базі, перша синхронізація з клієнтом
 	--    (MarkChanged також оновлює атрибут команди TeamData)
+	QuestService.SetupData(data)
 	IncomeService.GrantOfflineIncome(player)
 	PlotService.RefreshPlot(player)
 	DataService.MarkChanged(player)

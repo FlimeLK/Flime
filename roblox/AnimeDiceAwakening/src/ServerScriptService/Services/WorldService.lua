@@ -1,6 +1,7 @@
 -- WorldService: будує світи, переносить гравців через портали та кнопку Worlds.
 -- Поточний світ гравця зберігається в атрибуті "World" ("Lobby" або id світу).
 
+local CollectionService = game:GetService("CollectionService")
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
@@ -17,6 +18,7 @@ local RateLimiter = require(script.Parent.RateLimiter)
 local WorldService = {}
 
 local LOBBY = "Lobby"
+local GATE_TAG = "ZoneGate" -- клієнт робить відкриті ворота прохідними для свого гравця
 local WORLD_SIZE = 260
 local PORTAL_COOLDOWN = 2
 
@@ -90,7 +92,7 @@ local function buildNinjaVillage(folder, center)
 	end
 
 	torii(folder, center * CFrame.new(0, 0, -95))
-	for _, offset in { Vector3.new(-62, 0, -70), Vector3.new(62, 0, -70), Vector3.new(-70, 0, 10), Vector3.new(70, 0, 10), Vector3.new(-60, 0, 60), Vector3.new(60, 0, 60) } do
+	for _, offset in { Vector3.new(-62, 0, -70), Vector3.new(62, 0, -70), Vector3.new(-70, 0, -25), Vector3.new(70, 0, -25), Vector3.new(-60, 0, 40), Vector3.new(60, 0, 40) } do
 		-- Будинки дверима до дороги
 		local position = (center * CFrame.new(offset)).Position
 		local roadPoint = (center * CFrame.new(0, 0, offset.Z)).Position
@@ -105,6 +107,38 @@ local function buildNinjaVillage(folder, center)
 	for i = 0, 3 do
 		local angle = math.rad(45 + i * 90)
 		lantern(folder, (center * CFrame.new(math.cos(angle) * 30, 0, 92 + math.sin(angle) * 30)).Position)
+	end
+
+	-- Ворота зон: світна стіна через усе село. Сервер робить її твердою для всіх,
+	-- а клієнт гравця, який уже відкрив зону, робить її прохідною лише для себе.
+	-- Навіть якщо хтось обійде стіну, атакувати ворогів закритої зони сервер не дасть.
+	for zoneIndex, zone in WorldConfig.Worlds.NinjaVillage.zones do
+		if zone.gateZ then
+			local gate = BuildUtil.Part({
+				Name = "Gate_" .. zone.id,
+				Size = Vector3.new(WORLD_SIZE, 30, 1),
+				CFrame = center * CFrame.new(0, 15, zone.gateZ),
+				Color = Color3.fromRGB(255, 80, 120),
+				Material = Enum.Material.ForceField,
+				Transparency = 0.3,
+				CanQuery = false,
+			}, folder)
+			gate:SetAttribute("World", "NinjaVillage")
+			gate:SetAttribute("ZoneIndex", zoneIndex)
+			gate:SetAttribute("ZoneName", zone.name)
+			gate:SetAttribute("RequiredKills", zone.requiredKills)
+			-- Напис на воротах (клієнт оновлює його своїм прогресом)
+			local sign = BuildUtil.Part({
+				Name = "Sign",
+				Size = Vector3.new(30, 6, 0.2),
+				CFrame = center * CFrame.new(0, 8, zone.gateZ - 0.7),
+				Transparency = 1,
+				CanCollide = false,
+				CanQuery = false,
+			}, gate)
+			BuildUtil.SurfaceText(sign, Enum.NormalId.Front, ("🔒 %s — переможи %d ворогів"):format(zone.name, zone.requiredKills))
+			CollectionService:AddTag(gate, GATE_TAG)
+		end
 	end
 
 	-- Портал назад у лобі біля входу
