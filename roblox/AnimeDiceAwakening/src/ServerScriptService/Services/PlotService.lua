@@ -19,7 +19,6 @@ local PlotService = {}
 local PLOT_COUNT = 6 -- = максимум гравців на сервері
 local PLOT_SIZE = 72
 local PLOT_RADIUS = 120 -- відстань від центру лобі до центру ділянки
-local LOBBY_SIZE = 70
 local SLOT_COLUMNS = 4
 local SLOT_SPACING = 13
 local SLOT_SIZE = Vector3.new(9, 0.6, 9)

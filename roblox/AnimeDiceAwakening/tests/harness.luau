@@ -243,13 +243,31 @@ local services = {
 	HttpService = { GenerateGUID = function() return "guid" end },
 	CollectionService = { AddTag = function() end },
 	TweenService = { Create = function() return { Play = function() end } end },
+	TextService = {
+		FilterStringAsync = function(_, text)
+			return { GetNonChatStringForBroadcastAsync = function() return text end }
+		end,
+	},
 }
 function services.Players:GetPlayers()
 	return G.players or {}
 end
+function services.Players:GetPlayerByUserId(userId)
+	for _, p in rawget(self, "__children") do
+		if p.UserId == userId then
+			return p
+		end
+	end
+	return nil
+end
+G.userIds = { FlimeYTLK = 999 }
+function services.Players:GetUserIdFromNameAsync(name)
+	return assert(G.userIds[name], "unknown user " .. name)
+end
 
 local game = newInstance("DataModel")
 rawget(game, "__props").JobId = "job-A"
+rawget(game, "__props").CreatorId = 0
 function methods.GetService(self, name)
 	return services[name]
 end
@@ -332,6 +350,9 @@ env.Random = {
 	end,
 }
 env.typeof = function(v)
+	if getmetatable(v) == InstanceMT then
+		return "Instance"
+	end
 	return type(v)
 end
 
@@ -339,19 +360,27 @@ end
 local RS = services.ReplicatedStorage
 local shared = folder(RS, "Shared")
 local config = folder(shared, "Config")
-for _, n in { "RarityConfig", "DiceConfig", "HeroConfig", "EconomyConfig", "WorldConfig", "CombatConfig", "EnemyConfig", "QuestConfig", "ShopConfig", "AssetConfig" } do
+for _, n in { "RarityConfig", "DiceConfig", "HeroConfig", "EconomyConfig", "WorldConfig", "CombatConfig", "EnemyConfig", "QuestConfig", "ShopConfig", "AssetConfig", "AdminConfig" } do
 	makeModule(config, n, ROOT .. "ReplicatedStorage/Shared/Config/" .. n .. ".lua")
 end
 makeModule(shared, "GameMath", ROOT .. "ReplicatedStorage/Shared/GameMath.lua")
 makeModule(shared, "Remotes", ROOT .. "ReplicatedStorage/Shared/Remotes.lua")
 
 local servicesFolder = folder(services.ServerScriptService, "Services")
-for _, n in { "RateLimiter", "DataService", "InventoryService", "RollService", "IncomeService", "UpgradeService", "SettingsService", "TeamService", "EnemyService", "CombatService", "QuestService", "ShopService", "RebirthService" } do
+for _, n in { "RateLimiter", "DataService", "InventoryService", "RollService", "IncomeService", "UpgradeService", "SettingsService", "TeamService", "EnemyService", "CombatService", "QuestService", "ShopService", "RebirthService", "AdminService" } do
 	makeModule(servicesFolder, n, ROOT .. "ServerScriptService/Services/" .. n .. ".lua")
 end
 -- PlotService / HeroModelBuilder are visual: stub them
 local plotStub = makeModule(servicesFolder, "PlotService", "")
 cache[plotStub] = { RefreshPlot = function() end, AssignPlot = function() return true end, ReleasePlot = function() end, TeleportHome = function() end }
+G.travels = {}
+local worldStub = makeModule(servicesFolder, "WorldService", "")
+cache[worldStub] = {
+	Travel = function(player, worldId, force)
+		table.insert(G.travels, { player = player, world = worldId, force = force })
+		return true, "ok"
+	end,
+}
 local enemyModelStub = makeModule(servicesFolder, "EnemyModelBuilder", "")
 cache[enemyModelStub] = { Build = function() return newInstance("Model") end }
 

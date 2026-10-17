@@ -1,5 +1,5 @@
 -- Згенеровано tools/make_studio_patch.py — НЕ редагуй вручну.
--- Частина 2 з 3. Запускай усі частини по черзі (порядок не важливий).
+-- Частина 2 з 5. Запускай усі частини по черзі (порядок не важливий).
 -- Studio → зупини гру (Stop) → View → Command Bar → встав увесь текст → ▶ Run.
 -- Замінює код скриптів нижче на нову версію. Ctrl+Z скасовує зміни.
 local ChangeHistoryService = game:GetService("ChangeHistoryService")
@@ -39,1182 +39,1012 @@ local function setSource(path, className, source)
 	print("✅ оновлено " .. target:GetFullName())
 end
 
-setSource({ "ServerScriptService", "Services", "PlotService" }, "ModuleScript", [=[
--- PlotService: будує лобі й ділянки, видає кожному гравцеві власну базу,
--- показує героїв на слотах.
+setSource({ "StarterPlayer", "StarterPlayerScripts", "Client", "AdminUI" }, "ModuleScript", [=[
+-- AdminUI: 👑 адмін-панель (лише для адмінів) + оголошення й таймер подій (для всіх).
+--
+-- Кнопка 👑 з'являється в верхньому меню, якщо сервер позначив гравця атрибутом IsAdmin.
+-- На ПК панель також відкривається клавішею F2. Усі дії виконує й перевіряє сервер (AdminService).
 
-local CollectionService = game:GetService("CollectionService")
-local ReplicatedStorage = game:GetService("ReplicatedStorage")
-
-local Shared = ReplicatedStorage:WaitForChild("Shared")
-local EconomyConfig = require(Shared.Config.EconomyConfig)
-local HeroConfig = require(Shared.Config.HeroConfig)
-local WorldConfig = require(Shared.Config.WorldConfig)
-local GameMath = require(Shared.GameMath)
-local HeroModelBuilder = require(Shared.HeroModelBuilder)
-
-local BuildUtil = require(script.Parent.BuildUtil)
-local DataService = require(script.Parent.DataService)
-
-local PlotService = {}
-
-local PLOT_COUNT = 6 -- = максимум гравців на сервері
-local PLOT_SIZE = 72
-local PLOT_RADIUS = 120 -- відстань від центру лобі до центру ділянки
-local LOBBY_SIZE = 70
-local SLOT_COLUMNS = 4
-local SLOT_SPACING = 13
-local SLOT_SIZE = Vector3.new(9, 0.6, 9)
-
-local COLOR_SLOT_OPEN = Color3.fromRGB(120, 205, 255)
-local COLOR_SLOT_LOCKED = Color3.fromRGB(60, 60, 75)
-
-local plots = {} -- масив ділянок
-local playerPlot = {} -- [Player] = plot
-
-local PLAZA_RADIUS = 38
-local PLOT_ACCENTS = {
-	Color3.fromRGB(255, 120, 200),
-	Color3.fromRGB(80, 200, 255),
-	Color3.fromRGB(255, 200, 70),
-	Color3.fromRGB(170, 110, 255),
-	Color3.fromRGB(90, 220, 140),
-	Color3.fromRGB(255, 150, 80),
-}
-
--- Гігантський кубик над фонтаном: біле тіло з неоновими крапками (клієнт його обертає)
-local function buildDice(parent, position)
-	local model = Instance.new("Model")
-	model.Name = "LobbyDice"
-	local size = 7
-	local body = BuildUtil.Part({
-		Name = "Body",
-		Size = Vector3.one * size,
-		CFrame = CFrame.new(position),
-		Color = Color3.fromRGB(255, 250, 255),
-		Material = Enum.Material.SmoothPlastic,
-		CanCollide = false,
-	}, model)
-	BuildUtil.Light(body, Color3.fromRGB(255, 140, 220), 28, 1.5)
-	-- Крапки граней: протилежні грані дають у сумі 7
-	local PIPS = {
-		[1] = { { 0, 0 } },
-		[2] = { { -1, -1 }, { 1, 1 } },
-		[3] = { { -1, -1 }, { 0, 0 }, { 1, 1 } },
-		[4] = { { -1, -1 }, { 1, -1 }, { -1, 1 }, { 1, 1 } },
-		[5] = { { -1, -1 }, { 1, -1 }, { 0, 0 }, { -1, 1 }, { 1, 1 } },
-		[6] = { { -1, -1 }, { 1, -1 }, { -1, 0 }, { 1, 0 }, { -1, 1 }, { 1, 1 } },
-	}
-	local FACES = {
-		{ 1, Vector3.new(0, 1, 0), Vector3.new(1, 0, 0), Vector3.new(0, 0, 1) },
-		{ 6, Vector3.new(0, -1, 0), Vector3.new(1, 0, 0), Vector3.new(0, 0, 1) },
-		{ 2, Vector3.new(0, 0, -1), Vector3.new(1, 0, 0), Vector3.new(0, 1, 0) },
-		{ 5, Vector3.new(0, 0, 1), Vector3.new(1, 0, 0), Vector3.new(0, 1, 0) },
-		{ 3, Vector3.new(1, 0, 0), Vector3.new(0, 0, 1), Vector3.new(0, 1, 0) },
-		{ 4, Vector3.new(-1, 0, 0), Vector3.new(0, 0, 1), Vector3.new(0, 1, 0) },
-	}
-	local pipColors = { Color3.fromRGB(255, 70, 160), Color3.fromRGB(80, 180, 255), Color3.fromRGB(170, 90, 255) }
-	for index, face in FACES do
-		local count, normal, u, v = face[1], face[2], face[3], face[4]
-		for _, pip in PIPS[count] do
-			local offset = normal * (size / 2) + u * (pip[1] * 2) + v * (pip[2] * 2)
-			BuildUtil.Part({
-				Name = "Pip",
-				Shape = Enum.PartType.Ball,
-				Size = Vector3.one * 1.5,
-				CFrame = CFrame.new(position + offset),
-				Color = pipColors[index % #pipColors + 1],
-				Material = Enum.Material.Neon,
-				CanCollide = false,
-			}, model)
-		end
-	end
-	model.PrimaryPart = body
-	-- Нахил, щоб було видно три грані
-	model:PivotTo(CFrame.new(position) * CFrame.Angles(math.rad(35), math.rad(45), 0))
-	model:SetAttribute("SpinSpeed", 25)
-	model:SetAttribute("BobHeight", 1.2)
-	CollectionService:AddTag(model, BuildUtil.SPIN_TAG)
-	model.Parent = parent
-	return model
-end
-
-local function buildLobby()
-	local lobby = Instance.new("Model")
-	lobby.Name = "Lobby"
-	local rng = Random.new(2024)
-
-	-- Стандартний SpawnLocation шаблону Baseplate накладався б на підлогу лобі
-	local templateSpawn = workspace:FindFirstChild("SpawnLocation")
-	if templateSpawn and templateSpawn:IsA("SpawnLocation") then
-		templateSpawn:Destroy()
-	end
-
-	-- Земля лобі. Сіру Baseplate шаблону перефарбовуємо й розширюємо (прибираємо текстуру-сітку),
-	-- інакше ліс і гори довкола висіли б над порожнечею.
-	local ground = workspace:FindFirstChild("Baseplate")
-	if ground and ground:IsA("BasePart") then
-		for _, child in ground:GetChildren() do
-			if child:IsA("Texture") or child:IsA("Decal") then
-				child:Destroy()
-			end
-		end
-	else
-		ground = Instance.new("Part")
-		ground.Name = "Ground"
-		ground.Anchored = true
-		ground.Parent = lobby
-	end
-	ground.Size = Vector3.new(1400, 2, 1400)
-	ground.CFrame = CFrame.new(0, -1, 0)
-	ground.Color = Color3.fromRGB(98, 182, 88)
-	ground.Material = Enum.Material.Grass
-	ground.TopSurface = Enum.SurfaceType.Smooth
-
-	-- Кругла площа: сходинка, мармур, неонове кільце, мозаїка-зірка до ділянок
-	BuildUtil.Disc(lobby, CFrame.new(0, 0.5, 0), PLAZA_RADIUS * 2 + 6, 0.5, Color3.fromRGB(165, 150, 200), Enum.Material.Slate, { Name = "PlazaStep" })
-	BuildUtil.Disc(lobby, CFrame.new(0, 1, 0), PLAZA_RADIUS * 2, 1, Color3.fromRGB(226, 218, 244), Enum.Material.Marble, { Name = "Floor" })
-	BuildUtil.Disc(lobby, CFrame.new(0, 1.04, 0), PLAZA_RADIUS * 2 - 5, 0.04, Color3.fromRGB(255, 110, 200), Enum.Material.Neon, { Name = "RingGlow", CanCollide = false })
-	BuildUtil.Disc(lobby, CFrame.new(0, 1.06, 0), PLAZA_RADIUS * 2 - 6.2, 0.06, Color3.fromRGB(214, 204, 240), Enum.Material.Marble, { Name = "InnerFloor", CanCollide = false })
-	for i = 1, PLOT_COUNT do
-		local angle = math.rad((i - 1) * 360 / PLOT_COUNT)
-		local direction = Vector3.new(math.cos(angle), 0, math.sin(angle))
-		local middle = direction * (PLAZA_RADIUS / 2 + 7) + Vector3.new(0, 1.08, 0)
-		BuildUtil.Part({
-			Name = "Mosaic",
-			Size = Vector3.new(4, 0.04, PLAZA_RADIUS - 16),
-			CFrame = CFrame.lookAt(middle, middle + direction),
-			Color = PLOT_ACCENTS[i]:Lerp(Color3.new(1, 1, 1), 0.45),
-			Material = Enum.Material.Marble,
-			CanCollide = false,
-		}, lobby)
-	end
-	BuildUtil.Disc(lobby, CFrame.new(0, 1.1, 0), 30, 0.1, Color3.fromRGB(80, 200, 255), Enum.Material.Neon, { Name = "CenterGlow", CanCollide = false })
-	BuildUtil.Disc(lobby, CFrame.new(0, 1.12, 0), 28.8, 0.1, Color3.fromRGB(205, 190, 240), Enum.Material.Marble, { Name = "CenterFloor", CanCollide = false })
-
-	-- Фонтан: чаша, вода, постамент і кубик над ним
-	BuildUtil.Column(lobby, CFrame.new(0, 1, 0), 22, 2.2, Color3.fromRGB(250, 246, 255), Enum.Material.Marble, { Name = "FountainRim" })
-	BuildUtil.Disc(lobby, CFrame.new(0, 3.25, 0), 19.6, 0.3, Color3.fromRGB(90, 190, 255), Enum.Material.Glass, { Name = "Water", Transparency = 0.2 })
-	BuildUtil.Column(lobby, CFrame.new(0, 3, 0), 7, 1.2, Color3.fromRGB(165, 150, 200), Enum.Material.Slate, { Name = "PedestalBase" })
-	BuildUtil.Column(lobby, CFrame.new(0, 4.2, 0), 4.6, 4.4, Color3.fromRGB(250, 246, 255), Enum.Material.Marble, { Name = "Pedestal" })
-	BuildUtil.Disc(lobby, CFrame.new(0, 8.8, 0), 5.6, 0.2, Color3.fromRGB(255, 110, 200), Enum.Material.Neon, { Name = "PedestalGlow", CanCollide = false })
-	BuildUtil.Ambient(lobby, CFrame.new(0, 4.5, 0), Vector3.new(14, 1, 14), {
-		Color = Color3.fromRGB(170, 225, 255),
-		Rate = 25,
-		Size = 0.35,
-		Speed = 5,
-		Lifetime = 1.2,
-		Acceleration = Vector3.new(0, -12, 0),
-		LightEmission = 0.3,
-	})
-	buildDice(lobby, Vector3.new(0, 16, 0))
-	BuildUtil.Ambient(lobby, CFrame.new(0, 16, 0), Vector3.new(16, 12, 16), {
-		Color = Color3.fromRGB(255, 200, 240),
-		Rate = 6,
-		Size = 0.3,
-		Speed = 0.5,
-		Lifetime = 3,
-		LightEmission = 1,
-	})
-
-	-- Точка появи на постаменті (одразу після появи гравця переносить на його базу)
-	local spawn = Instance.new("SpawnLocation")
-	spawn.Name = "LobbySpawn"
-	spawn.Anchored = true
-	spawn.Size = Vector3.new(3.2, 0.4, 3.2)
-	spawn.CFrame = CFrame.new(0, 8.8, 0)
-	spawn.Transparency = 1
-	spawn.Duration = 0
-	spawn.Parent = lobby
-
-	-- Доріжки від площі до кожної ділянки, з бордюрами й ліхтарями
-	local pathStart = PLAZA_RADIUS - 1
-	local pathEnd = PLOT_RADIUS - PLOT_SIZE / 2 + 1
-	local pathLength = pathEnd - pathStart
-	for i = 1, PLOT_COUNT do
-		local angle = math.rad((i - 1) * 360 / PLOT_COUNT)
-		local direction = Vector3.new(math.cos(angle), 0, math.sin(angle))
-		local middle = direction * (pathStart + pathLength / 2) + Vector3.new(0, 0.4, 0)
-		local pathCFrame = CFrame.lookAt(middle, middle + direction)
-		BuildUtil.Part({
-			Name = "Path" .. i,
-			Size = Vector3.new(10, 0.8, pathLength),
-			CFrame = pathCFrame,
-			Color = Color3.fromRGB(222, 208, 182),
-			Material = Enum.Material.Cobblestone,
-		}, lobby)
-		for _, side in { -1, 1 } do
-			BuildUtil.Part({
-				Name = "PathEdge",
-				Size = Vector3.new(0.8, 0.9, pathLength),
-				CFrame = pathCFrame * CFrame.new(side * 5.4, 0.05, 0),
-				Color = Color3.fromRGB(165, 150, 200),
-				Material = Enum.Material.Slate,
-			}, lobby)
-			-- Ліхтарі обабіч доріжки
-			for _, distance in { pathStart + 4, pathStart + pathLength * 0.55 } do
-				local lampPosition = direction * distance + pathCFrame.RightVector * side * 7.5
-				BuildUtil.Lamp(lobby, lampPosition, PLOT_ACCENTS[i], 9)
-			end
-		end
-	end
-
-	-- Між доріжками: сакури, кущі й клумби
-	for i = 1, PLOT_COUNT do
-		local angle = math.rad((i - 0.5) * 360 / PLOT_COUNT)
-		local direction = Vector3.new(math.cos(angle), 0, math.sin(angle))
-		local side = Vector3.new(-direction.Z, 0, direction.X)
-		local treePosition = direction * 64
-		BuildUtil.Tree(lobby, treePosition, if i % 2 == 0 then "sakura" else "round", 1.25, rng)
-		BuildUtil.Flowers(lobby, treePosition, 9, 26, rng)
-		BuildUtil.Bush(lobby, direction * 50 + side * 9, nil, 1.1)
-		BuildUtil.Bush(lobby, direction * 50 - side * 9, nil, 1.1)
-		BuildUtil.Bush(lobby, direction * 80, Color3.fromRGB(85, 165, 70), 1.3)
-	end
-
-	-- Портали у світи стоять на площі між доріжками. Атрибут WorldId шукає WorldService.
-	for index, worldId in WorldConfig.Order do
-		local world = WorldConfig.Worlds[worldId]
-		local angle = math.rad((index - 0.5) * 360 / PLOT_COUNT)
-		local position = Vector3.new(math.cos(angle), 0, math.sin(angle)) * (PLAZA_RADIUS - 10) + Vector3.new(0, 1, 0)
-		local subtitle = if world.available then "▶ Вхід" else "Скоро"
-		local _, field = BuildUtil.Portal(lobby, CFrame.lookAt(position, Vector3.new(0, 1, 0)), world.displayName, subtitle, world.color, not world.available)
-		field:SetAttribute("WorldId", worldId)
-	end
-
-	-- Ліс навколо ділянок і гори на горизонті
-	local styles = { "round", "round", "pine", "sakura", "autumn" }
-	for _ = 1, 70 do
-		local angle = rng:NextNumber(0, math.pi * 2)
-		local radius = rng:NextNumber(200, 400)
-		BuildUtil.Tree(lobby, Vector3.new(math.cos(angle) * radius, 0, math.sin(angle) * radius), styles[rng:NextInteger(1, #styles)], rng:NextNumber(1.2, 2), rng)
-	end
-	for i = 1, 22 do
-		local angle = math.rad(i * 360 / 22 + rng:NextNumber(-6, 6))
-		local radius = rng:NextNumber(560, 640)
-		BuildUtil.Mountain(lobby, Vector3.new(math.cos(angle) * radius, 0, math.sin(angle) * radius), rng:NextNumber(110, 190), Color3.fromRGB(110, 135, 120), Color3.fromRGB(245, 248, 255), rng)
-	end
-
-	-- Іскорки над площею
-	BuildUtil.Ambient(lobby, CFrame.new(0, 12, 0), Vector3.new(PLAZA_RADIUS * 2, 16, PLAZA_RADIUS * 2), {
-		Color = Color3.fromRGB(255, 240, 170),
-		Rate = 8,
-		Size = 0.25,
-		Speed = 0.4,
-		Lifetime = 4,
-		LightEmission = 1,
-	})
-
-	lobby.Parent = workspace
-end
-
-local function buildPlot(index, parent)
-	local angle = math.rad((index - 1) * 360 / PLOT_COUNT)
-	local position = Vector3.new(math.cos(angle) * PLOT_RADIUS, 0.5, math.sin(angle) * PLOT_RADIUS)
-	-- Передня сторона ділянки (-Z) дивиться на лобі
-	local center = CFrame.lookAt(position, Vector3.new(0, 0.5, 0))
-	local accent = PLOT_ACCENTS[(index - 1) % #PLOT_ACCENTS + 1]
-	local half = PLOT_SIZE / 2
-
-	local model = Instance.new("Model")
-	model.Name = "Plot" .. index
-	model:SetAttribute("PlotIndex", index)
-	model:SetAttribute("OwnerUserId", 0)
-
-	BuildUtil.Part({
-		Name = "Floor",
-		Size = Vector3.new(PLOT_SIZE, 1, PLOT_SIZE),
-		CFrame = center,
-		Color = Color3.fromRGB(104, 192, 98),
-		Material = Enum.Material.Grass,
-	}, model)
-	BuildUtil.Part({
-		Name = "Border",
-		Size = Vector3.new(PLOT_SIZE + 2, 0.9, PLOT_SIZE + 2),
-		CFrame = center * CFrame.new(0, -0.1, 0),
-		Color = Color3.fromRGB(215, 205, 232),
-		Material = Enum.Material.Slate,
-	}, model)
-
-	-- Живопліт по периметру з проходом спереду
-	local hedgeColor = Color3.fromRGB(58, 140, 68)
-	local hedgeHeight = 3.4
-	local hedgeOffset = half + 0.2
-	local function hedge(size, offset)
-		BuildUtil.Part({ Name = "Hedge", Size = size, CFrame = center * CFrame.new(offset.X, 0.5 + hedgeHeight / 2, offset.Z), Color = hedgeColor, Material = Enum.Material.Grass }, model)
-	end
-	hedge(Vector3.new(PLOT_SIZE + 1.6, hedgeHeight, 1.6), Vector3.new(0, 0, hedgeOffset))
-	hedge(Vector3.new(1.6, hedgeHeight, PLOT_SIZE + 1.6), Vector3.new(hedgeOffset, 0, 0))
-	hedge(Vector3.new(1.6, hedgeHeight, PLOT_SIZE + 1.6), Vector3.new(-hedgeOffset, 0, 0))
-	local gap = 11
-	local frontLength = half - gap + 0.8
-	hedge(Vector3.new(frontLength, hedgeHeight, 1.6), Vector3.new(gap + frontLength / 2, 0, -hedgeOffset))
-	hedge(Vector3.new(frontLength, hedgeHeight, 1.6), Vector3.new(-gap - frontLength / 2, 0, -hedgeOffset))
-	for _, corner in { Vector3.new(1, 0, 1), Vector3.new(-1, 0, 1), Vector3.new(1, 0, -1), Vector3.new(-1, 0, -1) } do
-		BuildUtil.Bush(model, (center * CFrame.new(corner.X * hedgeOffset, 2.6, corner.Z * hedgeOffset)).Position, hedgeColor, 1.1)
-	end
-
-	-- Арка входу з табличкою власника
-	local white = Color3.fromRGB(250, 246, 255)
-	for _, x in { -gap + 0.5, gap - 0.5 } do
-		BuildUtil.Part({ Name = "GatePillar", Size = Vector3.new(2.4, 13, 2.4), CFrame = center * CFrame.new(x, 7, -hedgeOffset), Color = white, Material = Enum.Material.Marble }, model)
-		BuildUtil.Part({ Name = "GateStripe", Size = Vector3.new(2.55, 0.5, 2.55), CFrame = center * CFrame.new(x, 4, -hedgeOffset), Color = accent, Material = Enum.Material.Neon }, model)
-		BuildUtil.Part({ Name = "GateCap", Shape = Enum.PartType.Ball, Size = Vector3.one * 2.4, CFrame = center * CFrame.new(x, 14.2, -hedgeOffset), Color = accent, Material = Enum.Material.Neon }, model)
-	end
-	BuildUtil.Part({ Name = "GateBeam", Size = Vector3.new(gap * 2 + 2, 1.4, 2.8), CFrame = center * CFrame.new(0, 12.6, -hedgeOffset), Color = accent:Lerp(Color3.new(0, 0, 0), 0.15), Material = Enum.Material.SmoothPlastic }, model)
-	local sign = BuildUtil.Part({
-		Name = "Sign",
-		Size = Vector3.new(17, 3.6, 0.8),
-		CFrame = center * CFrame.new(0, 15.3, -hedgeOffset),
-		Color = Color3.fromRGB(60, 42, 100),
-		Material = Enum.Material.SmoothPlastic,
-	}, model)
-	local signLabel = BuildUtil.SurfaceText(sign, Enum.NormalId.Front, "Вільна ділянка")
-	BuildUtil.Part({ Name = "SignTrim", Size = Vector3.new(17.6, 4.2, 0.6), CFrame = center * CFrame.new(0, 15.3, -hedgeOffset + 0.2), Color = accent, Material = Enum.Material.Neon }, model)
-
-	-- Доріжка від входу до слотів і дерев'яний настил під героями
-	BuildUtil.Part({ Name = "Walkway", Size = Vector3.new(10, 0.2, half - 2), CFrame = center * CFrame.new(0, 0.6, -half / 2 - 1), Color = Color3.fromRGB(228, 216, 196), Material = Enum.Material.Cobblestone }, model)
-	local deckFront, deckBack = -1.5, half - 0.6
-	BuildUtil.Part({
-		Name = "Deck",
-		Size = Vector3.new(SLOT_SPACING * SLOT_COLUMNS - 1, 0.24, deckBack - deckFront),
-		CFrame = center * CFrame.new(0, 0.62, (deckFront + deckBack) / 2),
-		Color = Color3.fromRGB(222, 190, 150),
-		Material = Enum.Material.WoodPlanks,
-	}, model)
-
-	-- Подвір'я: дерева з квітами, ліхтарі, кущі, лавки
-	local treeStyle = if index % 2 == 0 then "sakura" else "round"
-	for _, x in { -1, 1 } do
-		local treePosition = (center * CFrame.new(x * 24, 0.5, -20)).Position
-		BuildUtil.Tree(model, treePosition, treeStyle, 1.1)
-		BuildUtil.Flowers(model, treePosition, 6, 16)
-		for _, z in { -30, -6 } do
-			BuildUtil.Lamp(model, (center * CFrame.new(x * 7.5, 0.5, z)).Position, accent, 8)
-		end
-		BuildUtil.Bush(model, (center * CFrame.new(x * 31, 0.5, -31)).Position, nil, 1)
-		BuildUtil.Bench(model, (center * CFrame.new(x * 13, 0.5, -13)).Position, (center * CFrame.new(0, 0.5, -13)).Position)
-	end
-
-	local slotsFolder = Instance.new("Folder")
-	slotsFolder.Name = "Slots"
-	slotsFolder.Parent = model
-	local slotParts = {}
-	for i = 1, EconomyConfig.MaxSlots do
-		local row = math.floor((i - 1) / SLOT_COLUMNS)
-		local column = (i - 1) % SLOT_COLUMNS
-		local x = (column - (SLOT_COLUMNS - 1) / 2) * SLOT_SPACING
-		local z = 4 + row * SLOT_SPACING
-		BuildUtil.Part({
-			Name = "SlotFrame",
-			Size = SLOT_SIZE + Vector3.new(1.4, -0.2, 1.4),
-			CFrame = center * CFrame.new(x, 0.5 + 0.38, z),
-			Color = Color3.fromRGB(70, 58, 105),
-			Material = Enum.Material.Slate,
-		}, slotsFolder)
-		local slot = BuildUtil.Part({
-			Name = "Slot" .. i,
-			Size = SLOT_SIZE,
-			CFrame = center * CFrame.new(x, 0.5 + SLOT_SIZE.Y / 2 + 0.1, z),
-			Color = COLOR_SLOT_LOCKED,
-			Material = Enum.Material.SmoothPlastic,
-		}, slotsFolder)
-		slot:SetAttribute("SlotIndex", i)
-		BuildUtil.SurfaceText(slot, Enum.NormalId.Top, "")
-		slotParts[i] = slot
-	end
-
-	local heroesFolder = Instance.new("Folder")
-	heroesFolder.Name = "Heroes"
-	heroesFolder.Parent = model
-
-	model.Parent = parent
-
-	return {
-		index = index,
-		model = model,
-		-- Точка появи біля входу; гравець дивиться всередину бази
-		spawnCFrame = center * CFrame.new(0, 4, -half + 9) * CFrame.Angles(0, math.pi, 0),
-		signLabel = signLabel,
-		slotParts = slotParts,
-		heroesFolder = heroesFolder,
-		owner = nil,
-		characterConnection = nil,
-	}
-end
-
-function PlotService.Init()
-	buildLobby()
-	local folder = Instance.new("Folder")
-	folder.Name = "Plots"
-	folder.Parent = workspace
-	for i = 1, PLOT_COUNT do
-		plots[i] = buildPlot(i, folder)
-	end
-end
-
-function PlotService.GetPlot(player)
-	return playerPlot[player]
-end
-
--- Переносить персонажа на його базу (після появи, смерті або з порталу "Lobby").
-function PlotService.TeleportHome(player)
-	local plot = playerPlot[player]
-	local character = player.Character
-	if plot and character and character.Parent then
-		character:PivotTo(plot.spawnCFrame)
-	end
-end
-
-local function onCharacterAdded(player, character, plot)
-	local root = character:WaitForChild("HumanoidRootPart", 10)
-	if not root then
-		return
-	end
-	task.wait(0.1) -- даємо персонажу повністю з'явитися
-	if playerPlot[player] == plot and character.Parent then
-		character:PivotTo(plot.spawnCFrame)
-	end
-end
-
--- Видає гравцю вільну ділянку. false — вільних немає.
-function PlotService.AssignPlot(player)
-	for _, plot in plots do
-		if plot.owner == nil then
-			plot.owner = player
-			playerPlot[player] = plot
-			plot.model:SetAttribute("OwnerUserId", player.UserId)
-			plot.signLabel.Text = "База " .. player.DisplayName
-			plot.characterConnection = player.CharacterAdded:Connect(function(character)
-				onCharacterAdded(player, character, plot)
-			end)
-			if player.Character then
-				task.spawn(onCharacterAdded, player, player.Character, plot)
-			end
-			PlotService.RefreshPlot(player)
-			return true
-		end
-	end
-	return false
-end
-
-function PlotService.ReleasePlot(player)
-	local plot = playerPlot[player]
-	if not plot then
-		return
-	end
-	if plot.characterConnection then
-		plot.characterConnection:Disconnect()
-		plot.characterConnection = nil
-	end
-	plot.heroesFolder:ClearAllChildren()
-	plot.owner = nil
-	plot.model:SetAttribute("OwnerUserId", 0)
-	plot.signLabel.Text = "Вільна ділянка"
-	for _, slot in plot.slotParts do
-		slot.Color = COLOR_SLOT_LOCKED
-		slot.Gui.Label.Text = ""
-	end
-	playerPlot[player] = nil
-end
-
--- Перебудовує слоти та моделі героїв за поточними даними гравця.
-function PlotService.RefreshPlot(player)
-	local plot = playerPlot[player]
-	if not plot then
-		return
-	end
-	local data = DataService.Get(player)
-	local slotCount = if data then data.slotCount else EconomyConfig.StartSlots
-
-	plot.heroesFolder:ClearAllChildren()
-	for i, slot in plot.slotParts do
-		local unlocked = i <= slotCount
-		slot.Color = if unlocked then COLOR_SLOT_OPEN else COLOR_SLOT_LOCKED
-		slot.Material = if unlocked then Enum.Material.SmoothPlastic else Enum.Material.Slate
-		slot.Gui.Label.Text = if unlocked then "+" else "🔒"
-
-		if data and unlocked then
-			local uid = data.slots[i]
-			local hero = uid ~= "" and data.heroes[uid]
-			local heroDef = hero and HeroConfig.Heroes[hero.id]
-			if heroDef then
-				slot.Gui.Label.Text = ""
-				local income = GameMath.GetHeroIncome(heroDef, hero.level, data.incomeLevel, hero.awakened)
-				local heroModel = HeroModelBuilder.Build(heroDef, hero.level, "+" .. GameMath.FormatNumber(income) .. "/s", hero.awakened)
-				-- Герой стоїть на слоті й дивиться до входу в базу
-				heroModel:PivotTo(slot.CFrame * CFrame.new(0, SLOT_SIZE.Y / 2, 0))
-				heroModel.Parent = plot.heroesFolder
-			end
-		end
-	end
-end
-
-return PlotService
-]=])
-
-setSource({ "ServerScriptService", "Services", "BuildUtil" }, "ModuleScript", [=[
--- BuildUtil: спільні функції для будівництва карти з простих Part.
--- Усі "декорації" (дерева, ліхтарі, скелі, гори) зібрані тут, щоб лобі й світи
--- виглядали в одному стилі.
-
-local CollectionService = game:GetService("CollectionService")
-
-local BuildUtil = {}
-
--- Тег частинок оточення (пелюстки, іскри): клієнт вимикає їх у налаштуваннях "Ефекти"
-BuildUtil.AMBIENT_TAG = "AmbientFx"
--- Тег моделей, які клієнт плавно обертає (атрибути SpinSpeed — град/с, BobHeight — студів)
-BuildUtil.SPIN_TAG = "Spin"
-
-local FLAT = CFrame.Angles(0, 0, math.rad(90)) -- циліндр "лежить": вісь X → вертикаль
-
--- Створює закріплений Part з властивостями props і кладе його в parent.
-function BuildUtil.Part(props, parent)
-	local part = Instance.new(props.ClassName or "Part")
-	part.Anchored = true
-	part.TopSurface = Enum.SurfaceType.Smooth
-	part.BottomSurface = Enum.SurfaceType.Smooth
-	for key, value in props do
-		if key ~= "ClassName" then
-			part[key] = value
-		end
-	end
-	part.Parent = parent
-	return part
-end
-
--- Пласкі круглі "диски" (підлога, килимки, клумби). cframe — центр верхньої грані.
-function BuildUtil.Disc(parent, cframe, diameter, height, color, material, props)
-	local data = {
-		Name = "Disc",
-		Shape = Enum.PartType.Cylinder,
-		Size = Vector3.new(height, diameter, diameter),
-		CFrame = cframe * CFrame.new(0, -height / 2, 0) * FLAT,
-		Color = color,
-		Material = material or Enum.Material.SmoothPlastic,
-	}
-	for key, value in props or {} do
-		data[key] = value
-	end
-	return BuildUtil.Part(data, parent)
-end
-
--- Вертикальний циліндр (колони, стовбури, вежі). cframe — центр основи.
-function BuildUtil.Column(parent, cframe, diameter, height, color, material, props)
-	local data = {
-		Name = "Column",
-		Shape = Enum.PartType.Cylinder,
-		Size = Vector3.new(height, diameter, diameter),
-		CFrame = cframe * CFrame.new(0, height / 2, 0) * FLAT,
-		Color = color,
-		Material = material or Enum.Material.SmoothPlastic,
-	}
-	for key, value in props or {} do
-		data[key] = value
-	end
-	return BuildUtil.Part(data, parent)
-end
-
--- Напис на грані деталі. Повертає TextLabel, щоб потім змінювати текст.
-function BuildUtil.SurfaceText(part, face, text, textColor)
-	local gui = Instance.new("SurfaceGui")
-	gui.Name = "Gui"
-	gui.Face = face
-	gui.SizingMode = Enum.SurfaceGuiSizingMode.PixelsPerStud
-	gui.PixelsPerStud = 25
-	gui.Parent = part
-	local label = Instance.new("TextLabel")
-	label.Name = "Label"
-	label.Size = UDim2.fromScale(1, 1)
-	label.BackgroundTransparency = 1
-	label.Font = Enum.Font.FredokaOne
-	label.TextScaled = true
-	label.TextColor3 = textColor or Color3.new(1, 1, 1)
-	label.TextStrokeTransparency = 0.5
-	label.Text = text
-	label.Parent = gui
-	return label
-end
-
-function BuildUtil.Light(part, color, range, brightness)
-	local light = Instance.new("PointLight")
-	light.Color = color
-	light.Range = range or 16
-	light.Brightness = brightness or 1
-	light.Parent = part
-	return light
-end
-
--- Частинки оточення в об'ємі коробки (пелюстки, іскри, вогники).
--- props: Color, Rate, Size, Speed, Lifetime, Direction ("Top"/"Bottom"), Acceleration, LightEmission
-function BuildUtil.Ambient(parent, cframe, size, props)
-	local box = BuildUtil.Part({
-		Name = "AmbientFx",
-		Size = size,
-		CFrame = cframe,
-		Transparency = 1,
-		CanCollide = false,
-		CanQuery = false,
-		CanTouch = false,
-	}, parent)
-	local emitter = Instance.new("ParticleEmitter")
-	emitter.Shape = Enum.ParticleEmitterShape.Box
-	emitter.ShapeStyle = Enum.ParticleEmitterShapeStyle.Volume
-	emitter.Color = ColorSequence.new(props.Color)
-	emitter.Rate = props.Rate or 10
-	emitter.Size = NumberSequence.new(props.Size or 0.4)
-	emitter.Speed = NumberRange.new(props.Speed or 1, (props.Speed or 1) * 2)
-	emitter.Lifetime = NumberRange.new(props.Lifetime or 6, (props.Lifetime or 6) * 1.5)
-	emitter.EmissionDirection = props.Direction or Enum.NormalId.Top
-	emitter.Acceleration = props.Acceleration or Vector3.new(0, 0, 0)
-	emitter.SpreadAngle = Vector2.new(35, 35)
-	emitter.Rotation = NumberRange.new(0, 360)
-	emitter.RotSpeed = NumberRange.new(-60, 60)
-	emitter.LightEmission = props.LightEmission or 0.5
-	emitter.Transparency = NumberSequence.new({
-		NumberSequenceKeypoint.new(0, 1),
-		NumberSequenceKeypoint.new(0.15, 0.1),
-		NumberSequenceKeypoint.new(0.85, 0.2),
-		NumberSequenceKeypoint.new(1, 1),
-	})
-	emitter.Parent = box
-	CollectionService:AddTag(emitter, BuildUtil.AMBIENT_TAG)
-	return box
-end
-
--- Дерево з кількох куль-крон. style: "round" (зелене), "sakura" (рожеве), "autumn", "pine"
-local TREE_COLORS = {
-	round = { Color3.fromRGB(80, 170, 70), Color3.fromRGB(105, 195, 85), Color3.fromRGB(65, 145, 60) },
-	sakura = { Color3.fromRGB(255, 175, 210), Color3.fromRGB(255, 200, 225), Color3.fromRGB(240, 145, 190) },
-	autumn = { Color3.fromRGB(240, 150, 60), Color3.fromRGB(250, 190, 80), Color3.fromRGB(215, 100, 55) },
-	pine = { Color3.fromRGB(45, 120, 75), Color3.fromRGB(60, 140, 85), Color3.fromRGB(35, 100, 65) },
-}
-function BuildUtil.Tree(parent, position, style, scale, rng)
-	rng = rng or Random.new(math.floor(position.X * 7 + position.Z * 13))
-	scale = scale or 1
-	local colors = TREE_COLORS[style] or TREE_COLORS.round
-	local model = Instance.new("Model")
-	model.Name = "Tree"
-	local trunkHeight = 7 * scale
-	local trunkColor = Color3.fromRGB(110, 75, 50)
-	BuildUtil.Column(model, CFrame.new(position), 1.8 * scale, trunkHeight, trunkColor, Enum.Material.Wood, { Name = "Trunk" })
-	if style == "pine" then
-		-- Ялинка: ярусами, що звужуються догори
-		for i = 0, 3 do
-			local size = (9 - i * 2) * scale
-			BuildUtil.Part({
-				Name = "Leaves",
-				Size = Vector3.new(size, 2.6 * scale, size),
-				CFrame = CFrame.new(position + Vector3.new(0, trunkHeight * 0.6 + i * 2.4 * scale, 0)) * CFrame.Angles(0, math.rad(45 * i), 0),
-				Color = colors[i % 3 + 1],
-				Material = Enum.Material.Grass,
-				CanCollide = false,
-			}, model)
-		end
-	else
-		local top = position + Vector3.new(0, trunkHeight, 0)
-		BuildUtil.Part({ Name = "Leaves", Shape = Enum.PartType.Ball, Size = Vector3.one * 9 * scale, CFrame = CFrame.new(top + Vector3.new(0, 2 * scale, 0)), Color = colors[1], Material = Enum.Material.Grass, CanCollide = false }, model)
-		for i = 1, 3 do
-			local angle = rng:NextNumber(0, math.pi * 2) + i * 2.1
-			local offset = Vector3.new(math.cos(angle) * 3.4, rng:NextNumber(-0.5, 2), math.sin(angle) * 3.4) * scale
-			local size = rng:NextNumber(5.5, 7) * scale
-			BuildUtil.Part({ Name = "Leaves", Shape = Enum.PartType.Ball, Size = Vector3.one * size, CFrame = CFrame.new(top + offset + Vector3.new(0, 1 * scale, 0)), Color = colors[i % 3 + 1], Material = Enum.Material.Grass, CanCollide = false }, model)
-		end
-	end
-	model.Parent = parent
-	return model
-end
-
--- Кущ із 2–3 куль
-function BuildUtil.Bush(parent, position, color, scale)
-	scale = scale or 1
-	color = color or Color3.fromRGB(70, 155, 65)
-	for i, offset in { Vector3.new(0, 1.2, 0), Vector3.new(1.5, 0.9, 0.6), Vector3.new(-1.3, 0.8, -0.5) } do
-		BuildUtil.Part({
-			Name = "Bush",
-			Shape = Enum.PartType.Ball,
-			Size = Vector3.one * (if i == 1 then 3.4 else 2.6) * scale,
-			CFrame = CFrame.new(position + offset * scale),
-			Color = if i == 2 then color:Lerp(Color3.new(1, 1, 1), 0.12) else color,
-			Material = Enum.Material.Grass,
-			CanCollide = false,
-		}, parent)
-	end
-end
-
--- Квіти навколо точки: маленькі яскраві кульки на стеблах-травинках
-local FLOWER_COLORS = { Color3.fromRGB(255, 120, 170), Color3.fromRGB(255, 220, 90), Color3.fromRGB(150, 130, 255), Color3.fromRGB(255, 255, 255), Color3.fromRGB(255, 150, 80) }
-function BuildUtil.Flowers(parent, position, radius, count, rng)
-	rng = rng or Random.new(math.floor(position.X * 3 + position.Z * 5))
-	for _ = 1, count do
-		local angle = rng:NextNumber(0, math.pi * 2)
-		local distance = math.sqrt(rng:NextNumber(0, 1)) * radius
-		local p = position + Vector3.new(math.cos(angle) * distance, 0.45, math.sin(angle) * distance)
-		BuildUtil.Part({
-			Name = "Flower",
-			Shape = Enum.PartType.Ball,
-			Size = Vector3.one * 0.9,
-			CFrame = CFrame.new(p),
-			Color = FLOWER_COLORS[rng:NextInteger(1, #FLOWER_COLORS)],
-			Material = Enum.Material.SmoothPlastic,
-			CanCollide = false,
-			CanQuery = false,
-		}, parent)
-	end
-end
-
--- Скеля з кількох повернутих блоків. size — приблизний розмір.
-function BuildUtil.Rock(parent, position, size, color, rng)
-	rng = rng or Random.new(math.floor(position.X * 11 + position.Z * 17))
-	color = color or Color3.fromRGB(130, 130, 140)
-	for i = 1, 3 do
-		local s = size * (if i == 1 then 1 else rng:NextNumber(0.5, 0.75))
-		local offset = if i == 1 then Vector3.zero else Vector3.new(rng:NextNumber(-0.5, 0.5) * size, 0, rng:NextNumber(-0.5, 0.5) * size)
-		BuildUtil.Part({
-			Name = "Rock",
-			Size = Vector3.new(s, s * 0.75, s * rng:NextNumber(0.8, 1.1)),
-			CFrame = CFrame.new(position + offset + Vector3.new(0, s * 0.2, 0)) * CFrame.Angles(rng:NextNumber(-0.4, 0.4), rng:NextNumber(0, math.pi), rng:NextNumber(-0.4, 0.4)),
-			Color = color:Lerp(Color3.new(1, 1, 1), (i - 1) * 0.06),
-			Material = Enum.Material.Slate,
-		}, parent)
-	end
-end
-
--- Хребет-"дах" з двох клинів: cframe — центр основи, width — уздовж хребта, depth — поперек
-local function ridge(parent, cframe, width, height, depth, color, material)
-	for _, side in { -1, 1 } do
-		BuildUtil.Part({
-			ClassName = "WedgePart",
-			Name = "Ridge",
-			Size = Vector3.new(width, height, depth / 2),
-			-- Висока грань клина — ззаду (+Z), тож розвертаємо обидва клини високою гранню до центру
-			CFrame = cframe * CFrame.new(0, height / 2, side * depth / 4) * CFrame.Angles(0, if side < 0 then 0 else math.pi, 0),
-			Color = color,
-			Material = material,
-			CanCollide = false,
-			CanQuery = false,
-		}, parent)
-	end
-end
-BuildUtil.Ridge = ridge
-
--- Низькополігональна гора: два схрещені хребти + менша снігова верхівка
-function BuildUtil.Mountain(parent, position, height, color, snowColor, rng)
-	rng = rng or Random.new(math.floor(position.X + position.Z * 3))
-	local model = Instance.new("Model")
-	model.Name = "Mountain"
-	local base = CFrame.new(position) * CFrame.Angles(0, rng:NextNumber(0, math.pi), 0)
-	local width = height * rng:NextNumber(1.3, 1.7)
-	ridge(model, base, width, height, width * 0.8, color, Enum.Material.Slate)
-	ridge(model, base * CFrame.Angles(0, math.rad(90), 0), width * 0.8, height * 0.92, width, color:Lerp(Color3.new(0, 0, 0), 0.08), Enum.Material.Slate)
-	if snowColor then
-		local k = 0.3
-		local top = base * CFrame.new(0, height * (1 - k), 0)
-		ridge(model, top, width * k + 0.4, height * k + 0.2, width * 0.8 * k + 0.4, snowColor, Enum.Material.Snow)
-		ridge(model, top * CFrame.Angles(0, math.rad(90), 0), width * 0.8 * k + 0.4, height * 0.92 * k + 0.2, width * k + 0.4, snowColor, Enum.Material.Snow)
-	end
-	model.Parent = parent
-	return model
-end
-
--- Ліхтар на стовпі. color — колір світла.
-function BuildUtil.Lamp(parent, position, color, height)
-	height = height or 10
-	local model = Instance.new("Model")
-	model.Name = "Lamp"
-	local metal = Color3.fromRGB(45, 42, 60)
-	BuildUtil.Column(model, CFrame.new(position), 1.6, 0.6, metal, Enum.Material.Metal, { Name = "Base" })
-	BuildUtil.Column(model, CFrame.new(position), 0.6, height, metal, Enum.Material.Metal, { Name = "Post" })
-	local bulb = BuildUtil.Part({
-		Name = "Bulb",
-		Shape = Enum.PartType.Ball,
-		Size = Vector3.one * 1.8,
-		CFrame = CFrame.new(position + Vector3.new(0, height + 0.6, 0)),
-		Color = color,
-		Material = Enum.Material.Neon,
-		CanCollide = false,
-	}, model)
-	BuildUtil.Part({ Name = "Cap", Size = Vector3.new(2.2, 0.4, 2.2), CFrame = CFrame.new(position + Vector3.new(0, height + 1.7, 0)), Color = metal, Material = Enum.Material.Metal }, model)
-	BuildUtil.Light(bulb, color, 18, 1.2)
-	model.Parent = parent
-	return model
-end
-
--- Лавка, повернута сидінням до точки lookAt
-function BuildUtil.Bench(parent, position, lookAt)
-	local cframe = CFrame.lookAt(position, Vector3.new(lookAt.X, position.Y, lookAt.Z))
-	local wood = Color3.fromRGB(170, 115, 70)
-	local metal = Color3.fromRGB(50, 50, 60)
-	BuildUtil.Part({ Name = "Seat", Size = Vector3.new(6, 0.4, 2), CFrame = cframe * CFrame.new(0, 1.6, 0), Color = wood, Material = Enum.Material.WoodPlanks }, parent)
-	BuildUtil.Part({ Name = "Back", Size = Vector3.new(6, 1.6, 0.3), CFrame = cframe * CFrame.new(0, 2.8, 0.9) * CFrame.Angles(math.rad(-10), 0, 0), Color = wood, Material = Enum.Material.WoodPlanks }, parent)
-	for _, x in { -2.5, 2.5 } do
-		BuildUtil.Part({ Name = "Leg", Size = Vector3.new(0.3, 1.4, 1.8), CFrame = cframe * CFrame.new(x, 0.7, 0), Color = metal, Material = Enum.Material.Metal }, parent)
-	end
-end
-
--- Нитка паперових ліхтариків між двома точками (провисає посередині)
-function BuildUtil.LanternString(parent, from, to, colors, count)
-	count = count or 6
-	local sag = Vector3.new(0, -2, 0)
-	local previous = from
-	for i = 1, count + 1 do
-		local t = i / (count + 1)
-		local point = from:Lerp(to, t) + sag * (4 * t * (1 - t))
-		local middle = (previous + point) / 2
-		BuildUtil.Part({
-			Name = "Rope",
-			Size = Vector3.new(0.15, 0.15, (point - previous).Magnitude),
-			CFrame = CFrame.lookAt(middle, point),
-			Color = Color3.fromRGB(40, 30, 30),
-			CanCollide = false,
-			CanQuery = false,
-		}, parent)
-		if i <= count then
-			local lantern = BuildUtil.Part({
-				Name = "PaperLantern",
-				Shape = Enum.PartType.Ball,
-				Size = Vector3.one * 1.4,
-				CFrame = CFrame.new(point + Vector3.new(0, -0.8, 0)),
-				Color = colors[(i - 1) % #colors + 1],
-				Material = Enum.Material.Neon,
-				CanCollide = false,
-				CanQuery = false,
-			}, parent)
-			if i % 3 == 2 then
-				BuildUtil.Light(lantern, lantern.Color, 10, 0.8)
-			end
-		end
-		previous = point
-	end
-end
-
--- Арка порталу. cframe — центр основи, передня сторона (-Z) — до гравця.
--- Повертає модель і світну площину Field (її Touched використовують для телепорту).
-function BuildUtil.Portal(parent, cframe, title, subtitle, color, inactive)
-	local model = Instance.new("Model")
-	model.Name = "Portal_" .. title
-	local stone = Color3.fromRGB(235, 228, 245)
-	local trim = Color3.fromRGB(80, 65, 120)
-	local glow = if inactive then Color3.fromRGB(120, 120, 135) else color
-
-	-- Круглий подіум із неоновим кільцем
-	BuildUtil.Disc(model, cframe * CFrame.new(0, 0.6, 0), 15, 1.2, stone, Enum.Material.Marble, { Name = "Base" })
-	BuildUtil.Disc(model, cframe * CFrame.new(0, 0.25, 0), 16, 0.3, glow, Enum.Material.Neon, { Name = "BaseGlow", CanCollide = false })
-
-	-- Колони з капітелями
-	for _, x in { -6, 6 } do
-		BuildUtil.Part({ Name = "Plinth", Size = Vector3.new(2.8, 1.2, 2.8), CFrame = cframe * CFrame.new(x, 1.8, 0), Color = trim, Material = Enum.Material.Slate }, model)
-		BuildUtil.Part({ Name = "Pillar", Size = Vector3.new(2, 11, 2), CFrame = cframe * CFrame.new(x, 7.7, 0), Color = stone, Material = Enum.Material.Marble }, model)
-		BuildUtil.Part({ Name = "Capital", Size = Vector3.new(2.8, 1, 2.8), CFrame = cframe * CFrame.new(x, 13.6, 0), Color = trim, Material = Enum.Material.Slate }, model)
-		BuildUtil.Part({ Name = "Stripe", Size = Vector3.new(2.15, 0.4, 2.15), CFrame = cframe * CFrame.new(x, 9, 0), Color = glow, Material = Enum.Material.Neon }, model)
-	end
-	-- Півколо арки з 7 сегментів
-	local radius, segments = 6, 7
-	for i = 0, segments - 1 do
-		local angle = math.pi * (i + 0.5) / segments
-		BuildUtil.Part({
-			Name = "Arch",
-			Size = Vector3.new(radius * math.pi / segments + 0.4, 1.8, 2.2),
-			CFrame = cframe * CFrame.new(-math.cos(angle) * radius, 14.1 + math.sin(angle) * radius, 0) * CFrame.Angles(0, 0, math.pi / 2 - angle),
-			Color = stone,
-			Material = Enum.Material.Marble,
-		}, model)
-	end
-	-- Кристал-замковий камінь
-	local crystal = BuildUtil.Part({
-		Name = "Crystal",
-		Size = Vector3.new(2, 2, 2),
-		CFrame = cframe * CFrame.new(0, 21.6, 0) * CFrame.Angles(math.rad(45), 0, math.rad(45)),
-		Color = glow,
-		Material = Enum.Material.Neon,
-		CanCollide = false,
-	}, model)
-	BuildUtil.Light(crystal, glow, 20, 1.5)
-
-	local field = BuildUtil.Part({
-		Name = "Field",
-		Size = Vector3.new(10, 12, 0.4),
-		CFrame = cframe * CFrame.new(0, 8.2, 0),
-		Color = glow,
-		Material = Enum.Material.Neon,
-		Transparency = if inactive then 0.6 else 0.3,
-		CanCollide = false,
-	}, model)
-	BuildUtil.SurfaceText(field, Enum.NormalId.Front, title .. "\n" .. subtitle, Color3.new(1, 1, 1))
-	if not inactive then
-		local emitter = Instance.new("ParticleEmitter")
-		emitter.Color = ColorSequence.new(color:Lerp(Color3.new(1, 1, 1), 0.4))
-		emitter.Rate = 8
-		emitter.Size = NumberSequence.new(0.35)
-		emitter.Speed = NumberRange.new(0.5, 1.5)
-		emitter.Lifetime = NumberRange.new(1.5, 2.5)
-		emitter.LightEmission = 1
-		emitter.Parent = field
-		CollectionService:AddTag(emitter, BuildUtil.AMBIENT_TAG)
-	end
-	model.Parent = parent
-	return model, field
-end
-
-return BuildUtil
-]=])
-
-setSource({ "ReplicatedStorage", "Shared", "Config", "WorldConfig" }, "ModuleScript", [=[
--- WorldConfig: світи гри.
--- available — чи можна вже потрапити у світ
--- center    — де світ збудовано (далеко від лобі, у повітрі)
--- unlock    — що потрібно, щоб потрапити у світ: { boss = id боса з EnemyConfig }
--- zones     — зони світу; requiredKills — перемог саме в цьому світі
-
-local WorldConfig = {}
-
-WorldConfig.Order = { "NinjaVillage", "PirateIsland", "DemonCity", "MagicAcademy", "SkyArena" }
-
-WorldConfig.Worlds = {
-	NinjaVillage = {
-		displayName = "Ninja Village",
-		localName = "Село ніндзя",
-		description = "Бандити, тіньові ляльки, ронін і бос Oni Warlord Kurogane.",
-		color = Color3.fromRGB(90, 230, 140),
-		available = true,
-		center = Vector3.new(1500, 200, 0),
-		-- gateZ — де стоять ворота зони (відносно центру світу).
-		zones = {
-			{ id = "Outskirts", name = "Outskirts", requiredKills = 0 },
-			{ id = "Dojo", name = "Dojo", requiredKills = 15, gateZ = 10 },
-			{ id = "OniShrine", name = "Oni Shrine", requiredKills = 40, gateZ = 62 },
-		},
-	},
-	PirateIsland = {
-		displayName = "Pirate Island",
-		localName = "Острів піратів",
-		description = "Матроси, гарматні краби, прокляті корсари й Captain Blackwake.",
-		color = Color3.fromRGB(40, 150, 255),
-		available = true,
-		center = Vector3.new(1500, 200, 1200),
-		unlock = { boss = "oni_kurogane" },
-		zones = {
-			{ id = "Beach", name = "Beach", requiredKills = 0 },
-			{ id = "SmugglersCove", name = "Smugglers' Cove", requiredKills = 20, gateZ = 10 },
-			{ id = "CaptainsDock", name = "Captain's Dock", requiredKills = 60, gateZ = 62 },
-		},
-	},
-	DemonCity = {
-		displayName = "Demon Night City",
-		localName = "Нічне місто демонів",
-		description = "Вічна ніч, неон, біси, примари та Demon Queen Noctyra.",
-		color = Color3.fromRGB(150, 60, 220),
-		available = true,
-		center = Vector3.new(1500, 200, 2400),
-		unlock = { boss = "captain_blackwake" },
-		night = true, -- клієнт вмикає нічне освітлення, поки гравець тут
-		zones = {
-			{ id = "BackAlleys", name = "Back Alleys", requiredKills = 0 },
-			{ id = "NeonMarket", name = "Neon Market", requiredKills = 30, gateZ = 10 },
-			{ id = "AbyssShrine", name = "Abyss Shrine", requiredKills = 90, gateZ = 62 },
-		},
-	},
-	MagicAcademy = {
-		displayName = "Magic Academy",
-		localName = "Академія магії",
-		description = "Скоро",
-		color = Color3.fromRGB(255, 120, 200),
-		available = false,
-	},
-	SkyArena = {
-		displayName = "Sky Arena",
-		localName = "Небесна арена",
-		description = "Скоро",
-		color = Color3.fromRGB(255, 230, 120),
-		available = false,
-	},
-}
-
-return WorldConfig
-]=])
-
-setSource({ "StarterPlayer", "StarterPlayerScripts", "Client", "WorldEffects" }, "ModuleScript", [=[
--- WorldEffects: локальні ефекти світу на екрані цього гравця.
---  • вмикає/вимикає аури героїв і частинки оточення (пелюстки, іскри) за налаштуванням "Ефекти";
---  • плавно обертає моделі з тегом Spin (наприклад, гігантський кубик у лобі).
--- Змінюється лише на екрані цього гравця, інші гравці бачать свої налаштування.
-
-local CollectionService = game:GetService("CollectionService")
-local RunService = game:GetService("RunService")
-
-local Client = script.Parent
-local ClientState = require(Client:WaitForChild("ClientState"))
-
-local WorldEffects = {}
-
-local AURA_TAG = "HeroAura" -- той самий тег, що в HeroModelBuilder на сервері
-local AMBIENT_TAG = "AmbientFx" -- той самий тег, що в BuildUtil на сервері
-local SPIN_TAG = "Spin"
-
-local spinning = {} -- [Model] = { base = CFrame, speed = град/с, bob = студів }
-
-local function effectsEnabled()
-	-- Поки дані не прийшли, ефекти увімкнені
-	return ClientState.Data == nil or ClientState.GetSetting("effects")
-end
-
-local function apply(instance)
-	if instance:IsA("ParticleEmitter") or instance:IsA("Light") then
-		instance.Enabled = effectsEnabled()
-	end
-end
-
-local function applyAll()
-	for _, tag in { AURA_TAG, AMBIENT_TAG } do
-		for _, instance in CollectionService:GetTagged(tag) do
-			apply(instance)
-		end
-	end
-end
-
-local function addSpinner(model)
-	if model:IsA("Model") then
-		spinning[model] = {
-			base = model:GetPivot(),
-			speed = math.rad(model:GetAttribute("SpinSpeed") or 30),
-			bob = model:GetAttribute("BobHeight") or 0,
-		}
-	end
-end
-
-function WorldEffects.Init()
-	for _, tag in { AURA_TAG, AMBIENT_TAG } do
-		CollectionService:GetInstanceAddedSignal(tag):Connect(apply)
-	end
-	ClientState.OnSettingChanged(function(key)
-		if key == "effects" then
-			applyAll()
-		end
-	end)
-	applyAll()
-
-	for _, model in CollectionService:GetTagged(SPIN_TAG) do
-		addSpinner(model)
-	end
-	CollectionService:GetInstanceAddedSignal(SPIN_TAG):Connect(addSpinner)
-	CollectionService:GetInstanceRemovedSignal(SPIN_TAG):Connect(function(model)
-		spinning[model] = nil
-	end)
-	RunService.RenderStepped:Connect(function()
-		local t = os.clock()
-		for model, spin in spinning do
-			if model.Parent then
-				local position = spin.base.Position + Vector3.new(0, math.sin(t * 1.6) * spin.bob, 0)
-				model:PivotTo(CFrame.new(position) * CFrame.Angles(0, t * spin.speed, 0) * spin.base.Rotation)
-			else
-				spinning[model] = nil
-			end
-		end
-	end)
-end
-
-return WorldEffects
-]=])
-
-setSource({ "StarterPlayer", "StarterPlayerScripts", "Client", "WorldLighting" }, "ModuleScript", [=[
--- WorldLighting: освітлення й атмосфера на екрані цього гравця.
--- Кожна локація має свій настрій: яскравий день у лобі, захід сонця в селі ніндзя,
--- тропічний полудень на острові, неонова ніч у місті демонів.
-
-local Lighting = game:GetService("Lighting")
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local TweenService = game:GetService("TweenService")
+local UserInputService = game:GetService("UserInputService")
 
-local WorldConfig = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("Config"):WaitForChild("WorldConfig"))
+local Shared = ReplicatedStorage:WaitForChild("Shared")
+local Config = Shared:WaitForChild("Config")
+local AdminConfig = require(Config:WaitForChild("AdminConfig"))
+local HeroConfig = require(Config:WaitForChild("HeroConfig"))
+local RarityConfig = require(Config:WaitForChild("RarityConfig"))
+local WorldConfig = require(Config:WaitForChild("WorldConfig"))
+local GameMath = require(Shared:WaitForChild("GameMath"))
+local Remotes = require(Shared:WaitForChild("Remotes"))
+
+local Client = script.Parent
+local UIKit = require(Client:WaitForChild("UIKit"))
+local ClientState = require(Client:WaitForChild("ClientState"))
+local Hud = require(Client:WaitForChild("Hud"))
+local SoundController = require(Client:WaitForChild("SoundController"))
 
 local player = Players.LocalPlayer
 
-local WorldLighting = {}
+local AdminUI = {}
 
--- Lighting — властивості Lighting; Atmosphere / ColorCorrection / Bloom / SunRays — однойменних ефектів
-local PRESETS = {
-	Lobby = {
-		Lighting = { ClockTime = 14.5, Brightness = 2.4, Ambient = Color3.fromRGB(110, 105, 130), OutdoorAmbient = Color3.fromRGB(150, 145, 170), FogColor = Color3.fromRGB(200, 225, 255), FogEnd = 100000 },
-		Atmosphere = { Density = 0.3, Offset = 0.15, Color = Color3.fromRGB(205, 225, 255), Decay = Color3.fromRGB(150, 175, 230), Glare = 0.3, Haze = 1.2 },
-		ColorCorrection = { Brightness = 0.02, Contrast = 0.08, Saturation = 0.18, TintColor = Color3.fromRGB(255, 250, 255) },
-		Bloom = { Intensity = 0.6, Size = 28, Threshold = 1.6 },
-		SunRays = { Intensity = 0.08, Spread = 0.8 },
-	},
-	NinjaVillage = {
-		Lighting = { ClockTime = 17.2, Brightness = 2.2, Ambient = Color3.fromRGB(125, 95, 95), OutdoorAmbient = Color3.fromRGB(170, 130, 120), FogColor = Color3.fromRGB(255, 200, 170), FogEnd = 100000 },
-		Atmosphere = { Density = 0.38, Offset = 0.2, Color = Color3.fromRGB(255, 205, 175), Decay = Color3.fromRGB(230, 140, 120), Glare = 0.6, Haze = 1.8 },
-		ColorCorrection = { Brightness = 0.02, Contrast = 0.1, Saturation = 0.15, TintColor = Color3.fromRGB(255, 240, 230) },
-		Bloom = { Intensity = 0.8, Size = 30, Threshold = 1.4 },
-		SunRays = { Intensity = 0.15, Spread = 0.9 },
-	},
-	PirateIsland = {
-		Lighting = { ClockTime = 12.8, Brightness = 2.8, Ambient = Color3.fromRGB(110, 120, 135), OutdoorAmbient = Color3.fromRGB(150, 170, 190), FogColor = Color3.fromRGB(200, 235, 255), FogEnd = 100000 },
-		Atmosphere = { Density = 0.33, Offset = 0.1, Color = Color3.fromRGB(195, 235, 255), Decay = Color3.fromRGB(120, 190, 240), Glare = 0.2, Haze = 1.4 },
-		ColorCorrection = { Brightness = 0.03, Contrast = 0.08, Saturation = 0.25, TintColor = Color3.fromRGB(250, 255, 255) },
-		Bloom = { Intensity = 0.5, Size = 24, Threshold = 1.7 },
-		SunRays = { Intensity = 0.1, Spread = 0.6 },
-	},
-	DemonCity = {
-		Lighting = { ClockTime = 0, Brightness = 1, Ambient = Color3.fromRGB(70, 40, 110), OutdoorAmbient = Color3.fromRGB(80, 50, 130), FogColor = Color3.fromRGB(40, 15, 60), FogEnd = 100000 },
-		Atmosphere = { Density = 0.45, Offset = 0.05, Color = Color3.fromRGB(90, 40, 130), Decay = Color3.fromRGB(40, 10, 70), Glare = 0, Haze = 2.2 },
-		ColorCorrection = { Brightness = 0, Contrast = 0.15, Saturation = 0.3, TintColor = Color3.fromRGB(240, 225, 255) },
-		Bloom = { Intensity = 1.2, Size = 36, Threshold = 0.9 },
-		SunRays = { Intensity = 0, Spread = 0.5 },
-	},
+local GOLD = ColorSequence.new({
+	ColorSequenceKeypoint.new(0, Color3.fromRGB(255, 220, 90)),
+	ColorSequenceKeypoint.new(0.5, Color3.fromRGB(255, 140, 50)),
+	ColorSequenceKeypoint.new(1, Color3.fromRGB(255, 70, 150)),
+})
+local COLORS = {
+	Gold = Color3.fromRGB(255, 190, 50),
+	Currency = Color3.fromRGB(255, 185, 40),
+	Heroes = Color3.fromRGB(170, 90, 255),
+	Progress = Color3.fromRGB(60, 200, 110),
+	Player = Color3.fromRGB(60, 160, 255),
+	Server = Color3.fromRGB(255, 80, 170),
+	Log = Color3.fromRGB(120, 115, 160),
+	Danger = Color3.fromRGB(235, 50, 65),
+	Input = Color3.fromRGB(20, 18, 30),
 }
--- Світи без власного пресету (MagicAcademy, SkyArena) беруть денний; нічні — нічний
-local DEFAULT_DAY, DEFAULT_NIGHT = PRESETS.Lobby, PRESETS.DemonCity
 
-local effects = {}
+local ui: { [string]: any } = {}
+local selected = player -- гравець, над яким виконуються дії
+local pages = {}
+local tabButtons = {}
 
--- Беремо ефект, що вже є в Lighting (шаблони Studio додають Atmosphere, Bloom, SunRays), або створюємо свій
-local function ensureEffect(className)
-	local effect = Lighting:FindFirstChildOfClass(className)
-	if not effect then
-		effect = Instance.new(className)
-		effect.Parent = Lighting
+---------------------------------------------------------------------
+-- Дрібні будівельні блоки
+---------------------------------------------------------------------
+
+-- "1.5m" → 1500000, "-250k" → -250000
+local SUFFIX = { k = 1e3, m = 1e6, b = 1e9, t = 1e12 }
+local function parseAmount(text)
+	text = string.lower(string.gsub(text or "", "[%s,_]", ""))
+	local number, suffix = string.match(text, "^(%-?[%d%.]+)(%a?)$")
+	number = tonumber(number)
+	if not number then
+		return nil
 	end
-	return effect
+	if suffix ~= "" then
+		if not SUFFIX[suffix] then
+			return nil
+		end
+		number *= SUFFIX[suffix]
+	end
+	return math.floor(number)
 end
 
-local function apply(instant)
-	local worldId = player:GetAttribute("World") or "Lobby"
-	local preset = PRESETS[worldId]
-	if not preset then
-		local world = WorldConfig.Worlds[worldId]
-		preset = if world and world.night then DEFAULT_NIGHT else DEFAULT_DAY
+local function input(parent, placeholder, props)
+	local box = UIKit.Create("TextBox", {
+		Size = UDim2.new(1, 0, 0, 44),
+		BackgroundColor3 = COLORS.Input,
+		Font = UIKit.BodyFont,
+		TextSize = 18,
+		TextColor3 = UIKit.Colors.Text,
+		PlaceholderText = placeholder,
+		PlaceholderColor3 = Color3.fromRGB(140, 130, 175),
+		TextXAlignment = Enum.TextXAlignment.Left,
+		ClearTextOnFocus = false,
+		Text = "",
+		Parent = parent,
+	})
+	for key, value in props or {} do
+		box[key] = value
 	end
-	local info = TweenInfo.new(if instant then 0 else 1.2, Enum.EasingStyle.Sine)
-	TweenService:Create(Lighting, info, preset.Lighting):Play()
-	for key, props in preset do
-		local effect = effects[key]
-		if effect then
-			TweenService:Create(effect, info, props):Play()
+	UIKit.Corner(box, 10)
+	local stroke = UIKit.Stroke(box, Color3.fromRGB(110, 95, 170), 2)
+	UIKit.Create("UIPadding", { PaddingLeft = UDim.new(0, 12), PaddingRight = UDim.new(0, 12), Parent = box })
+	box.Focused:Connect(function()
+		stroke.Color = COLORS.Gold
+	end)
+	box.FocusLost:Connect(function()
+		stroke.Color = Color3.fromRGB(110, 95, 170)
+	end)
+	return box
+end
+
+local function button(parent, text, color, onClick, props)
+	local b = UIKit.Button({
+		Size = UDim2.fromOffset(150, 46),
+		BackgroundColor3 = color,
+		Text = text,
+		TextSize = 18,
+		Parent = parent,
+	}, onClick)
+	for key, value in props or {} do
+		b[key] = value
+	end
+	return b
+end
+
+-- Кнопка небезпечної дії: перше натискання просить підтвердження
+local function confirmButton(parent, text, onConfirm, props)
+	local armedUntil = 0
+	local b
+	b = button(parent, text, COLORS.Danger, function()
+		if os.clock() > armedUntil then
+			armedUntil = os.clock() + 3
+			b.Text = "⚠️ Точно? Ще раз!"
+			task.delay(3.05, function()
+				if os.clock() > armedUntil then
+					b.Text = text
+				end
+			end)
+			return
+		end
+		armedUntil = 0
+		b.Text = text
+		onConfirm()
+	end, props)
+	return b
+end
+
+-- Вибір одного з варіантів (чіпи). Повертає функцію, що віддає поточне значення.
+local function chips(parent, options, default, color, width)
+	local current = default
+	local buttons = {}
+	local function paint()
+		for value, b in buttons do
+			local active = value == current
+			b.BackgroundColor3 = if active then color else Color3.fromRGB(70, 66, 92)
+			UIKit.SetOutline(b, if active then Color3.new(1, 1, 1) else UIKit.Colors.Outline, 3)
 		end
 	end
+	for index, option in options do
+		local b = button(parent, option.text, color, function()
+			current = option.value
+			paint()
+		end, { Size = UDim2.fromOffset(width or 72, 40), LayoutOrder = index })
+		buttons[option.value] = b
+	end
+	paint()
+	return function()
+		return current
+	end
 end
 
-function WorldLighting.Init()
-	Lighting.GlobalShadows = true
-	Lighting.EnvironmentDiffuseScale = 1
-	Lighting.EnvironmentSpecularScale = 1
-	Lighting.ShadowSoftness = 0.25
-	effects.Atmosphere = ensureEffect("Atmosphere")
-	effects.ColorCorrection = ensureEffect("ColorCorrectionEffect")
-	effects.Bloom = ensureEffect("BloomEffect")
-	effects.SunRays = ensureEffect("SunRaysEffect")
-	player:GetAttributeChangedSignal("World"):Connect(function()
-		apply(false)
+-- Розділ сторінки: заголовок і тіло з вертикальним списком
+local function section(page, title, color, order)
+	local card = UIKit.Create("Frame", {
+		Size = UDim2.new(1, -10, 0, 0),
+		AutomaticSize = Enum.AutomaticSize.Y,
+		BackgroundColor3 = Color3.fromRGB(28, 26, 38),
+		LayoutOrder = order,
+		Parent = page,
+	})
+	UIKit.Corner(card, 14)
+	UIKit.Stroke(card, color, 3)
+	local glow = UIKit.Create("Frame", {
+		Size = UDim2.new(1, 0, 0, 44),
+		BackgroundColor3 = color,
+		BackgroundTransparency = 0.55,
+		BorderSizePixel = 0,
+		Parent = card,
+	})
+	UIKit.Corner(glow, 14)
+	UIKit.Create("UIGradient", { Transparency = NumberSequence.new(0.2, 1), Parent = glow })
+	UIKit.Create("UIPadding", {
+		PaddingTop = UDim.new(0, 8),
+		PaddingBottom = UDim.new(0, 12),
+		PaddingLeft = UDim.new(0, 12),
+		PaddingRight = UDim.new(0, 12),
+		Parent = card,
+	})
+	UIKit.Create("UIListLayout", { Padding = UDim.new(0, 8), SortOrder = Enum.SortOrder.LayoutOrder, Parent = card })
+	UIKit.Label({
+		Size = UDim2.new(1, 0, 0, 30),
+		Font = UIKit.Font,
+		TextSize = 24,
+		TextXAlignment = Enum.TextXAlignment.Left,
+		Text = title,
+		LayoutOrder = 0,
+		Parent = card,
+	})
+	return card
+end
+
+-- Рядок кнопок, що переноситься
+local function row(parent, order, height)
+	local frame = UIKit.Create("Frame", {
+		Size = UDim2.new(1, 0, 0, height or 0),
+		AutomaticSize = if height then Enum.AutomaticSize.None else Enum.AutomaticSize.Y,
+		BackgroundTransparency = 1,
+		LayoutOrder = order or 1,
+		Parent = parent,
+	})
+	UIKit.Create("UIListLayout", {
+		FillDirection = Enum.FillDirection.Horizontal,
+		Wraps = true,
+		Padding = UDim.new(0, 8),
+		VerticalAlignment = Enum.VerticalAlignment.Center,
+		SortOrder = Enum.SortOrder.LayoutOrder,
+		Parent = frame,
+	})
+	return frame
+end
+
+-- fixed = true — сторінка без прокрутки (у неї своя прокрутна область)
+local function newPage(name, fixed)
+	local page = if fixed
+		then UIKit.Create("Frame", { Name = name, Size = UDim2.fromScale(1, 1), BackgroundTransparency = 1, Visible = false, Parent = ui.pageHolder })
+		else UIKit.Create("ScrollingFrame", {
+			Name = name,
+			Size = UDim2.fromScale(1, 1),
+			BackgroundTransparency = 1,
+			BorderSizePixel = 0,
+			ScrollBarThickness = 6,
+			ScrollBarImageColor3 = COLORS.Gold,
+			CanvasSize = UDim2.new(),
+			AutomaticCanvasSize = Enum.AutomaticSize.Y,
+			Visible = false,
+			Parent = ui.pageHolder,
+		})
+	UIKit.Create("UIListLayout", { Padding = UDim.new(0, 12), SortOrder = Enum.SortOrder.LayoutOrder, Parent = page })
+	UIKit.Create("UIPadding", { PaddingTop = UDim.new(0, 4), PaddingLeft = UDim.new(0, 4), PaddingBottom = UDim.new(0, 8), Parent = page })
+	pages[name] = page
+	return page
+end
+
+---------------------------------------------------------------------
+-- Запити до сервера
+---------------------------------------------------------------------
+
+local refreshTarget
+
+local function request(action, args, perPlayer)
+	args = args or {}
+	if perPlayer then
+		if not selected or selected.Parent == nil then
+			selected = player
+		end
+		args.target = selected.UserId
+	end
+	local result = ClientState.Request("AdminAction", action, args)
+	if result.message and result.message ~= "" then
+		UIKit.Toast((if result.ok then "👑 " else "") .. result.message, if result.ok then "success" else "error")
+	end
+	if perPlayer then
+		task.delay(0.25, refreshTarget)
+	end
+	return result
+end
+
+---------------------------------------------------------------------
+-- Картка вибраного гравця
+---------------------------------------------------------------------
+
+local function playerList()
+	local list = Players:GetPlayers()
+	table.sort(list, function(a, b)
+		if a == player or b == player then
+			return a == player
+		end
+		return string.lower(a.Name) < string.lower(b.Name)
 	end)
-	apply(true)
+	return list
 end
 
-return WorldLighting
+function refreshTarget()
+	if not ui.targetName then
+		return
+	end
+	if not selected or selected.Parent == nil then
+		selected = player
+	end
+	local target = selected
+	ui.targetName.Text = target.DisplayName
+	ui.targetUser.Text = "@" .. target.Name .. (if target == player then " (ти)" else "")
+	ui.avatar.Image = ""
+	task.spawn(function()
+		local ok, image = pcall(function()
+			return Players:GetUserThumbnailAsync(target.UserId, Enum.ThumbnailType.HeadShot, Enum.ThumbnailSize.Size150x150)
+		end)
+		if ok and selected == target then
+			ui.avatar.Image = image
+		end
+	end)
+	local count = #Players:GetPlayers()
+	ui.playerCount.Text = ("%d / %d"):format(table.find(playerList(), target) or 1, count)
+	ui.stats.Text = "Завантаження…"
+	task.spawn(function()
+		local result = ClientState.Request("AdminAction", "Inspect", { target = target.UserId })
+		if selected ~= target then
+			return
+		end
+		if not result.ok then
+			ui.stats.Text = result.message or "Немає даних"
+			return
+		end
+		local world = WorldConfig.Worlds[result.world]
+		ui.stats.Text = ("🪙 %s  •  💎 %s\n⚡ +%s/s\n♻️ Rebirth %d\n🦸 %d героїв • 📖 %d\n🎲 %s кидків\n🌍 %s"):format(
+			GameMath.FormatNumber(result.coins),
+			GameMath.FormatNumber(result.crystals),
+			GameMath.FormatNumber(result.income),
+			result.rebirths,
+			result.heroes,
+			result.discovered,
+			GameMath.FormatNumber(result.totalRolls),
+			if world then world.displayName else "Лобі"
+		)
+		ui.adminBadge.Visible = result.isAdmin == true
+	end)
+end
+
+local function cycleTarget(step)
+	local list = playerList()
+	local index = table.find(list, selected) or 1
+	selected = list[(index - 1 + step) % #list + 1]
+	refreshTarget()
+end
+
+local function buildSidebar(content)
+	local sidebar = UIKit.Create("Frame", {
+		Size = UDim2.new(0, 220, 1, 0),
+		BackgroundTransparency = 1,
+		Parent = content,
+	})
+
+	-- Картка гравця
+	local card = UIKit.Card({ Size = UDim2.new(1, 0, 0, 236), Parent = sidebar }, COLORS.Gold)
+	local avatarFrame = UIKit.Create("Frame", {
+		Position = UDim2.fromOffset(10, 10),
+		Size = UDim2.fromOffset(64, 64),
+		BackgroundColor3 = Color3.fromRGB(60, 50, 90),
+		Parent = card,
+	})
+	UIKit.Corner(avatarFrame, 32)
+	UIKit.Stroke(avatarFrame, COLORS.Gold, 3)
+	ui.avatar = UIKit.Create("ImageLabel", { Size = UDim2.fromScale(1, 1), BackgroundTransparency = 1, Parent = avatarFrame })
+	UIKit.Corner(ui.avatar, 32)
+	ui.adminBadge = UIKit.Label({
+		Position = UDim2.fromOffset(44, 46),
+		Size = UDim2.fromOffset(28, 28),
+		Text = "👑",
+		TextScaled = true,
+		Visible = false,
+		Parent = card,
+	})
+	ui.targetName = UIKit.Label({
+		Position = UDim2.fromOffset(82, 12),
+		Size = UDim2.new(1, -90, 0, 30),
+		Font = UIKit.Font,
+		TextScaled = true,
+		TextXAlignment = Enum.TextXAlignment.Left,
+		Parent = card,
+	})
+	ui.targetUser = UIKit.Label({
+		Position = UDim2.fromOffset(82, 42),
+		Size = UDim2.new(1, -90, 0, 20),
+		TextSize = 14,
+		TextColor3 = UIKit.Colors.SubText,
+		TextXAlignment = Enum.TextXAlignment.Left,
+		TextTruncate = Enum.TextTruncate.AtEnd,
+		Parent = card,
+	})
+	ui.stats = UIKit.Label({
+		Position = UDim2.fromOffset(12, 82),
+		Size = UDim2.new(1, -24, 0, 104),
+		TextSize = 14,
+		LineHeight = 1.05,
+		TextXAlignment = Enum.TextXAlignment.Left,
+		TextYAlignment = Enum.TextYAlignment.Top,
+		Parent = card,
+	})
+	-- ◀ 1/3 ▶ та "Я"
+	local nav = UIKit.Create("Frame", { Position = UDim2.new(0, 10, 1, -44), Size = UDim2.new(1, -20, 0, 36), BackgroundTransparency = 1, Parent = card })
+	button(nav, "◀", COLORS.Player, function()
+		cycleTarget(-1)
+	end, { Size = UDim2.fromOffset(44, 36) })
+	ui.playerCount = UIKit.Label({ Position = UDim2.fromOffset(48, 0), Size = UDim2.new(1, -150, 1, 0), Font = UIKit.Font, TextSize = 18, Parent = nav })
+	button(nav, "▶", COLORS.Player, function()
+		cycleTarget(1)
+	end, { Size = UDim2.fromOffset(44, 36), Position = UDim2.new(1, -98, 0, 0) })
+	button(nav, "Я", COLORS.Gold, function()
+		selected = player
+		refreshTarget()
+	end, { Size = UDim2.fromOffset(46, 36), Position = UDim2.new(1, -46, 0, 0) })
+
+	-- Вкладки
+	local tabs = UIKit.Create("Frame", { Position = UDim2.fromOffset(0, 248), Size = UDim2.new(1, 0, 1, -248), BackgroundTransparency = 1, Parent = sidebar })
+	UIKit.Create("UIGridLayout", { CellSize = UDim2.new(0.5, -4, 0, 42), CellPadding = UDim2.fromOffset(8, 8), SortOrder = Enum.SortOrder.LayoutOrder, Parent = tabs })
+	for index, tab in {
+		{ "Currency", "💰 Валюта" },
+		{ "Heroes", "🦸 Герої" },
+		{ "Progress", "🗺️ Прогрес" },
+		{ "Player", "🧍 Гравець" },
+		{ "Server", "📢 Сервер" },
+		{ "Log", "📜 Журнал" },
+	} do
+		local id = tab[1]
+		tabButtons[id] = button(tabs, tab[2], COLORS[id], function()
+			AdminUI.ShowTab(id)
+		end, { LayoutOrder = index, TextSize = 15 })
+	end
+end
+
+function AdminUI.ShowTab(id)
+	for name, page in pages do
+		page.Visible = name == id
+	end
+	for name, b in tabButtons do
+		local active = name == id
+		b.BackgroundColor3 = if active then COLORS[name] else COLORS[name]:Lerp(Color3.fromRGB(40, 38, 55), 0.6)
+		UIKit.SetOutline(b, if active then Color3.new(1, 1, 1) else UIKit.Colors.Outline, 3)
+	end
+	if id == "Log" then
+		AdminUI.RefreshLog()
+	end
+end
+
+---------------------------------------------------------------------
+-- Сторінки
+---------------------------------------------------------------------
+
+local function buildCurrency()
+	local page = newPage("Currency")
+	for order, kind in { { "Coins", "🪙 Монети", { 1e3, 1e5, 1e7, 1e9 } }, { "Crystals", "💎 Кристали", { 10, 100, 1000, 10000 } } } do
+		local card = section(page, kind[2], COLORS.Currency, order)
+		local quick = row(card, 1)
+		for index, amount in kind[3] do
+			button(quick, "+" .. GameMath.FormatNumber(amount), if kind[1] == "Coins" then Color3.fromRGB(240, 170, 30) else Color3.fromRGB(70, 180, 255), function()
+				request(kind[1], { amount = amount }, true)
+			end, { LayoutOrder = index, Size = UDim2.fromOffset(120, 44) })
+		end
+		local custom = row(card, 2, 44)
+		local box = input(custom, "Своя кількість: 2500, 1.5m, 3b…", { Size = UDim2.new(1, -236, 0, 44) })
+		local function send(sign)
+			local amount = parseAmount(box.Text)
+			if not amount or amount <= 0 then
+				UIKit.Toast("Введи число, напр. 5000 або 2.5m", "error")
+				return
+			end
+			request(kind[1], { amount = amount * sign }, true)
+		end
+		button(custom, "➕ Видати", UIKit.Colors.Success, function()
+			send(1)
+		end, { Size = UDim2.fromOffset(110, 44), LayoutOrder = 2 })
+		button(custom, "➖ Забрати", COLORS.Danger, function()
+			send(-1)
+		end, { Size = UDim2.fromOffset(110, 44), LayoutOrder = 3 })
+	end
+
+	local boosts = section(page, "🧪 Бусти", Color3.fromRGB(90, 220, 120), 3)
+	local boostRow = row(boosts, 1)
+	for index, entry in {
+		{ "luck", 15, "🍀 Удача 15 хв" },
+		{ "luck", 60, "🍀 Удача 1 год" },
+		{ "income", 15, "💰 Дохід 15 хв" },
+		{ "income", 60, "💰 Дохід 1 год" },
+	} do
+		button(boostRow, entry[3], if entry[1] == "luck" then Color3.fromRGB(70, 200, 90) else Color3.fromRGB(240, 170, 30), function()
+			request("Boost", { boost = entry[1], minutes = entry[2] }, true)
+		end, { LayoutOrder = index, Size = UDim2.fromOffset(145, 44), TextSize = 15 })
+	end
+end
+
+local function buildHeroes()
+	local page = newPage("Heroes", true)
+	local selectedHero = nil
+	local cards = {}
+
+	local top = UIKit.Create("Frame", { Size = UDim2.new(1, -10, 0, 44), BackgroundTransparency = 1, LayoutOrder = 1, Parent = page })
+	local search = input(top, "🔍 Пошук: ім'я, рідкість або стихія…", { Size = UDim2.fromScale(1, 1) })
+
+	local grid = UIKit.Create("ScrollingFrame", {
+		Size = UDim2.new(1, -10, 1, -158),
+		BackgroundColor3 = Color3.fromRGB(24, 22, 34),
+		BorderSizePixel = 0,
+		ScrollBarThickness = 6,
+		ScrollBarImageColor3 = COLORS.Heroes,
+		CanvasSize = UDim2.new(),
+		AutomaticCanvasSize = Enum.AutomaticSize.Y,
+		LayoutOrder = 2,
+		Parent = page,
+	})
+	UIKit.Corner(grid, 12)
+	UIKit.Stroke(grid, COLORS.Heroes, 3)
+	UIKit.Create("UIPadding", { PaddingTop = UDim.new(0, 8), PaddingLeft = UDim.new(0, 8), PaddingRight = UDim.new(0, 8), PaddingBottom = UDim.new(0, 8), Parent = grid })
+	UIKit.Create("UIGridLayout", { CellSize = UDim2.fromOffset(142, 62), CellPadding = UDim2.fromOffset(8, 8), SortOrder = Enum.SortOrder.LayoutOrder, Parent = grid })
+
+	local controls = UIKit.Card({ Size = UDim2.new(1, -10, 0, 86), LayoutOrder = 3, Parent = page }, COLORS.Heroes)
+	local chosen = UIKit.Label({
+		Position = UDim2.fromOffset(12, 6),
+		Size = UDim2.new(1, -24, 0, 24),
+		Font = UIKit.Font,
+		TextSize = 20,
+		TextXAlignment = Enum.TextXAlignment.Left,
+		Text = "Обери героя зі списку",
+		Parent = controls,
+	})
+	local line = row(controls, 1, 44)
+	line.Position = UDim2.fromOffset(12, 34)
+	line.Size = UDim2.new(1, -24, 0, 44)
+	local level = input(line, "Рівень (макс.)", { Size = UDim2.fromOffset(130, 40), LayoutOrder = 1 })
+	local awakened = false
+	local awakenButton
+	awakenButton = button(line, "✨ Пробуджений: ні", Color3.fromRGB(70, 66, 92), function()
+		awakened = not awakened
+		awakenButton.Text = if awakened then "✨ Пробуджений: так" else "✨ Пробуджений: ні"
+		awakenButton.BackgroundColor3 = if awakened then COLORS.Gold else Color3.fromRGB(70, 66, 92)
+	end, { Size = UDim2.fromOffset(170, 40), LayoutOrder = 2, TextSize = 14 })
+	local countHolder = UIKit.Create("Frame", { Size = UDim2.fromOffset(156, 40), BackgroundTransparency = 1, LayoutOrder = 3, Parent = line })
+	UIKit.Create("UIListLayout", { FillDirection = Enum.FillDirection.Horizontal, Padding = UDim.new(0, 6), SortOrder = Enum.SortOrder.LayoutOrder, Parent = countHolder })
+	local getCount = chips(countHolder, { { text = "×1", value = 1 }, { text = "×5", value = 5 }, { text = "×10", value = 10 } }, 1, COLORS.Heroes, 48)
+	button(line, "🎁 Видати", UIKit.Colors.Success, function()
+		if not selectedHero then
+			UIKit.Toast("Спершу обери героя", "error")
+			return
+		end
+		request("GiveHero", { heroId = selectedHero, level = tonumber(level.Text), awakened = awakened, count = getCount() }, true)
+	end, { Size = UDim2.fromOffset(124, 40), LayoutOrder = 4 })
+
+	for index, heroDef in HeroConfig.List do
+		local rarityColor = RarityConfig.GetColor(heroDef.rarity)
+		local card = UIKit.Button({
+			Name = heroDef.id,
+			BackgroundColor3 = rarityColor:Lerp(Color3.fromRGB(20, 18, 30), 0.45),
+			Text = "",
+			LayoutOrder = RarityConfig.GetRank(heroDef.rarity) * 100 + index,
+			Parent = grid,
+		}, function()
+			selectedHero = heroDef.id
+			for id, other in cards do
+				UIKit.SetOutline(other, if id == heroDef.id then COLORS.Gold else UIKit.Colors.Outline, if id == heroDef.id then 5 else 3)
+			end
+			local maxLevel = RarityConfig.Info[heroDef.rarity].maxLevel
+			chosen.Text = ("%s %s • %s • макс. Lv %d"):format(HeroConfig.ElementIcons[heroDef.element] or "", heroDef.name, heroDef.rarity, maxLevel)
+			chosen.TextColor3 = rarityColor
+		end)
+		UIKit.HeroPortrait(card, heroDef.id, 0.5)
+		UIKit.Label({
+			Position = UDim2.fromOffset(6, 4),
+			Size = UDim2.new(1, -12, 0, 30),
+			Font = UIKit.Font,
+			TextScaled = true,
+			Text = heroDef.name,
+			Parent = card,
+		})
+		UIKit.Label({
+			Position = UDim2.fromOffset(6, 36),
+			Size = UDim2.new(1, -12, 0, 20),
+			Font = UIKit.Font,
+			TextScaled = true,
+			TextColor3 = rarityColor:Lerp(Color3.new(1, 1, 1), 0.35),
+			Text = (HeroConfig.ElementIcons[heroDef.element] or "") .. " " .. heroDef.rarity,
+			Parent = card,
+		})
+		cards[heroDef.id] = card
+	end
+
+	search:GetPropertyChangedSignal("Text"):Connect(function()
+		local query = string.lower(search.Text)
+		for _, heroDef in HeroConfig.List do
+			local text = string.lower(heroDef.name .. " " .. heroDef.rarity .. " " .. heroDef.element)
+			cards[heroDef.id].Visible = query == "" or string.find(text, query, 1, true) ~= nil
+		end
+	end)
+end
+
+local function buildProgress()
+	local page = newPage("Progress")
+	local unlock = section(page, "🔓 Прогрес гравця", COLORS.Progress, 1)
+	local unlockRow = row(unlock, 1)
+	for index, entry in {
+		{ "UnlockAll", "🌍 Відкрити все" },
+		{ "MaxBase", "🧱 Макс. база" },
+		{ "AddRebirth", "♻️ +1 Rebirth" },
+	} do
+		button(unlockRow, entry[2], COLORS.Progress, function()
+			request(entry[1], {}, true)
+		end, { LayoutOrder = index, Size = UDim2.fromOffset(170, 46) })
+	end
+	UIKit.Label({
+		Size = UDim2.new(1, 0, 0, 20),
+		TextSize = 14,
+		TextColor3 = UIKit.Colors.SubText,
+		TextXAlignment = Enum.TextXAlignment.Left,
+		Text = "«Відкрити все» — світи, зони й кубики. «+1 Rebirth» — бонус без скидання прогресу.",
+		LayoutOrder = 2,
+		Parent = unlock,
+	})
+
+	local travel = section(page, "🌀 Телепорт у світ (без вимог)", Color3.fromRGB(70, 150, 255), 2)
+	local travelRow = row(travel, 1)
+	button(travelRow, "🏠 Лобі", Color3.fromRGB(255, 120, 200), function()
+		request("Travel", { world = "Lobby" }, true)
+	end, { LayoutOrder = 0, Size = UDim2.fromOffset(170, 46) })
+	for index, worldId in WorldConfig.Order do
+		local world = WorldConfig.Worlds[worldId]
+		if world.available then
+			button(travelRow, world.displayName, world.color, function()
+				request("Travel", { world = worldId }, true)
+			end, { LayoutOrder = index, Size = UDim2.fromOffset(170, 46), TextSize = 16 })
+		end
+	end
+
+	local danger = section(page, "⚠️ Небезпечна зона", COLORS.Danger, 3)
+	local dangerRow = row(danger, 1)
+	confirmButton(dangerRow, "🗑️ Скинути прогрес", function()
+		request("ResetData", {}, true)
+	end, { Size = UDim2.fromOffset(220, 46) })
+end
+
+local function buildPlayer()
+	local page = newPage("Player")
+	local move = section(page, "📍 Переміщення", COLORS.Player, 1)
+	local moveRow = row(move, 1)
+	for index, entry in { { "GoTo", "➡️ До гравця" }, { "Bring", "⬅️ До себе" }, { "Heal", "❤️ Вилікувати" } } do
+		button(moveRow, entry[2], if entry[1] == "Heal" then UIKit.Colors.Success else COLORS.Player, function()
+			request(entry[1], {}, true)
+		end, { LayoutOrder = index, Size = UDim2.fromOffset(170, 46) })
+	end
+
+	local speed = section(page, "🏃 Швидкість ходьби", Color3.fromRGB(80, 220, 200), 2)
+	local speedRow = row(speed, 1)
+	for index, value in AdminConfig.WalkSpeeds do
+		button(speedRow, (if index == 1 then "🚶 " else "🏃 ") .. value, Color3.fromRGB(50, 190, 170), function()
+			request("Speed", { speed = value }, true)
+		end, { LayoutOrder = index, Size = UDim2.fromOffset(120, 46) })
+	end
+
+	local kick = section(page, "🚪 Вигнати з сервера", COLORS.Danger, 3)
+	local kickRow = row(kick, 1, 46)
+	local reason = input(kickRow, "Причина (необов'язково)", { Size = UDim2.new(1, -168, 0, 46) })
+	confirmButton(kickRow, "🚪 Вигнати", function()
+		request("Kick", { reason = reason.Text }, true)
+		reason.Text = ""
+	end, { Size = UDim2.fromOffset(160, 46), LayoutOrder = 2 })
+end
+
+local function buildServer()
+	local page = newPage("Server")
+	local announce = section(page, "📢 Оголошення для всіх", COLORS.Server, 1)
+	local announceRow = row(announce, 1, 46)
+	local text = input(announceRow, "Напр.: Через 5 хвилин подія удачі ×3!", { Size = UDim2.new(1, -168, 0, 46) })
+	button(announceRow, "📢 Надіслати", COLORS.Server, function()
+		if #text.Text < 2 then
+			UIKit.Toast("Напиши текст оголошення", "error")
+			return
+		end
+		if request("Announce", { text = text.Text }).ok then
+			text.Text = ""
+		end
+	end, { Size = UDim2.fromOffset(160, 46), LayoutOrder = 2 })
+
+	local events = section(page, "🎉 Подія для всього сервера", COLORS.Gold, 2)
+	local minutesRow = row(events, 1)
+	UIKit.Label({ Size = UDim2.fromOffset(110, 40), Font = UIKit.Font, TextSize = 18, Text = "⏱ Тривалість:", LayoutOrder = 0, Parent = minutesRow })
+	local getMinutes = chips(minutesRow, { { text = "5 хв", value = 5 }, { text = "15 хв", value = 15 }, { text = "30 хв", value = 30 }, { text = "60 хв", value = 60 } }, 15, COLORS.Gold, 76)
+	for order, kind in { { "Luck", "🍀 Удача", Color3.fromRGB(70, 200, 90) }, { "Income", "💰 Дохід", Color3.fromRGB(240, 170, 30) } } do
+		local eventRow = row(events, order + 1)
+		UIKit.Label({ Size = UDim2.fromOffset(110, 44), Font = UIKit.Font, TextSize = 18, Text = kind[2], TextColor3 = kind[3], LayoutOrder = 0, Parent = eventRow })
+		for index, multiplier in AdminConfig.EventMultipliers do
+			button(eventRow, "×" .. multiplier, kind[3], function()
+				request("Event", { kind = kind[1], multiplier = multiplier, minutes = getMinutes() })
+			end, { LayoutOrder = index, Size = UDim2.fromOffset(76, 44) })
+		end
+	end
+	local stopRow = row(events, 5)
+	button(stopRow, "⏹ Зупинити всі події", COLORS.Danger, function()
+		request("StopEvents")
+	end, { Size = UDim2.fromOffset(240, 44) })
+
+	local world = section(page, "⚔️ Світ", Color3.fromRGB(255, 110, 70), 3)
+	local worldRow = row(world, 1)
+	confirmButton(worldRow, "💥 Перемогти всіх ворогів тут", function()
+		request("ClearWorld")
+	end, { Size = UDim2.fromOffset(300, 46) })
+end
+
+local function buildLog()
+	local page = newPage("Log")
+	local head = row(page, 0, 44)
+	button(head, "🔄 Оновити", COLORS.Log, function()
+		AdminUI.RefreshLog()
+	end, { Size = UDim2.fromOffset(150, 40) })
+	ui.logList = UIKit.Create("Frame", { Size = UDim2.new(1, -10, 0, 0), AutomaticSize = Enum.AutomaticSize.Y, BackgroundTransparency = 1, LayoutOrder = 1, Parent = page })
+	UIKit.Create("UIListLayout", { Padding = UDim.new(0, 6), SortOrder = Enum.SortOrder.LayoutOrder, Parent = ui.logList })
+end
+
+function AdminUI.RefreshLog()
+	if not ui.logList then
+		return
+	end
+	local result = ClientState.Request("AdminAction", "GetLog")
+	for _, child in ui.logList:GetChildren() do
+		if child:IsA("GuiObject") then
+			child:Destroy()
+		end
+	end
+	local entries = if result.ok and type(result.log) == "table" then result.log else {}
+	if #entries == 0 then
+		UIKit.Label({ Size = UDim2.new(1, 0, 0, 40), TextSize = 18, TextColor3 = UIKit.Colors.SubText, Text = "Поки що порожньо", Parent = ui.logList })
+	end
+	for index, entry in entries do
+		local line = UIKit.Create("Frame", { Size = UDim2.new(1, 0, 0, 40), BackgroundColor3 = if index % 2 == 0 then Color3.fromRGB(32, 30, 44) else Color3.fromRGB(26, 24, 36), LayoutOrder = index, Parent = ui.logList })
+		UIKit.Corner(line, 10)
+		UIKit.Label({
+			Position = UDim2.fromOffset(10, 0),
+			Size = UDim2.new(1, -20, 1, 0),
+			TextSize = 15,
+			TextXAlignment = Enum.TextXAlignment.Left,
+			RichText = true,
+			TextTruncate = Enum.TextTruncate.AtEnd,
+			Text = ('<font color="#a8a0d0">%s</font>  <b>%s</b> → <font color="#ffcc55">%s</font>%s %s'):format(
+				os.date("%H:%M:%S", entry.time),
+				entry.admin or "?",
+				entry.action or "?",
+				if entry.target then " • " .. entry.target else "",
+				entry.details or ""
+			),
+			Parent = line,
+		})
+	end
+end
+
+---------------------------------------------------------------------
+-- Панель і кнопка 👑
+---------------------------------------------------------------------
+
+local function buildPanel(gui)
+	local panel, content = UIKit.Panel(gui, "Admin", "👑 Admin Panel", GOLD)
+	panel.Size = UDim2.fromOffset(920, 580)
+	Hud.RegisterPanel("Admin", panel)
+	ui.panel = panel
+
+	buildSidebar(content)
+	ui.pageHolder = UIKit.Create("Frame", {
+		Position = UDim2.fromOffset(236, 0),
+		Size = UDim2.new(1, -236, 1, 0),
+		BackgroundTransparency = 1,
+		Parent = content,
+	})
+	buildCurrency()
+	buildHeroes()
+	buildProgress()
+	buildPlayer()
+	buildServer()
+	buildLog()
+	AdminUI.ShowTab("Currency")
+
+	panel:GetPropertyChangedSignal("Visible"):Connect(function()
+		if panel.Visible then
+			refreshTarget()
+		end
+	end)
+	Players.PlayerAdded:Connect(function()
+		if panel.Visible then
+			refreshTarget()
+		end
+	end)
+	Players.PlayerRemoving:Connect(function(leaving)
+		if leaving == selected then
+			selected = player
+		end
+		task.defer(function()
+			if panel.Visible then
+				refreshTarget()
+			end
+		end)
+	end)
+
+	-- Кнопка 👑 у верхньому меню поруч із Worlds / Home / Shop
+	local topNav = Hud.Get("Worlds") and Hud.Get("Worlds").Parent
+	local crown = UIKit.Button({
+		Name = "Admin",
+		LayoutOrder = 10,
+		Size = UDim2.fromOffset(62, 62),
+		BackgroundColor3 = COLORS.Gold,
+		Text = "👑",
+		TextScaled = true,
+		Parent = topNav or gui,
+	}, function()
+		Hud.TogglePanel("Admin")
+	end)
+	crown.Outline.UIStroke.Thickness = 4
+	if not topNav then
+		crown.Position = UDim2.new(0, 12, 0, 70)
+		UIKit.AddScale(crown)
+	end
+
+	UserInputService.InputBegan:Connect(function(inputObject, gameProcessed)
+		if not gameProcessed and inputObject.KeyCode == Enum.KeyCode.F2 then
+			Hud.TogglePanel("Admin")
+		end
+	end)
+end
+
+---------------------------------------------------------------------
+-- Для всіх гравців: оголошення та таймер подій
+---------------------------------------------------------------------
+
+local function buildAnnouncements(gui)
+	local holder = UIKit.Create("Frame", {
+		Name = "Announcement",
+		AnchorPoint = Vector2.new(0.5, 0),
+		Position = UDim2.new(0.5, 0, 0, 150),
+		Size = UDim2.fromOffset(640, 100),
+		BackgroundColor3 = Color3.fromRGB(26, 20, 40),
+		Visible = false,
+		ZIndex = 60,
+		Parent = gui,
+	})
+	UIKit.Corner(holder, 20)
+	local stroke = UIKit.Stroke(holder, Color3.new(1, 1, 1), 5)
+	local rainbow = UIKit.Create("UIGradient", { Color = UIKit.Rainbow, Parent = stroke })
+	UIKit.Create("UIGradient", { Color = ColorSequence.new(Color3.fromRGB(255, 255, 255), Color3.fromRGB(170, 160, 200)), Rotation = 90, Parent = holder })
+	local scale = UIKit.AddScale(holder)
+	local title = UIKit.Label({
+		Position = UDim2.fromOffset(16, 8),
+		Size = UDim2.new(1, -32, 0, 26),
+		Font = UIKit.Font,
+		TextSize = 22,
+		TextColor3 = COLORS.Gold,
+		Text = "📢 ОГОЛОШЕННЯ",
+		ZIndex = 61,
+		Parent = holder,
+	})
+	local body = UIKit.Label({
+		Position = UDim2.fromOffset(16, 36),
+		Size = UDim2.new(1, -32, 1, -44),
+		Font = UIKit.Font,
+		TextScaled = true,
+		ZIndex = 61,
+		Parent = holder,
+	})
+	UIKit.Create("UITextSizeConstraint", { MaxTextSize = 30, Parent = body })
+
+	local token = 0
+	Remotes.Get("Announce").OnClientEvent:Connect(function(text, author)
+		token += 1
+		local mine = token
+		title.Text = "📢 ОГОЛОШЕННЯ" .. (if typeof(author) == "string" then " від " .. author else "")
+		body.Text = tostring(text)
+		holder.Visible = true
+		holder.Size = UDim2.fromOffset(640, 100)
+		local base = scale.Scale
+		scale.Scale = base * 0.6
+		TweenService:Create(scale, TweenInfo.new(0.35, Enum.EasingStyle.Back, Enum.EasingDirection.Out), { Scale = base }):Play()
+		SoundController.Play("Reward")
+		task.spawn(function()
+			while holder.Visible and token == mine do
+				rainbow.Rotation = (rainbow.Rotation + 4) % 360
+				task.wait(0.03)
+			end
+		end)
+		task.delay(7, function()
+			if token == mine then
+				holder.Visible = false
+			end
+		end)
+	end)
+end
+
+local function buildEventTimer(gui)
+	local pill = UIKit.Create("Frame", {
+		Name = "ServerEvents",
+		AnchorPoint = Vector2.new(1, 0),
+		Position = UDim2.new(1, -12, 0, 164),
+		Size = UDim2.fromOffset(230, 0),
+		AutomaticSize = Enum.AutomaticSize.Y,
+		BackgroundTransparency = 1,
+		Visible = false,
+		Parent = gui,
+	})
+	UIKit.AddScale(pill)
+	UIKit.Create("UIListLayout", { Padding = UDim.new(0, 6), HorizontalAlignment = Enum.HorizontalAlignment.Right, SortOrder = Enum.SortOrder.LayoutOrder, Parent = pill })
+	local labels = {}
+	for index, kind in { { "Luck", "🍀 Удача", Color3.fromRGB(70, 200, 90) }, { "Income", "💰 Дохід", Color3.fromRGB(240, 170, 30) } } do
+		local label = UIKit.Label({
+			Size = UDim2.fromOffset(230, 40),
+			BackgroundColor3 = kind[3],
+			BackgroundTransparency = 0,
+			Font = UIKit.Font,
+			TextSize = 20,
+			LayoutOrder = index,
+			Visible = false,
+			Parent = pill,
+		})
+		UIKit.Corner(label, 12)
+		UIKit.Stroke(label, UIKit.Colors.Outline, 3)
+		UIKit.Shade(label, 0.25)
+		labels[kind[1]] = { label = label, name = kind[2] }
+	end
+	task.spawn(function()
+		while true do
+			local now = workspace:GetServerTimeNow()
+			local any = false
+			for kind, entry in labels do
+				local multiplier = GameMath.GetEventMultiplier(kind, now)
+				local ends = workspace:GetAttribute("Event" .. kind .. "Ends")
+				local active = multiplier > 1 and type(ends) == "number"
+				entry.label.Visible = active
+				if active then
+					any = true
+					entry.label.Text = ("🎉 %s ×%d • %s"):format(entry.name, multiplier, GameMath.FormatTime(math.max(0, ends - now)))
+				end
+			end
+			pill.Visible = any
+			task.wait(1)
+		end
+	end)
+end
+
+function AdminUI.Init(gui)
+	buildAnnouncements(gui)
+	buildEventTimer(gui)
+	-- Панель будуємо лише для адмінів (сервер ставить атрибут; він може прийти трохи пізніше)
+	local built = false
+	local function check()
+		if not built and player:GetAttribute("IsAdmin") == true then
+			built = true
+			buildPanel(gui)
+		end
+	end
+	player:GetAttributeChangedSignal("IsAdmin"):Connect(check)
+	check()
+end
+
+return AdminUI
+]=])
+
+setSource({ "StarterPlayer", "StarterPlayerScripts", "ClientMain" }, "LocalScript", [=[
+-- ClientMain: точка входу клієнта. Будує інтерфейс і підключає модулі.
+-- Тип: LocalScript, шлях: StarterPlayer/StarterPlayerScripts/ClientMain
+
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+local Remotes = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("Remotes"))
+
+local Client = script.Parent:WaitForChild("Client")
+local ClientState = require(Client:WaitForChild("ClientState"))
+local UIKit = require(Client:WaitForChild("UIKit"))
+local Hud = require(Client:WaitForChild("Hud"))
+local RollUI = require(Client:WaitForChild("RollUI"))
+local InventoryUI = require(Client:WaitForChild("InventoryUI"))
+local UpgradesUI = require(Client:WaitForChild("UpgradesUI"))
+local SettingsUI = require(Client:WaitForChild("SettingsUI"))
+local WorldEffects = require(Client:WaitForChild("WorldEffects"))
+local EnemyRegistry = require(Client:WaitForChild("EnemyRegistry"))
+local FollowerController = require(Client:WaitForChild("FollowerController"))
+local TeamUI = require(Client:WaitForChild("TeamUI"))
+local WorldsUI = require(Client:WaitForChild("WorldsUI"))
+local CombatUI = require(Client:WaitForChild("CombatUI"))
+local QuestsUI = require(Client:WaitForChild("QuestsUI"))
+local ZoneGates = require(Client:WaitForChild("ZoneGates"))
+local RebirthUI = require(Client:WaitForChild("RebirthUI"))
+local WorldLighting = require(Client:WaitForChild("WorldLighting"))
+local AdminUI = require(Client:WaitForChild("AdminUI"))
+
+local gui = UIKit.CreateScreenGui()
+
+Hud.Init(gui)
+RollUI.Init(gui)
+InventoryUI.Init(gui)
+UpgradesUI.Init(gui)
+SettingsUI.Init(gui)
+TeamUI.Init(gui)
+WorldsUI.Init(gui)
+EnemyRegistry.Init()
+FollowerController.Init()
+CombatUI.Init(gui)
+QuestsUI.Init(gui)
+RebirthUI.Init(gui)
+AdminUI.Init(gui)
+ZoneGates.Init()
+WorldLighting.Init()
+WorldEffects.Init()
+
+Remotes.Get("Notify").OnClientEvent:Connect(function(text, kind)
+	UIKit.Toast(text, kind)
+end)
+
+-- Підключаємо дані останніми, щоб усі вікна вже слухали оновлення
+ClientState.Init()
+
+UIKit.Toast("Ласкаво просимо до Anime Dice: Awakening!", "info")
 ]=])
 
 if recording then
 	ChangeHistoryService:FinishRecording(recording, Enum.FinishRecordingOperation.Commit)
 end
-print("Частина 2 з 3 готова")
+print("Частина 2 з 5 готова")

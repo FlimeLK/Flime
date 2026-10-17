@@ -19,10 +19,12 @@ local DEFINITIONS = {
 	QuestAction = "RemoteFunction", -- (action, arg) -> { ok, message }
 	BuyShopItem = "RemoteFunction", -- (itemId) -> { ok, message }
 	Rebirth = "RemoteFunction", -- () -> { ok, message }
+	AdminAction = "RemoteFunction", -- (action, args) -> { ok, message, ... } — лише для адмінів
 	-- Сервер -> клієнт
 	DataSync = "RemoteEvent", -- повні дані гравця
 	Notify = "RemoteEvent", -- (text, kind) спливаюче повідомлення
 	CombatFx = "RemoteEvent", -- список атак для ефектів: { userId, slot, enemyId, damage }
+	Announce = "RemoteEvent", -- (text, author) оголошення адміна для всіх гравців
 }
 
 local folder

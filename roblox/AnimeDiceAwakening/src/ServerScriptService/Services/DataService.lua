@@ -404,6 +404,23 @@ function DataService.SpendCoins(player, amount)
 	return true
 end
 
+-- Скидає прогрес гравця до початкового (адмін-панель). Збережеться при наступному автозбереженні.
+function DataService.ResetData(player)
+	local profile = DataService.GetProfile(player)
+	if not profile then
+		return false
+	end
+	profile.data = makeTemplate()
+	profile.incomeRemainder = 0
+	local leaderstats = player:FindFirstChild("leaderstats")
+	if leaderstats then
+		leaderstats.Coins.Value = profile.data.coins
+		leaderstats.Crystals.Value = profile.data.crystals
+	end
+	DataService.MarkChanged(player)
+	return true
+end
+
 -- callback(player, data) — викликається після кожної зміни даних гравця.
 function DataService.OnChanged(callback)
 	table.insert(changedCallbacks, callback)

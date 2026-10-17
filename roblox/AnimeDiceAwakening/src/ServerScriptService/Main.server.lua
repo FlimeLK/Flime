@@ -21,6 +21,7 @@ local WorldService = require(Services.WorldService)
 local QuestService = require(Services.QuestService)
 local ShopService = require(Services.ShopService)
 local RebirthService = require(Services.RebirthService)
+local AdminService = require(Services.AdminService)
 
 DataService.Init()
 PlotService.Init()
@@ -35,10 +36,12 @@ WorldService.Init() -- після PlotService: підключає портали
 QuestService.Init()
 ShopService.Init()
 RebirthService.Init()
+AdminService.Init()
 
 local function onPlayerAdded(player)
 	WorldService.SetupPlayer(player)
 	CombatService.SetupPlayer(player)
+	AdminService.SetupPlayer(player)
 
 	-- 1. Видаємо базу (миттєво, щоб гравець одразу з'явився на ній)
 	if not PlotService.AssignPlot(player) then

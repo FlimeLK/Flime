@@ -1,5 +1,5 @@
 -- Згенеровано tools/make_studio_patch.py — НЕ редагуй вручну.
--- Частина 3 з 3. Запускай усі частини по черзі (порядок не важливий).
+-- Частина 3 з 5. Запускай усі частини по черзі (порядок не важливий).
 -- Studio → зупини гру (Stop) → View → Command Bar → встав увесь текст → ▶ Run.
 -- Замінює код скриптів нижче на нову версію. Ctrl+Z скасовує зміни.
 local ChangeHistoryService = game:GetService("ChangeHistoryService")
@@ -39,1079 +39,799 @@ local function setSource(path, className, source)
 	print("✅ оновлено " .. target:GetFullName())
 end
 
-setSource({ "ServerScriptService", "Services", "DataService" }, "ModuleScript", [=[
--- DataService: завантаження, зберігання та синхронізація даних гравців.
---
--- Захист прогресу:
---   * кілька спроб з паузою при помилках DataStore;
---   * якщо завантаження не вдалося — гравця відключають, а збереження
---     НЕ виконується, тож старий прогрес ніколи не перезаписується порожнім;
---   * "замок сесії": поки гравець грає на одному сервері, інший сервер
---     не завантажить і не перезапише його дані;
---   * автозбереження кожні 60 с та збереження при вимкненні сервера.
-
-local DataStoreService = game:GetService("DataStoreService")
-local HttpService = game:GetService("HttpService")
-local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local RunService = game:GetService("RunService")
-
-local Shared = ReplicatedStorage:WaitForChild("Shared")
-local EconomyConfig = require(Shared.Config.EconomyConfig)
-local CombatConfig = require(Shared.Config.CombatConfig)
-local HeroConfig = require(Shared.Config.HeroConfig)
-local QuestConfig = require(Shared.Config.QuestConfig)
-local Remotes = require(Shared.Remotes)
-
-local DataService = {}
-
-local STORE_NAME = "AnimeDiceAwakening_Players_v1"
-local KEY_PREFIX = "player_"
-local DATA_VERSION = 1
-local MAX_ATTEMPTS = 5 -- спроб при помилці DataStore
-local LOCK_WAIT_ATTEMPTS = 6 -- скільки разів чекати, поки інший сервер звільнить дані
-local LOCK_RETRY_DELAY = 5 -- секунд між такими спробами
-local LOCK_TIMEOUT = 180 -- замок старший за 3 хв вважається "мертвим" (сервер впав)
-local AUTOSAVE_INTERVAL = 60
-
-local SESSION_ID = if game.JobId ~= "" then game.JobId else "studio-" .. HttpService:GenerateGUID(false)
-
-local store = nil
-do
-	local ok, result = pcall(function()
-		return DataStoreService:GetDataStore(STORE_NAME)
-	end)
-	if ok then
-		store = result
-	else
-		warn("[DataService] DataStore недоступний: " .. tostring(result))
-	end
-end
-
--- [Player] = { data, canSave, releasing, saving, incomeRemainder }
-local profiles = {}
-local pendingSync = {}
-local changedCallbacks = {}
-
-local function makeTemplate()
-	return {
-		version = DATA_VERSION,
-		coins = EconomyConfig.StartingCoins,
-		crystals = EconomyConfig.StartingCrystals,
-		heroes = {}, -- [uid] = { id, level, locked, obtained }
-		nextHeroId = 1,
-		slots = table.create(EconomyConfig.MaxSlots, ""), -- uid героя або ""
-		slotCount = EconomyConfig.StartSlots,
-		team = table.create(CombatConfig.TeamSize, ""), -- бойова команда: uid героя або ""
-		incomeLevel = 0,
-		pity = {}, -- [rarity] = кидків без цієї рідкості
-		totalRolls = 0,
-		discovered = {}, -- [heroId] = true (колекція)
-		tutorial = { freeRollUsed = false, completed = false },
-		settings = { sound = true, effects = true, skipAnimations = false },
-		stats = { enemiesDefeated = 0, bossesDefeated = 0, merges = 0 },
-		quests = { main = 1 }, -- номер активного сюжетного завдання
-		daily = { day = 0, progress = {}, claimed = {} }, -- щоденні завдання
-		collectionClaimed = {}, -- ["m1"] = true — забрані нагороди колекції
-		boosts = { luck = 0, income = 0 }, -- час (os.time), до якого діє буст
-		inventoryBonus = 0, -- додаткові місця в інвентарі
-		worldKills = {}, -- [worldId] = перемог у цьому світі (для зон)
-		bossKills = {}, -- [enemyId боса] = скільки разів переможено (відкриває світи й кубики)
-		rebirths = 0,
-		lastSeen = 0,
-	}
-end
-
-local TEMPLATE = makeTemplate()
-
-local function deepCopy(value)
-	if type(value) ~= "table" then
-		return value
-	end
-	local copy = {}
-	for key, item in value do
-		copy[key] = deepCopy(item)
-	end
-	return copy
-end
-
--- Додає відсутні поля зі шаблону (коли ми додаємо нові поля в майбутніх оновленнях).
-local function reconcile(data, template)
-	for key, defaultValue in template do
-		if data[key] == nil or type(data[key]) ~= type(defaultValue) then
-			data[key] = deepCopy(defaultValue)
-		elseif type(defaultValue) == "table" then
-			reconcile(data[key], defaultValue)
-		end
-	end
-end
-
--- Виправляє некоректні значення, щоб зламані дані не ламали гру.
-local function sanitize(data)
-	data.slotCount = math.clamp(math.floor(data.slotCount), EconomyConfig.StartSlots, EconomyConfig.MaxSlots)
-	data.coins = math.max(0, math.floor(data.coins))
-	data.crystals = math.max(0, math.floor(data.crystals))
-	data.rebirths = math.max(0, math.floor(data.rebirths))
-	data.quests.main = math.clamp(math.floor(data.quests.main), 1, #QuestConfig.Main + 1)
-	-- Міграція з етапу 3: тоді всі перемоги були в Ninja Village, а єдиним босом був Oni.
-	if data.worldKills.NinjaVillage == nil then
-		data.worldKills.NinjaVillage = data.stats.enemiesDefeated
-	end
-	if data.bossKills.oni_kurogane == nil and data.stats.bossesDefeated > 0 then
-		data.bossKills.oni_kurogane = data.stats.bossesDefeated
-	end
-	for _, hero in data.heroes do
-		hero.level = math.max(1, math.floor(tonumber(hero.level) or 1))
-		hero.locked = hero.locked == true
-		hero.awakened = hero.awakened == true
-	end
-	local seen = {}
-	for i = 1, EconomyConfig.MaxSlots do
-		local uid = data.slots[i]
-		local hero = type(uid) == "string" and data.heroes[uid]
-		if i > data.slotCount or not hero or seen[uid] or not HeroConfig.Heroes[hero.id] then
-			data.slots[i] = ""
-		else
-			seen[uid] = true
-		end
-	end
-	-- Один герой — або на базі, або в команді. Якщо обидва, база має пріоритет.
-	for i = 1, CombatConfig.TeamSize do
-		local uid = data.team[i]
-		local hero = type(uid) == "string" and data.heroes[uid]
-		if not hero or seen[uid] or not HeroConfig.Heroes[hero.id] then
-			data.team[i] = ""
-		else
-			seen[uid] = true
-		end
-	end
-end
-
-local function lockOwnedByOther(stored)
-	return type(stored) == "table" and type(stored.sessionLock) == "table" and stored.sessionLock.sessionId ~= SESSION_ID
-end
-
-local function lockIsFresh(stored)
-	return os.time() - (tonumber(stored.sessionLock.time) or 0) < LOCK_TIMEOUT
-end
-
--- Одна спроба завантажити дані й поставити замок.
--- Повертає "ok", data | "locked" | "error", message
-local function tryAcquire(key)
-	local loaded, locked = nil, false
-	local ok, err = pcall(function()
-		store:UpdateAsync(key, function(stored)
-			-- Функція може викликатися кілька разів, тому скидаємо стан.
-			loaded, locked = nil, false
-			if lockOwnedByOther(stored) and lockIsFresh(stored) then
-				locked = true
-				return nil -- nil = нічого не записувати
-			end
-			local data = if type(stored) == "table" then stored else makeTemplate()
-			data.sessionLock = { sessionId = SESSION_ID, time = os.time() }
-			loaded = data
-			return data
-		end)
-	end)
-	if not ok then
-		return "error", err
-	elseif locked then
-		return "locked"
-	end
-	return "ok", loaded
-end
-
--- Запис у DataStore. release = true знімає замок (гравець виходить).
-local function writeProfile(player, profile, release)
-	if not profile.canSave or not store then
-		return true
-	end
-	local key = KEY_PREFIX .. player.UserId
-	profile.data.lastSeen = os.time()
-	for attempt = 1, MAX_ATTEMPTS do
-		local stolen = false
-		local ok, err = pcall(function()
-			store:UpdateAsync(key, function(stored)
-				stolen = false
-				if lockOwnedByOther(stored) then
-					-- Дані вже відкрив інший сервер — не перезаписуємо їх.
-					stolen = true
-					return nil
-				end
-				local data = deepCopy(profile.data)
-				if release then
-					data.sessionLock = nil
-				else
-					data.sessionLock = { sessionId = SESSION_ID, time = os.time() }
-				end
-				return data
-			end)
-		end)
-		if ok then
-			if stolen then
-				profile.canSave = false
-				warn(("[DataService] Дані %s відкриті на іншому сервері, збереження скасовано"):format(player.Name))
-				if not release and player.Parent then
-					player:Kick("Твій прогрес відкрито на іншому сервері. Перезайди в гру.")
-				end
-				return false
-			end
-			return true
-		end
-		warn(("[DataService] Помилка збереження %s (спроба %d): %s"):format(player.Name, attempt, tostring(err)))
-		if attempt < MAX_ATTEMPTS then
-			task.wait(math.min(2 ^ attempt, 8))
-		end
-	end
-	return false
-end
-
--- Збереження по черзі: два записи одного гравця ніколи не йдуть одночасно.
-local function saveProfile(player, profile, release)
-	while profile.saving do
-		task.wait(0.1)
-	end
-	profile.saving = true
-	local ok = writeProfile(player, profile, release)
-	profile.saving = false
-	return ok
-end
-
-local function createLeaderstats(player, data)
-	local leaderstats = Instance.new("Folder")
-	leaderstats.Name = "leaderstats"
-	local coins = Instance.new("IntValue")
-	coins.Name = "Coins"
-	coins.Value = data.coins
-	coins.Parent = leaderstats
-	local crystals = Instance.new("IntValue")
-	crystals.Name = "Crystals"
-	crystals.Value = data.crystals
-	crystals.Parent = leaderstats
-	leaderstats.Parent = player
-end
-
--- Помилка "Studio Access to API Services вимкнено" (403) — повтор нічого не змінить
-local function isStudioAccessError(err)
-	return RunService:IsStudio() and string.find(tostring(err), "API access is not enabled", 1, true) ~= nil
-end
-
--- Завантажує дані гравця. Повертає таблицю даних або nil (гравця відключено / він вийшов).
-function DataService.LoadPlayer(player)
-	local key = KEY_PREFIX .. player.UserId
-	local data, canSave = nil, false
-
-	if store then
-		local errors, lockWaits = 0, 0
-		while true do
-			local status, result = tryAcquire(key)
-			if status == "ok" then
-				data, canSave = result, true
-				break
-			elseif status == "locked" then
-				lockWaits += 1
-				if lockWaits >= LOCK_WAIT_ATTEMPTS then
-					break
-				end
-				task.wait(LOCK_RETRY_DELAY)
-			else
-				errors += 1
-				warn(("[DataService] Не вдалося завантажити %s (спроба %d): %s"):format(player.Name, errors, tostring(result)))
-				-- У Studio без дозволу на API повтори марні: одразу переходимо на тимчасові дані
-				if errors >= MAX_ATTEMPTS or isStudioAccessError(result) then
-					break
-				end
-				task.wait(math.min(2 ^ errors, 8))
-			end
-			if player.Parent == nil then
-				return nil -- гравець вийшов, замок не ставили
-			end
-		end
-	end
-
-	if not data then
-		if RunService:IsStudio() then
-			-- У Studio без доступу до API даємо тимчасові дані, але НІКОЛИ їх не зберігаємо.
-			warn("[DataService] Studio: прогрес не зберігатиметься. Увімкни Game Settings → Security → Enable Studio Access to API Services")
-			data, canSave = makeTemplate(), false
-		else
-			player:Kick("Не вдалося завантажити прогрес. Він у безпеці — перезайди за хвилину.")
-			return nil
-		end
-	end
-
-	data.sessionLock = nil
-	reconcile(data, TEMPLATE)
-	sanitize(data)
-
-	local profile = { data = data, canSave = canSave, releasing = false, saving = false, incomeRemainder = 0 }
-	profiles[player] = profile
-
-	if player.Parent == nil then
-		-- Вийшов під час завантаження: знімаємо замок і виходимо.
-		DataService.ReleasePlayer(player)
-		return nil
-	end
-
-	createLeaderstats(player, data)
-	if not canSave then
-		Remotes.Notify(player, "Режим Studio: прогрес не зберігається (немає доступу до API).", "error")
-	end
-	return data
-end
-
--- Зберегти й забути гравця (вихід або вимкнення сервера).
-function DataService.ReleasePlayer(player)
-	local profile = profiles[player]
-	if not profile or profile.releasing then
-		return
-	end
-	profile.releasing = true
-	saveProfile(player, profile, true)
-	profiles[player] = nil
-	pendingSync[player] = nil
-end
-
--- Активний профіль (nil, якщо дані не завантажені або гравець виходить).
-function DataService.GetProfile(player)
-	local profile = profiles[player]
-	if profile and not profile.releasing then
-		return profile
-	end
-	return nil
-end
-
-function DataService.Get(player)
-	local profile = DataService.GetProfile(player)
-	return profile and profile.data
-end
-
-local function setCoins(player, profile, value)
-	profile.data.coins = value
-	local leaderstats = player:FindFirstChild("leaderstats")
-	local coins = leaderstats and leaderstats:FindFirstChild("Coins")
-	if coins then
-		coins.Value = value
-	end
-end
-
-function DataService.AddCoins(player, amount)
-	local profile = DataService.GetProfile(player)
-	amount = math.floor(tonumber(amount) or 0)
-	if not profile or amount <= 0 then
-		return false
-	end
-	setCoins(player, profile, profile.data.coins + amount)
-	return true
-end
-
-function DataService.AddCrystals(player, amount)
-	local profile = DataService.GetProfile(player)
-	amount = math.floor(tonumber(amount) or 0)
-	if not profile or amount <= 0 then
-		return false
-	end
-	profile.data.crystals += amount
-	local leaderstats = player:FindFirstChild("leaderstats")
-	local crystals = leaderstats and leaderstats:FindFirstChild("Crystals")
-	if crystals then
-		crystals.Value = profile.data.crystals
-	end
-	return true
-end
-
--- Списує кристали, лише якщо їх вистачає. Повертає true/false.
-function DataService.SpendCrystals(player, amount)
-	local profile = DataService.GetProfile(player)
-	amount = math.floor(tonumber(amount) or -1)
-	if not profile or amount < 0 or profile.data.crystals < amount then
-		return false
-	end
-	profile.data.crystals -= amount
-	local leaderstats = player:FindFirstChild("leaderstats")
-	local crystals = leaderstats and leaderstats:FindFirstChild("Crystals")
-	if crystals then
-		crystals.Value = profile.data.crystals
-	end
-	return true
-end
-
--- Списує монети, лише якщо їх вистачає. Повертає true/false.
-function DataService.SpendCoins(player, amount)
-	local profile = DataService.GetProfile(player)
-	amount = math.floor(tonumber(amount) or -1)
-	if not profile or amount < 0 or profile.data.coins < amount then
-		return false
-	end
-	setCoins(player, profile, profile.data.coins - amount)
-	return true
-end
-
--- callback(player, data) — викликається після кожної зміни даних гравця.
-function DataService.OnChanged(callback)
-	table.insert(changedCallbacks, callback)
-end
-
--- Дані змінились: наприкінці кадру надіслати їх клієнту та повідомити інші сервіси
--- (один раз, навіть якщо змін було кілька).
-function DataService.MarkChanged(player)
-	if pendingSync[player] then
-		return
-	end
-	pendingSync[player] = true
-	task.defer(function()
-		pendingSync[player] = nil
-		local profile = DataService.GetProfile(player)
-		if not profile then
-			return
-		end
-		DataService.Sync(player)
-		for _, callback in changedCallbacks do
-			task.spawn(callback, player, profile.data)
-		end
-	end)
-end
-
-function DataService.Sync(player)
-	local profile = DataService.GetProfile(player)
-	if profile and player.Parent then
-		Remotes.Get("DataSync"):FireClient(player, profile.data)
-	end
-end
-
-function DataService.Init()
-	-- Автозбереження
-	task.spawn(function()
-		while true do
-			task.wait(AUTOSAVE_INTERVAL)
-			for player, profile in profiles do
-				if not profile.releasing then
-					task.spawn(saveProfile, player, profile, false)
-				end
-			end
-		end
-	end)
-
-	-- Сервер вимикається: зберігаємо всіх і чекаємо (Roblox дає до 30 с).
-	game:BindToClose(function()
-		for player in profiles do
-			task.spawn(DataService.ReleasePlayer, player)
-		end
-		local deadline = os.clock() + 25
-		while next(profiles) ~= nil and os.clock() < deadline do
-			task.wait(0.2)
-		end
-	end)
-end
-
-return DataService
-]=])
-
-setSource({ "ReplicatedStorage", "Shared", "HeroModelBuilder" }, "ModuleScript", [=[
--- HeroModelBuilder: будує просту модель героя з Part (без платних моделей).
--- Модель будується навколо точки (0,0,0) — це "ноги" героя,
--- тому її легко поставити на слот через model:PivotTo(...).
--- Використовують і сервер (герої на базі), і клієнт (герої-супутники в бою).
+setSource({ "ServerScriptService", "Services", "WorldService" }, "ModuleScript", [=[
+-- WorldService: будує світи, переносить гравців через портали та кнопку Worlds.
+-- Поточний світ гравця зберігається в атрибуті "World" ("Lobby" або id світу).
 
 local CollectionService = game:GetService("CollectionService")
+local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Shared = ReplicatedStorage:WaitForChild("Shared")
-local HeroConfig = require(Shared:WaitForChild("Config"):WaitForChild("HeroConfig"))
-local RarityConfig = require(Shared.Config:WaitForChild("RarityConfig"))
+local WorldConfig = require(Shared.Config.WorldConfig)
+local GameMath = require(Shared.GameMath)
+local Remotes = require(Shared.Remotes)
 
-local HeroModelBuilder = {}
+local BuildUtil = require(script.Parent.BuildUtil)
+local CombatService = require(script.Parent.CombatService)
+local DataService = require(script.Parent.DataService)
+local EnemyService = require(script.Parent.EnemyService)
+local PlotService = require(script.Parent.PlotService)
+local RateLimiter = require(script.Parent.RateLimiter)
 
--- Тег: ефекти з цим тегом вимикаються в налаштуваннях клієнта.
-HeroModelBuilder.AURA_TAG = "HeroAura"
+local WorldService = {}
 
-local function addPart(model, name, size, cframe, color, material, shape)
-	local part = Instance.new("Part")
-	part.Name = name
-	part.Size = size
-	part.CFrame = cframe
-	part.Color = color
-	part.Material = material or Enum.Material.SmoothPlastic
-	part.Shape = shape or Enum.PartType.Block
-	part.Anchored = true
-	part.CanCollide = false
-	part.CanTouch = false
-	part.CanQuery = false -- кліки проходять крізь героя до ворога
-	part.TopSurface = Enum.SurfaceType.Smooth
-	part.BottomSurface = Enum.SurfaceType.Smooth
-	part.Parent = model
-	return part
+local LOBBY = "Lobby"
+local GATE_TAG = "ZoneGate" -- клієнт робить відкриті ворота прохідними для свого гравця
+local WORLD_SIZE = 260
+local PORTAL_COOLDOWN = 2
+
+local limiter = RateLimiter.new(3, 0.5)
+local spawnPoints = {} -- [worldId] = CFrame
+local lastPortalUse = setmetatable({}, { __mode = "k" })
+
+local OUTER_SIZE = 560 -- декоративна земля довкола світу (за невидимими стінами)
+
+local COLORS = {
+	wood = Color3.fromRGB(150, 105, 70),
+	darkWood = Color3.fromRGB(80, 50, 35),
+	roof = Color3.fromRGB(60, 65, 90),
+	torii = Color3.fromRGB(210, 45, 40),
+	blossom = Color3.fromRGB(255, 170, 205),
+	stone = Color3.fromRGB(150, 150, 160),
+}
+
+-- Позиція відносно центру світу
+local function at(center, x, z, y)
+	return (center * CFrame.new(x, y or 0, z)).Position
 end
 
--- Точка опори моделі = (0,0,0) світу, тобто "ноги" героя.
--- Якщо в моделі є PrimaryPart, опора задається через його PivotOffset
--- (присвоєння WorldPivot у такій моделі не спрацьовує, і модель "тоне" в підлогу).
-function HeroModelBuilder.SetPivotAtOrigin(model)
-	local primary = model.PrimaryPart
-	if primary then
-		primary.PivotOffset = primary.CFrame:Inverse()
-	else
-		model.WorldPivot = CFrame.new()
+local function house(parent, cframe, roofColor)
+	local model = Instance.new("Model")
+	model.Name = "House"
+	roofColor = roofColor or COLORS.roof
+	BuildUtil.Part({ Name = "Porch", Size = Vector3.new(21, 1, 17), CFrame = cframe * CFrame.new(0, 0.5, -0.5), Color = Color3.fromRGB(120, 85, 60), Material = Enum.Material.WoodPlanks }, model)
+	BuildUtil.Part({ Name = "Walls", Size = Vector3.new(18, 9, 14), CFrame = cframe * CFrame.new(0, 5.5, 0), Color = Color3.fromRGB(245, 232, 205), Material = Enum.Material.WoodPlanks }, model)
+	-- Темні балки каркаса
+	for _, x in { -9, -3, 3, 9 } do
+		BuildUtil.Part({ Name = "Beam", Size = Vector3.new(0.8, 9, 14.4), CFrame = cframe * CFrame.new(x, 5.5, 0), Color = COLORS.darkWood, Material = Enum.Material.Wood }, model)
+	end
+	BuildUtil.Part({ Name = "Frame", Size = Vector3.new(19, 1, 15), CFrame = cframe * CFrame.new(0, 10.5, 0), Color = COLORS.darkWood, Material = Enum.Material.Wood }, model)
+	-- Дах-пагода з двох ярусів і загнутими краями
+	BuildUtil.Ridge(model, cframe * CFrame.new(0, 11, 0), 25, 4, 20, roofColor, Enum.Material.Slate)
+	BuildUtil.Part({ Name = "Eave", Size = Vector3.new(25, 0.5, 20), CFrame = cframe * CFrame.new(0, 11.2, 0), Color = roofColor:Lerp(Color3.new(0, 0, 0), 0.25), Material = Enum.Material.Slate }, model)
+	BuildUtil.Ridge(model, cframe * CFrame.new(0, 14.5, 0), 15, 3, 12, roofColor, Enum.Material.Slate)
+	BuildUtil.Part({ Name = "Eave2", Size = Vector3.new(15, 0.4, 12), CFrame = cframe * CFrame.new(0, 14.6, 0), Color = roofColor:Lerp(Color3.new(0, 0, 0), 0.25), Material = Enum.Material.Slate }, model)
+	BuildUtil.Part({ Name = "Door", Size = Vector3.new(4.5, 7, 0.4), CFrame = cframe * CFrame.new(0, 4.5, -7.1), Color = Color3.fromRGB(110, 40, 35), Material = Enum.Material.Wood }, model)
+	-- Вікна-сьодзі, що світяться теплим світлом
+	for _, x in { -6, 6 } do
+		BuildUtil.Part({ Name = "Window", Size = Vector3.new(3.5, 3, 0.3), CFrame = cframe * CFrame.new(x, 6, -7.1), Color = Color3.fromRGB(255, 220, 160), Material = Enum.Material.Neon }, model)
+	end
+	-- Паперові ліхтарики над дверима
+	for _, x in { -3.2, 3.2 } do
+		local lantern = BuildUtil.Part({ Name = "DoorLantern", Shape = Enum.PartType.Ball, Size = Vector3.one * 1.6, CFrame = cframe * CFrame.new(x, 8.6, -8), Color = Color3.fromRGB(255, 90, 70), Material = Enum.Material.Neon, CanCollide = false }, model)
+		if x > 0 then
+			BuildUtil.Light(lantern, lantern.Color, 14, 1)
+		end
+	end
+	model.Parent = parent
+end
+
+local function torii(parent, cframe, color)
+	local model = Instance.new("Model")
+	model.Name = "Torii"
+	color = color or COLORS.torii
+	BuildUtil.Column(model, cframe * CFrame.new(-8, 0, 0), 2.2, 15, color, Enum.Material.SmoothPlastic, { Name = "PillarL" })
+	BuildUtil.Column(model, cframe * CFrame.new(8, 0, 0), 2.2, 15, color, Enum.Material.SmoothPlastic, { Name = "PillarR" })
+	for _, x in { -8, 8 } do
+		BuildUtil.Part({ Name = "Foot", Size = Vector3.new(3, 1.2, 3), CFrame = cframe * CFrame.new(x, 0.6, 0), Color = Color3.fromRGB(30, 25, 25) }, model)
+	end
+	BuildUtil.Part({ Name = "Beam", Size = Vector3.new(20, 1.2, 1.6), CFrame = cframe * CFrame.new(0, 11.5, 0), Color = color }, model)
+	BuildUtil.Part({ Name = "Plaque", Size = Vector3.new(2.4, 3, 0.6), CFrame = cframe * CFrame.new(0, 13, 0), Color = Color3.fromRGB(30, 25, 25) }, model)
+	BuildUtil.Part({ Name = "Top", Size = Vector3.new(24, 1.4, 2.6), CFrame = cframe * CFrame.new(0, 15.2, 0), Color = color }, model)
+	BuildUtil.Part({ Name = "TopCap", Size = Vector3.new(26, 0.8, 3), CFrame = cframe * CFrame.new(0, 16.3, 0), Color = Color3.fromRGB(30, 25, 25) }, model)
+	model.Parent = parent
+end
+
+-- Кам'яний ліхтар ішідоро
+local function lantern(parent, position)
+	BuildUtil.Part({ Name = "LanternBase", Size = Vector3.new(2.4, 0.8, 2.4), CFrame = CFrame.new(position + Vector3.new(0, 0.4, 0)), Color = COLORS.stone, Material = Enum.Material.Slate }, parent)
+	BuildUtil.Column(parent, CFrame.new(position + Vector3.new(0, 0.8, 0)), 1, 3.4, COLORS.stone, Enum.Material.Slate, { Name = "LanternPost" })
+	local light = BuildUtil.Part({ Name = "Lantern", Size = Vector3.new(1.8, 1.6, 1.8), CFrame = CFrame.new(position + Vector3.new(0, 5, 0)), Color = Color3.fromRGB(255, 175, 80), Material = Enum.Material.Neon }, parent)
+	BuildUtil.Part({ Name = "LanternRoof", Size = Vector3.new(3, 0.6, 3), CFrame = CFrame.new(position + Vector3.new(0, 6.1, 0)) * CFrame.Angles(0, math.rad(45), 0), Color = COLORS.stone, Material = Enum.Material.Slate }, parent)
+	BuildUtil.Part({ Name = "LanternTop", Shape = Enum.PartType.Ball, Size = Vector3.one * 0.9, CFrame = CFrame.new(position + Vector3.new(0, 6.7, 0)), Color = COLORS.stone, Material = Enum.Material.Slate }, parent)
+	BuildUtil.Light(light, light.Color, 16, 1)
+end
+
+local function bamboo(parent, position, rng)
+	for _ = 1, 9 do
+		local offset = Vector3.new(rng:NextNumber(-5, 5), 0, rng:NextNumber(-5, 5))
+		local height = rng:NextNumber(14, 24)
+		local base = position + offset
+		BuildUtil.Column(parent, CFrame.new(base) * CFrame.Angles(rng:NextNumber(-0.06, 0.06), 0, rng:NextNumber(-0.06, 0.06)), 0.8, height, Color3.fromRGB(110, 175, 70), Enum.Material.SmoothPlastic, { Name = "Bamboo", CanCollide = false })
+		for y = 4, height - 2, 4 do
+			BuildUtil.Column(parent, CFrame.new(base + Vector3.new(0, y, 0)), 0.95, 0.3, Color3.fromRGB(85, 140, 55), Enum.Material.SmoothPlastic, { Name = "Joint", CanCollide = false })
+		end
+		BuildUtil.Part({ Name = "BambooLeaves", Shape = Enum.PartType.Ball, Size = Vector3.one * 3, CFrame = CFrame.new(base + Vector3.new(0, height, 0)), Color = Color3.fromRGB(95, 170, 70), Material = Enum.Material.Grass, CanCollide = false }, parent)
 	end
 end
 
--- Зброя / аксесуар залежно від класу героя.
-local ACCESSORIES = {
-	Ninja = function(model, s, accent, top)
-		addPart(model, "Scarf", Vector3.new(2.3, 0.45, 1.4) * s, CFrame.new(0, top - 0.2 * s, 0), accent, Enum.Material.Neon)
-		addPart(model, "ScarfTail", Vector3.new(0.5, 1.6, 0.15) * s, CFrame.new(0.6 * s, top - 1.1 * s, 0.75 * s) * CFrame.Angles(0.3, 0, 0), accent, Enum.Material.Neon)
-		addPart(model, "Kunai", Vector3.new(0.2, 1.2, 0.2) * s, CFrame.new(1.45 * s, top - 1.8 * s, -0.3 * s) * CFrame.Angles(0, 0, 0.4), Color3.fromRGB(180, 180, 190), Enum.Material.Metal)
-	end,
-	Swordsman = function(model, s, accent, top)
-		addPart(model, "Hilt", Vector3.new(0.3, 0.9, 0.3) * s, CFrame.new(1.5 * s, top - 2.2 * s, -0.4 * s), Color3.fromRGB(50, 40, 40))
-		addPart(model, "Blade", Vector3.new(0.18, 4, 0.5) * s, CFrame.new(1.5 * s, top + 0.25 * s, -0.4 * s), accent, Enum.Material.Neon)
-	end,
-	["Demon Hunter"] = function(model, s, accent, top)
-		addPart(model, "Blade", Vector3.new(0.18, 3.6, 0.45) * s, CFrame.new(-1.5 * s, top - 1 * s, -0.3 * s) * CFrame.Angles(0, 0, -0.25), accent, Enum.Material.Neon)
-		addPart(model, "Lantern", Vector3.new(0.6, 0.6, 0.6) * s, CFrame.new(1.5 * s, top - 2.4 * s, -0.3 * s), accent, Enum.Material.Neon, Enum.PartType.Ball)
-	end,
-	Pirate = function(model, s, accent, top)
-		addPart(model, "HatBrim", Vector3.new(2.6, 0.2, 2.2) * s, CFrame.new(0, top + 1.8 * s, 0), Color3.fromRGB(30, 25, 25))
-		addPart(model, "HatTop", Vector3.new(1.7, 0.7, 1.5) * s, CFrame.new(0, top + 2.25 * s, 0), Color3.fromRGB(30, 25, 25))
-		addPart(model, "Cutlass", Vector3.new(0.18, 2.6, 0.5) * s, CFrame.new(1.5 * s, top - 1.6 * s, -0.4 * s) * CFrame.Angles(0, 0, 0.2), accent, Enum.Material.Metal)
-	end,
-	Mage = function(model, s, accent, top)
-		addPart(model, "Staff", Vector3.new(0.25, 5, 0.25) * s, CFrame.new(1.5 * s, top - 1.5 * s, -0.3 * s), Color3.fromRGB(110, 70, 40), Enum.Material.Wood)
-		addPart(model, "Orb", Vector3.new(0.9, 0.9, 0.9) * s, CFrame.new(1.5 * s, top + 1.2 * s, -0.3 * s), accent, Enum.Material.Neon, Enum.PartType.Ball)
-	end,
-	["Space Warrior"] = function(model, s, accent, top)
-		addPart(model, "ShoulderL", Vector3.new(0.9, 0.5, 1.4) * s, CFrame.new(-1.4 * s, top - 0.15 * s, 0), accent, Enum.Material.Neon)
-		addPart(model, "ShoulderR", Vector3.new(0.9, 0.5, 1.4) * s, CFrame.new(1.4 * s, top - 0.15 * s, 0), accent, Enum.Material.Neon)
-		addPart(model, "Visor", Vector3.new(1.4, 0.35, 0.3) * s, CFrame.new(0, top + 0.85 * s, -0.75 * s), accent, Enum.Material.Neon)
-	end,
-}
+-- Скелясте "дно" світу, що летить у небі: кілька плит, які звужуються донизу
+local function floatingRock(folder, center, size, top, color)
+	local widths = { 1, 0.82, 0.6, 0.34 }
+	local y = top
+	for i, k in widths do
+		local height = 14 + i * 4
+		BuildUtil.Part({
+			Name = "Underside",
+			Size = Vector3.new(size * k, height, size * k),
+			CFrame = center * CFrame.new(0, y - height / 2, 0) * CFrame.Angles(0, math.rad(i * 9), 0),
+			Color = color:Lerp(Color3.new(0, 0, 0), i * 0.08),
+			Material = Enum.Material.Slate,
+			CanCollide = false,
+			CanQuery = false,
+		}, folder)
+		y -= height * 0.8
+	end
+end
 
-local AWAKEN_COLOR = Color3.fromRGB(255, 215, 90)
+-- Стовпи обабіч дороги біля воріт зони
+local function gatePosts(folder, center, z, color)
+	for _, x in { -9, 9 } do
+		BuildUtil.Part({ Name = "GatePost", Size = Vector3.new(2.4, 12, 2.4), CFrame = center * CFrame.new(x, 6, z), Color = Color3.fromRGB(60, 55, 75), Material = Enum.Material.Slate }, folder)
+		local cap = BuildUtil.Part({ Name = "GatePostCap", Size = Vector3.new(2, 2, 2), CFrame = center * CFrame.new(x, 13, z) * CFrame.Angles(math.rad(45), 0, math.rad(45)), Color = color, Material = Enum.Material.Neon, CanCollide = false }, folder)
+		BuildUtil.Light(cap, color, 16, 1)
+	end
+end
 
--- Пробуджена форма: золотий німб над головою, сяйво й світло
-local function addAwakenedAura(model, torso, top, s)
-	addPart(model, "Halo", Vector3.new(0.25, 2.4, 2.4) * s, CFrame.new(0, top + 2.3 * s, 0) * CFrame.Angles(0, 0, math.rad(90)), AWAKEN_COLOR, Enum.Material.Neon, Enum.PartType.Cylinder)
-	local emitter = Instance.new("ParticleEmitter")
-	emitter.Name = "AwakenAura"
-	emitter.Color = ColorSequence.new(AWAKEN_COLOR, Color3.new(1, 1, 1))
-	emitter.LightEmission = 1
-	emitter.Size = NumberSequence.new({ NumberSequenceKeypoint.new(0, 1), NumberSequenceKeypoint.new(1, 0) })
-	emitter.Transparency = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0.1), NumberSequenceKeypoint.new(1, 1) })
-	emitter.Lifetime = NumberRange.new(0.8, 1.2)
-	emitter.Speed = NumberRange.new(2, 4)
-	emitter.SpreadAngle = Vector2.new(30, 30)
-	emitter.EmissionDirection = Enum.NormalId.Top
-	emitter.Rate = 40
-	emitter.Parent = torso
-	CollectionService:AddTag(emitter, HeroModelBuilder.AURA_TAG)
+-- Спільна основа кожного світу: земля, невидимі стіни по краях, ворота зон
+-- і портал додому. Вхід — з боку -Z, бос — з боку +Z.
+-- center — центр світу на рівні землі. outer — { color, material, rock } для землі довкола.
+-- Повертає точку появи гравця.
+local function buildWorldBase(folder, center, worldId, groundColor, groundMaterial, outer)
+	local half = WORLD_SIZE / 2
+	local world = WorldConfig.Worlds[worldId]
+	BuildUtil.Part({ Name = "Ground", Size = Vector3.new(WORLD_SIZE, 4, WORLD_SIZE), CFrame = center * CFrame.new(0, -2, 0), Color = groundColor, Material = groundMaterial }, folder)
+	if outer then
+		BuildUtil.Part({ Name = "OuterGround", Size = Vector3.new(OUTER_SIZE, 4, OUTER_SIZE), CFrame = center * CFrame.new(0, -2.4, 0), Color = outer.color, Material = outer.material, CanCollide = false }, folder)
+		floatingRock(folder, center, OUTER_SIZE, -4.4, outer.rock)
+	end
+
+	-- Невидимі стіни, щоб не впасти зі світу
+	for _, wall in {
+		{ Vector3.new(WORLD_SIZE, 40, 2), Vector3.new(0, 20, half) },
+		{ Vector3.new(WORLD_SIZE, 40, 2), Vector3.new(0, 20, -half) },
+		{ Vector3.new(2, 40, WORLD_SIZE), Vector3.new(half, 20, 0) },
+		{ Vector3.new(2, 40, WORLD_SIZE), Vector3.new(-half, 20, 0) },
+	} do
+		BuildUtil.Part({ Name = "Wall", Size = wall[1], CFrame = center * CFrame.new(wall[2]), Transparency = 1 }, folder)
+	end
+
+	-- Ворота зон: світна стіна через увесь світ. Сервер робить її твердою для всіх,
+	-- а клієнт гравця, який уже відкрив зону, робить її прохідною лише для себе.
+	-- Навіть якщо хтось обійде стіну, атакувати ворогів закритої зони сервер не дасть.
+	for zoneIndex, zone in world.zones or {} do
+		if zone.gateZ then
+			local gate = BuildUtil.Part({
+				Name = "Gate_" .. zone.id,
+				Size = Vector3.new(WORLD_SIZE, 30, 1),
+				CFrame = center * CFrame.new(0, 15, zone.gateZ),
+				Color = Color3.fromRGB(255, 80, 120),
+				Material = Enum.Material.ForceField,
+				Transparency = 0.3,
+				CanQuery = false,
+			}, folder)
+			gate:SetAttribute("World", worldId)
+			gate:SetAttribute("ZoneIndex", zoneIndex)
+			gate:SetAttribute("ZoneName", zone.name)
+			gate:SetAttribute("RequiredKills", zone.requiredKills)
+			-- Напис на воротах (клієнт оновлює його своїм прогресом)
+			local sign = BuildUtil.Part({
+				Name = "Sign",
+				Size = Vector3.new(30, 6, 0.2),
+				CFrame = center * CFrame.new(0, 8, zone.gateZ - 0.7),
+				Transparency = 1,
+				CanCollide = false,
+				CanQuery = false,
+			}, gate)
+			BuildUtil.SurfaceText(sign, Enum.NormalId.Front, ("🔒 %s — переможи %d ворогів"):format(zone.name, zone.requiredKills))
+			CollectionService:AddTag(gate, GATE_TAG)
+			gatePosts(folder, center, zone.gateZ, world.color)
+		end
+	end
+
+	-- Портал назад у лобі біля входу, повернутий написом углиб світу
+	local portalCFrame = center * CFrame.new(0, 0, -118) * CFrame.Angles(0, math.pi, 0)
+	local _, field = BuildUtil.Portal(folder, portalCFrame, "Lobby", "◀ Додому", Color3.fromRGB(255, 120, 200))
+	field:SetAttribute("WorldId", LOBBY)
+
+	-- Гравець з'являється біля входу й дивиться вглиб світу (+Z)
+	return center * CFrame.new(0, 4, -105) * CFrame.Angles(0, math.pi, 0)
+end
+
+-- Дерева й гори довкола світу (за стінами), щоб світ не обривався в порожнечу
+local function scenery(folder, center, rng, treeStyles, mountainColor, snowColor, treeCount)
+	for _ = 1, treeCount or 45 do
+		local x, z
+		repeat
+			x, z = rng:NextNumber(-250, 250), rng:NextNumber(-250, 250)
+		until math.max(math.abs(x), math.abs(z)) > WORLD_SIZE / 2 + 8
+		BuildUtil.Tree(folder, at(center, x, z, -0.4), treeStyles[rng:NextInteger(1, #treeStyles)], rng:NextNumber(1.3, 2.2), rng)
+	end
+	if mountainColor then
+		for i = 1, 14 do
+			local angle = math.rad(i * 360 / 14 + rng:NextNumber(-8, 8))
+			local radius = rng:NextNumber(225, 255)
+			BuildUtil.Mountain(folder, at(center, math.cos(angle) * radius, math.sin(angle) * radius, -0.4), rng:NextNumber(60, 120), mountainColor, snowColor, rng)
+		end
+	end
+end
+
+-- "Село ніндзя": torii на вході, будинки-пагоди, сакури, бамбук, ставок і кам'яна арена боса.
+local function buildNinjaVillage(folder, center)
+	local rng = Random.new(101)
+	local spawnPoint = buildWorldBase(folder, center, "NinjaVillage", Color3.fromRGB(105, 178, 92), Enum.Material.Grass, {
+		color = Color3.fromRGB(84, 150, 74),
+		material = Enum.Material.Grass,
+		rock = Color3.fromRGB(120, 100, 85),
+	})
+	scenery(folder, center, rng, { "sakura", "pine", "pine", "round" }, Color3.fromRGB(105, 120, 115), Color3.fromRGB(250, 250, 255))
+	BuildUtil.Part({ Name = "Road", Size = Vector3.new(12, 0.2, WORLD_SIZE - 20), CFrame = center * CFrame.new(0, 0.1, 0), Color = Color3.fromRGB(205, 185, 150), Material = Enum.Material.Sand }, folder)
+	-- Камені-сходинки обабіч дороги
+	for z = -120, 120, 6 do
+		for _, x in { -6.8, 6.8 } do
+			BuildUtil.Part({ Name = "Curb", Size = Vector3.new(1.4, 0.5, 4.6), CFrame = center * CFrame.new(x, 0.25, z), Color = Color3.fromRGB(160, 155, 150), Material = Enum.Material.Slate }, folder)
+		end
+	end
+
+	torii(folder, center * CFrame.new(0, 0, -95))
+	torii(folder, center * CFrame.new(0, 0, 58))
+	local roofs = { Color3.fromRGB(60, 65, 90), Color3.fromRGB(120, 45, 40), Color3.fromRGB(45, 80, 75) }
+	for i, offset in { Vector3.new(-62, 0, -70), Vector3.new(62, 0, -70), Vector3.new(-70, 0, -25), Vector3.new(70, 0, -25), Vector3.new(-60, 0, 40), Vector3.new(60, 0, 40) } do
+		-- Будинки дверима до дороги
+		local position = (center * CFrame.new(offset)).Position
+		local roadPoint = (center * CFrame.new(0, 0, offset.Z)).Position
+		house(folder, CFrame.lookAt(position, roadPoint), roofs[(i - 1) % #roofs + 1])
+	end
+	for _, offset in { Vector3.new(-25, 0, -100), Vector3.new(25, 0, -100), Vector3.new(-95, 0, -30), Vector3.new(95, 0, -30), Vector3.new(-100, 0, 40), Vector3.new(100, 0, 40), Vector3.new(-45, 0, 105), Vector3.new(45, 0, 105), Vector3.new(-30, 0, -40), Vector3.new(30, 0, 12) } do
+		BuildUtil.Tree(folder, (center * CFrame.new(offset)).Position, "sakura", 1.2, rng)
+		BuildUtil.Flowers(folder, (center * CFrame.new(offset)).Position, 6, 12, rng)
+	end
+	for _, offset in { Vector3.new(-48, 0, -110), Vector3.new(48, 0, -110), Vector3.new(-112, 0, 8), Vector3.new(112, 0, 8), Vector3.new(-110, 0, -85), Vector3.new(110, 0, -85) } do
+		bamboo(folder, (center * CFrame.new(offset)).Position, rng)
+	end
+	-- Кам'яні ліхтарі вздовж дороги й гірлянди ліхтариків між будинками
+	for _, z in { -80, -50, -12, 25, 48 } do
+		lantern(folder, at(center, -10, z))
+		lantern(folder, at(center, 10, z))
+	end
+	for _, z in { -70, -25, 40 } do
+		BuildUtil.LanternString(folder, at(center, -52, z, 11.5), at(center, 52, z, 11.5), { Color3.fromRGB(255, 80, 70), Color3.fromRGB(255, 200, 90), Color3.fromRGB(255, 120, 170) }, 10)
+	end
+
+	-- Ставки з камінням і містком
+	for _, x in { -92, 92 } do
+		BuildUtil.Disc(folder, center * CFrame.new(x, 0.15, 86), 34, 0.3, Color3.fromRGB(60, 160, 210), Enum.Material.Glass, { Name = "Pond", Transparency = 0.15 })
+		for i = 0, 9 do
+			local angle = math.rad(i * 36)
+			BuildUtil.Rock(folder, at(center, x + math.cos(angle) * 17, 86 + math.sin(angle) * 17), rng:NextNumber(2.5, 4), Color3.fromRGB(140, 140, 135), rng)
+		end
+	end
+	BuildUtil.Part({ Name = "Bridge", Size = Vector3.new(5, 1, 36), CFrame = center * CFrame.new(-92, 1.4, 86), Color = COLORS.torii, Material = Enum.Material.WoodPlanks }, folder)
+	for _, side in { -1, 1 } do
+		BuildUtil.Part({ Name = "BridgeRail", Size = Vector3.new(0.4, 1.5, 36), CFrame = center * CFrame.new(-92 + side * 2.3, 2.6, 86), Color = COLORS.torii, Material = Enum.Material.Wood }, folder)
+	end
+
+	-- Кам'яна арена боса з ліхтарями
+	BuildUtil.Disc(folder, center * CFrame.new(0, 0.6, 92), 56, 0.6, COLORS.stone, Enum.Material.Slate, { Name = "BossArena" })
+	BuildUtil.Disc(folder, center * CFrame.new(0, 0.66, 92), 40, 0.06, Color3.fromRGB(175, 170, 175), Enum.Material.Slate, { Name = "BossArenaInner", CanCollide = false })
+	for i = 0, 3 do
+		local angle = math.rad(45 + i * 90)
+		lantern(folder, (center * CFrame.new(math.cos(angle) * 30, 0, 92 + math.sin(angle) * 30)).Position)
+	end
+
+	-- Пелюстки сакури падають над усім селом
+	BuildUtil.Ambient(folder, center * CFrame.new(0, 40, 0), Vector3.new(WORLD_SIZE, 2, WORLD_SIZE), {
+		Color = Color3.fromRGB(255, 190, 220),
+		Rate = 40,
+		Size = 0.45,
+		Speed = 1.5,
+		Lifetime = 12,
+		Direction = Enum.NormalId.Bottom,
+		Acceleration = Vector3.new(1.5, -1, 0.5),
+		LightEmission = 0.2,
+	})
+	return spawnPoint
+end
+
+local function palm(parent, position, rng)
+	local model = Instance.new("Model")
+	model.Name = "Palm"
+	local lean = rng and rng:NextNumber(-12, -4) or -8
+	local turn = rng and rng:NextNumber(0, math.pi * 2) or 0
+	local base = CFrame.new(position) * CFrame.Angles(0, turn, 0)
+	-- Злегка вигнутий стовбур з чотирьох частин
+	local top = base
+	for i = 0, 3 do
+		local segment = BuildUtil.Part({
+			Name = "Trunk" .. i,
+			Size = Vector3.new(1.5 - i * 0.12, 4, 1.5 - i * 0.12),
+			CFrame = top * CFrame.Angles(0, 0, math.rad(lean * (i + 1) / 2)) * CFrame.new(0, 2, 0),
+			Color = Color3.fromRGB(150, 110, 70):Lerp(Color3.fromRGB(190, 150, 100), i / 3),
+			Material = Enum.Material.Wood,
+		}, model)
+		top = segment.CFrame * CFrame.new(0, 2, 0)
+	end
+	local crown = top.Position
+	for i = 0, 6 do
+		local angle = math.rad(i * 360 / 7)
+		local direction = Vector3.new(math.cos(angle), 0, math.sin(angle))
+		BuildUtil.Part({
+			Name = "Leaf" .. i,
+			Size = Vector3.new(2, 0.3, 8),
+			CFrame = CFrame.lookAt(crown + direction * 3.5, crown + direction * 7 + Vector3.new(0, -2.2, 0)),
+			Color = if i % 2 == 0 then Color3.fromRGB(60, 170, 70) else Color3.fromRGB(85, 190, 80),
+			Material = Enum.Material.Grass,
+			CanCollide = false,
+		}, model)
+	end
+	for i = 0, 2 do
+		local angle = math.rad(i * 120)
+		BuildUtil.Part({ Name = "Coconut", Shape = Enum.PartType.Ball, Size = Vector3.one * 1, CFrame = CFrame.new(crown + Vector3.new(math.cos(angle) * 0.8, -0.8, math.sin(angle) * 0.8)), Color = Color3.fromRGB(110, 75, 40), Material = Enum.Material.SmoothPlastic }, model)
+	end
+	model.Parent = parent
+end
+
+local function shack(parent, cframe)
+	local model = Instance.new("Model")
+	model.Name = "Shack"
+	BuildUtil.Part({ Name = "Floor", Size = Vector3.new(16, 1.5, 12), CFrame = cframe * CFrame.new(0, 0.75, 0), Color = Color3.fromRGB(120, 85, 55), Material = Enum.Material.WoodPlanks }, model)
+	BuildUtil.Part({ Name = "Walls", Size = Vector3.new(14, 8, 10), CFrame = cframe * CFrame.new(0, 5.5, 0), Color = Color3.fromRGB(175, 130, 85), Material = Enum.Material.WoodPlanks }, model)
+	for _, x in { -7, 7 } do
+		for _, z in { -5, 5 } do
+			BuildUtil.Part({ Name = "Post", Size = Vector3.new(0.9, 9, 0.9), CFrame = cframe * CFrame.new(x, 5.5, z), Color = Color3.fromRGB(95, 65, 40), Material = Enum.Material.Wood }, model)
+		end
+	end
+	BuildUtil.Ridge(model, cframe * CFrame.new(0, 9.5, 0), 18, 4, 14, Color3.fromRGB(215, 190, 115), Enum.Material.Fabric)
+	BuildUtil.Part({ Name = "Door", Size = Vector3.new(3.5, 6, 0.4), CFrame = cframe * CFrame.new(0, 4.5, -5.1), Color = Color3.fromRGB(70, 45, 30), Material = Enum.Material.Wood }, model)
+	BuildUtil.Part({ Name = "Window", Size = Vector3.new(3, 2.4, 0.3), CFrame = cframe * CFrame.new(4.5, 6, -5.1), Color = Color3.fromRGB(255, 210, 140), Material = Enum.Material.Neon }, model)
+	model.Parent = parent
+end
+
+local function chest(parent, position)
+	BuildUtil.Part({ Name = "Chest", Size = Vector3.new(3, 2, 2), CFrame = CFrame.new(position + Vector3.new(0, 1, 0)), Color = Color3.fromRGB(120, 70, 30), Material = Enum.Material.Wood }, parent)
+	BuildUtil.Part({ Name = "ChestBand", Size = Vector3.new(3.1, 0.3, 2.1), CFrame = CFrame.new(position + Vector3.new(0, 1.4, 0)), Color = Color3.fromRGB(230, 180, 60), Material = Enum.Material.Metal }, parent)
+	local gold = BuildUtil.Part({ Name = "Gold", Size = Vector3.new(2.6, 0.6, 1.6), CFrame = CFrame.new(position + Vector3.new(0, 2.2, 0)), Color = Color3.fromRGB(255, 200, 50), Material = Enum.Material.Neon }, parent)
+	BuildUtil.Light(gold, gold.Color, 10, 0.8)
+end
+
+local function barrels(parent, position, rng)
+	for i = 1, 3 do
+		local offset = Vector3.new(rng:NextNumber(-2.5, 2.5), 0, rng:NextNumber(-2.5, 2.5))
+		BuildUtil.Column(parent, CFrame.new(position + offset), 2.6, 3.2, Color3.fromRGB(135, 90, 55), Enum.Material.WoodPlanks, { Name = "Barrel" })
+		BuildUtil.Column(parent, CFrame.new(position + offset + Vector3.new(0, 0.6, 0)), 2.75, 0.3, Color3.fromRGB(70, 70, 75), Enum.Material.Metal, { Name = "Hoop" })
+		BuildUtil.Column(parent, CFrame.new(position + offset + Vector3.new(0, 2.3, 0)), 2.75, 0.3, Color3.fromRGB(70, 70, 75), Enum.Material.Metal, { Name = "Hoop" })
+		if i == 3 then
+			BuildUtil.Part({ Name = "Crate", Size = Vector3.new(3, 3, 3), CFrame = CFrame.new(position + Vector3.new(4, 1.5, 1)) * CFrame.Angles(0, rng:NextNumber(0, 1), 0), Color = Color3.fromRGB(175, 130, 80), Material = Enum.Material.WoodPlanks }, parent)
+		end
+	end
+end
+
+local function cannon(parent, cframe)
+	BuildUtil.Part({ Name = "Carriage", Size = Vector3.new(3, 1.4, 4), CFrame = cframe * CFrame.new(0, 1.1, 0), Color = Color3.fromRGB(110, 70, 40), Material = Enum.Material.Wood }, parent)
+	for _, x in { -1.7, 1.7 } do
+		for _, z in { -1.2, 1.2 } do
+			BuildUtil.Part({ Name = "Wheel", Shape = Enum.PartType.Cylinder, Size = Vector3.new(0.4, 1.6, 1.6), CFrame = cframe * CFrame.new(x, 0.8, z), Color = Color3.fromRGB(60, 40, 25), Material = Enum.Material.Wood }, parent)
+		end
+	end
+	BuildUtil.Part({ Name = "Barrel", Shape = Enum.PartType.Cylinder, Size = Vector3.new(5, 1.6, 1.6), CFrame = cframe * CFrame.new(0, 2.3, -0.8) * CFrame.Angles(0, math.rad(90), math.rad(-12)), Color = Color3.fromRGB(45, 45, 50), Material = Enum.Material.Metal }, parent)
+end
+
+local function umbrella(parent, position, color)
+	BuildUtil.Column(parent, CFrame.new(position), 0.4, 7, Color3.fromRGB(240, 240, 240), Enum.Material.SmoothPlastic, { Name = "Pole" })
+	for i = 0, 5 do
+		BuildUtil.Part({
+			ClassName = "WedgePart",
+			Name = "Canopy",
+			Size = Vector3.new(3.4, 1.4, 3.4),
+			CFrame = CFrame.new(position + Vector3.new(0, 7, 0)) * CFrame.Angles(0, math.rad(i * 60), 0) * CFrame.new(0, 0, -1.7) * CFrame.Angles(0, 0, 0),
+			Color = if i % 2 == 0 then color else Color3.fromRGB(255, 255, 255),
+			Material = Enum.Material.Fabric,
+			CanCollide = false,
+		}, parent)
+	end
+	BuildUtil.Part({ Name = "Towel", Size = Vector3.new(3, 0.1, 6), CFrame = CFrame.new(position + Vector3.new(3, 0.05, 0)), Color = color, Material = Enum.Material.Fabric, CanCollide = false }, parent)
+end
+
+local function lighthouse(parent, position)
+	local model = Instance.new("Model")
+	model.Name = "Lighthouse"
+	BuildUtil.Rock(model, position, 12, Color3.fromRGB(120, 115, 110))
+	for i = 0, 5 do
+		BuildUtil.Column(model, CFrame.new(position + Vector3.new(0, 4 + i * 4, 0)), 7 - i * 0.4, 4, if i % 2 == 0 then Color3.fromRGB(240, 240, 240) else Color3.fromRGB(220, 50, 50), Enum.Material.SmoothPlastic, { Name = "Tower" })
+	end
+	BuildUtil.Column(model, CFrame.new(position + Vector3.new(0, 28, 0)), 6.5, 0.6, Color3.fromRGB(40, 40, 45), Enum.Material.Metal, { Name = "Balcony" })
+	local lamp = BuildUtil.Column(model, CFrame.new(position + Vector3.new(0, 28.6, 0)), 3.6, 3.4, Color3.fromRGB(255, 240, 170), Enum.Material.Neon, { Name = "Lamp" })
+	BuildUtil.Light(lamp, lamp.Color, 40, 2)
+	BuildUtil.Part({ Name = "Cap", Shape = Enum.PartType.Ball, Size = Vector3.one * 4.6, CFrame = CFrame.new(position + Vector3.new(0, 32.5, 0)), Color = Color3.fromRGB(220, 50, 50), Material = Enum.Material.SmoothPlastic }, model)
+	model.Parent = parent
+end
+
+local function ship(parent, cframe)
+	local model = Instance.new("Model")
+	model.Name = "PirateShip"
+	local wood = Color3.fromRGB(70, 45, 30)
+	BuildUtil.Part({ Name = "Hull", Size = Vector3.new(56, 9, 16), CFrame = cframe * CFrame.new(0, 3.5, 0), Color = wood, Material = Enum.Material.WoodPlanks }, model)
+	BuildUtil.Part({ Name = "HullStripe", Size = Vector3.new(56.4, 1.2, 16.4), CFrame = cframe * CFrame.new(0, 6, 0), Color = Color3.fromRGB(200, 160, 60), Material = Enum.Material.SmoothPlastic }, model)
+	BuildUtil.Part({ ClassName = "WedgePart", Name = "Bow", Size = Vector3.new(16, 9, 12), CFrame = cframe * CFrame.new(34, 3.5, 0) * CFrame.Angles(0, math.rad(-90), 0), Color = wood, Material = Enum.Material.WoodPlanks }, model)
+	BuildUtil.Part({ Name = "Deck", Size = Vector3.new(54, 1, 14), CFrame = cframe * CFrame.new(0, 8.5, 0), Color = Color3.fromRGB(150, 110, 70), Material = Enum.Material.WoodPlanks }, model)
+	BuildUtil.Part({ Name = "Stern", Size = Vector3.new(12, 6, 16), CFrame = cframe * CFrame.new(-22, 12, 0), Color = wood, Material = Enum.Material.WoodPlanks }, model)
+	for _, x in { -26, -18 } do
+		local window = BuildUtil.Part({ Name = "SternWindow", Size = Vector3.new(2.5, 2, 16.2), CFrame = cframe * CFrame.new(x + 4, 12, 0), Color = Color3.fromRGB(255, 200, 110), Material = Enum.Material.Neon }, model)
+		if x == -26 then
+			BuildUtil.Light(window, window.Color, 18, 1)
+		end
+	end
+	for i, x in { -6, 12 } do
+		BuildUtil.Part({ Name = "Mast" .. i, Size = Vector3.new(1.5, 30, 1.5), CFrame = cframe * CFrame.new(x, 24, 0), Color = wood, Material = Enum.Material.Wood }, model)
+		BuildUtil.Part({ Name = "Sail" .. i, Size = Vector3.new(0.3, 14, 16), CFrame = cframe * CFrame.new(x + 0.8, 26, 0), Color = Color3.fromRGB(35, 30, 40), Material = Enum.Material.Fabric, CanCollide = false }, model)
+		BuildUtil.Part({ Name = "Yard" .. i, Size = Vector3.new(1, 1, 18), CFrame = cframe * CFrame.new(x + 0.8, 33.5, 0), Color = wood, Material = Enum.Material.Wood }, model)
+	end
+	local flag = BuildUtil.Part({ Name = "Flag", Size = Vector3.new(6, 4, 0.2), CFrame = cframe * CFrame.new(12, 40, 0) * CFrame.Angles(0, math.rad(90), 0), Color = Color3.fromRGB(15, 15, 15), Material = Enum.Material.Fabric, CanCollide = false }, model)
+	BuildUtil.SurfaceText(flag, Enum.NormalId.Front, "☠", Color3.new(1, 1, 1))
+	BuildUtil.SurfaceText(flag, Enum.NormalId.Back, "☠", Color3.new(1, 1, 1))
+	model.Parent = parent
+end
+
+-- "Острів піратів": пісок, справжня вода Terrain довкола, пальми, хатинки, скрині,
+-- маяк, дерев'яний причал боса й корабель.
+local function buildPirateIsland(folder, center)
+	local rng = Random.new(202)
+	local spawnPoint = buildWorldBase(folder, center, "PirateIsland", Color3.fromRGB(238, 218, 155), Enum.Material.Sand)
+
+	-- Море з хвилями (Terrain) і світлі мілини довкола острова
+	local terrain = workspace.Terrain
+	terrain.WaterColor = Color3.fromRGB(25, 165, 215)
+	terrain.WaterTransparency = 0.35
+	terrain.WaterWaveSize = 0.2
+	terrain.WaterWaveSpeed = 8
+	terrain.WaterReflectance = 0.6
+	terrain:FillBlock(center * CFrame.new(0, -9, 0), Vector3.new(1100, 16, 1100), Enum.Material.Water)
+	BuildUtil.Disc(folder, center * CFrame.new(0, -2.4, 0), 420, 2, Color3.fromRGB(235, 220, 170), Enum.Material.Sand, { Name = "Shallows", CanCollide = false })
+	-- Нерівний берег: піщані коси по краях квадратного острова
+	for i = 0, 11 do
+		local angle = math.rad(i * 30 + rng:NextNumber(-8, 8))
+		local radius = rng:NextNumber(118, 140)
+		BuildUtil.Disc(folder, center * CFrame.new(math.cos(angle) * radius, -0.25, math.sin(angle) * radius), rng:NextNumber(60, 95), 3, Color3.fromRGB(232, 212, 150), Enum.Material.Sand, { Name = "Beach", CanCollide = false })
+	end
+	BuildUtil.Part({ Name = "SeaFloor", Size = Vector3.new(1100, 2, 1100), CFrame = center * CFrame.new(0, -14, 0), Color = Color3.fromRGB(30, 90, 120), Material = Enum.Material.Sand, CanCollide = false }, folder)
+
+	BuildUtil.Part({ Name = "Boardwalk", Size = Vector3.new(12, 0.4, WORLD_SIZE - 20), CFrame = center * CFrame.new(0, 0.2, 0), Color = Color3.fromRGB(165, 118, 76), Material = Enum.Material.WoodPlanks }, folder)
+	for z = -120, 120, 10 do
+		for _, x in { -6.6, 6.6 } do
+			BuildUtil.Part({ Name = "BoardwalkPost", Size = Vector3.new(0.8, 1.8, 0.8), CFrame = center * CFrame.new(x, 0.9, z), Color = Color3.fromRGB(110, 75, 45), Material = Enum.Material.Wood }, folder)
+		end
+	end
+
+	-- Арка на вході
+	BuildUtil.Part({ Name = "ArchL", Size = Vector3.new(2, 14, 2), CFrame = center * CFrame.new(-8, 7, -95), Color = Color3.fromRGB(110, 75, 45), Material = Enum.Material.Wood }, folder)
+	BuildUtil.Part({ Name = "ArchR", Size = Vector3.new(2, 14, 2), CFrame = center * CFrame.new(8, 7, -95), Color = Color3.fromRGB(110, 75, 45), Material = Enum.Material.Wood }, folder)
+	local archSign = BuildUtil.Part({ Name = "ArchSign", Size = Vector3.new(20, 4, 1), CFrame = center * CFrame.new(0, 14, -95) * CFrame.Angles(0, math.pi, 0), Color = Color3.fromRGB(80, 50, 30), Material = Enum.Material.WoodPlanks }, folder)
+	BuildUtil.SurfaceText(archSign, Enum.NormalId.Back, "☠ PIRATE ISLAND ☠", Color3.fromRGB(255, 220, 120))
+	for _, x in { -8, 8 } do
+		local torch = BuildUtil.Part({ Name = "Torch", Shape = Enum.PartType.Ball, Size = Vector3.one * 1.6, CFrame = center * CFrame.new(x, 15, -95), Color = Color3.fromRGB(255, 150, 50), Material = Enum.Material.Neon }, folder)
+		BuildUtil.Light(torch, torch.Color, 16, 1)
+	end
+
+	for _, offset in { Vector3.new(-62, 0, -70), Vector3.new(62, 0, -70), Vector3.new(-70, 0, -25), Vector3.new(70, 0, -25), Vector3.new(-62, 0, 40), Vector3.new(62, 0, 40) } do
+		local position = (center * CFrame.new(offset)).Position
+		local roadPoint = (center * CFrame.new(0, 0, offset.Z)).Position
+		shack(folder, CFrame.lookAt(position, roadPoint))
+	end
+	for _, offset in { Vector3.new(-30, 0, -105), Vector3.new(30, 0, -105), Vector3.new(-100, 0, -60), Vector3.new(100, 0, -60), Vector3.new(-105, 0, 5), Vector3.new(105, 0, 5), Vector3.new(-100, 0, 70), Vector3.new(100, 0, 70), Vector3.new(-120, 0, -110), Vector3.new(-122, 0, 40), Vector3.new(122, 0, 110), Vector3.new(-40, 0, -45), Vector3.new(44, 0, 0) } do
+		palm(folder, (center * CFrame.new(offset)).Position, rng)
+	end
+	for _, offset in { Vector3.new(-20, 0, 50), Vector3.new(20, 0, 50), Vector3.new(-50, 0, 20), Vector3.new(50, 0, 20) } do
+		chest(folder, (center * CFrame.new(offset)).Position)
+	end
+	for _, offset in { Vector3.new(-46, 0, -84), Vector3.new(46, 0, -56), Vector3.new(-84, 0, -8), Vector3.new(84, 0, -40), Vector3.new(-44, 0, 58) } do
+		barrels(folder, at(center, offset.X, offset.Z), rng)
+	end
+	for _, offset in { Vector3.new(-95, 0, -95), Vector3.new(96, 0, 30), Vector3.new(-98, 0, 40) } do
+		umbrella(folder, at(center, offset.X, offset.Z), if offset.X < 0 then Color3.fromRGB(255, 90, 90) else Color3.fromRGB(60, 160, 255))
+	end
+	lighthouse(folder, at(center, 108, -108))
+	-- Скелі в морі та маленькі острівці на горизонті
+	for _ = 1, 16 do
+		local angle = rng:NextNumber(0, math.pi * 2)
+		local radius = rng:NextNumber(150, 200)
+		BuildUtil.Rock(folder, at(center, math.cos(angle) * radius, math.sin(angle) * radius, -2), rng:NextNumber(5, 10), Color3.fromRGB(110, 110, 105), rng)
+	end
+	for i = 1, 6 do
+		local angle = math.rad(i * 60 + rng:NextNumber(-15, 15))
+		local radius = rng:NextNumber(280, 420)
+		local position = at(center, math.cos(angle) * radius, math.sin(angle) * radius)
+		local size = rng:NextNumber(35, 70)
+		BuildUtil.Disc(folder, CFrame.new(position + Vector3.new(0, 0.6, 0)), size, 6, Color3.fromRGB(238, 218, 155), Enum.Material.Sand, { Name = "Islet", CanCollide = false })
+		BuildUtil.Disc(folder, CFrame.new(position + Vector3.new(0, 1.2, 0)), size * 0.6, 0.6, Color3.fromRGB(100, 175, 80), Enum.Material.Grass, { Name = "IsletGrass", CanCollide = false })
+		palm(folder, position + Vector3.new(0, 1.2, 0), rng)
+		palm(folder, position + Vector3.new(size * 0.15, 1.2, size * 0.1), rng)
+	end
+
+	-- Причал капітана (арена боса), гармати й корабель за ним
+	BuildUtil.Part({ Name = "BossDock", Size = Vector3.new(60, 1, 44), CFrame = center * CFrame.new(0, 0.5, 92), Color = Color3.fromRGB(150, 108, 70), Material = Enum.Material.WoodPlanks }, folder)
+	for _, x in { -30, -15, 0, 15, 30 } do
+		for _, z in { 70, 114 } do
+			BuildUtil.Column(folder, center * CFrame.new(x, -4, z), 1.6, 6, Color3.fromRGB(100, 70, 45), Enum.Material.Wood, { Name = "Piling" })
+		end
+	end
+	for i = 0, 3 do
+		local angle = math.rad(45 + i * 90)
+		lantern(folder, (center * CFrame.new(math.cos(angle) * 30, 0, 92 + math.sin(angle) * 22)).Position)
+	end
+	cannon(folder, center * CFrame.new(-36, 0, 74) * CFrame.Angles(0, math.rad(200), 0))
+	cannon(folder, center * CFrame.new(36, 0, 74) * CFrame.Angles(0, math.rad(160), 0))
+	ship(folder, center * CFrame.new(0, -3, 132))
+	return spawnPoint
+end
+
+local NEON = { Color3.fromRGB(255, 60, 180), Color3.fromRGB(60, 220, 255), Color3.fromRGB(170, 80, 255), Color3.fromRGB(255, 120, 60) }
+local KANJI = { "鬼", "夜", "魔", "祭", "闇", "月", "狐", "炎" }
+
+-- Хмарочос із неоновими смугами вікон. signSide: 1/-1 — вертикальна вивіска з боку дороги
+local function tower(parent, cframe, height, color, signSide, signText)
+	local model = Instance.new("Model")
+	model.Name = "Tower"
+	BuildUtil.Part({ Name = "Body", Size = Vector3.new(20, height, 20), CFrame = cframe * CFrame.new(0, height / 2, 0), Color = Color3.fromRGB(28, 24, 40), Material = Enum.Material.Concrete }, model)
+	for y = 8, height - 6, 10 do
+		BuildUtil.Part({ Name = "Windows", Size = Vector3.new(20.4, 1.2, 20.4), CFrame = cframe * CFrame.new(0, y, 0), Color = color, Material = Enum.Material.Neon }, model)
+	end
+	BuildUtil.Part({ Name = "Roof", Size = Vector3.new(16, 3, 16), CFrame = cframe * CFrame.new(0, height + 1.5, 0), Color = Color3.fromRGB(40, 34, 55), Material = Enum.Material.Metal }, model)
+	BuildUtil.Part({ Name = "Beacon", Shape = Enum.PartType.Ball, Size = Vector3.one * 1.6, CFrame = cframe * CFrame.new(0, height + 6, 0), Color = Color3.fromRGB(255, 50, 60), Material = Enum.Material.Neon }, model)
+	BuildUtil.Column(model, cframe * CFrame.new(0, height + 3, 0), 0.4, 3, Color3.fromRGB(60, 60, 70), Enum.Material.Metal, { Name = "Antenna" })
+	local sign = BuildUtil.Part({ Name = "Sign", Size = Vector3.new(14, 4, 0.6), CFrame = cframe * CFrame.new(0, height - 4, -10.4), Color = color, Material = Enum.Material.Neon }, model)
+	BuildUtil.Light(sign, color, 30, 2)
+	if signSide then
+		local vertical = BuildUtil.Part({
+			Name = "VerticalSign",
+			Size = Vector3.new(0.6, 14, 4.5),
+			CFrame = cframe * CFrame.new(signSide * 11.5, math.min(height - 10, 22), -4),
+			Color = Color3.fromRGB(20, 10, 30),
+			Material = Enum.Material.SmoothPlastic,
+		}, model)
+		BuildUtil.Part({ Name = "VerticalSignTrim", Size = Vector3.new(0.4, 14.6, 5.1), CFrame = vertical.CFrame * CFrame.new(-signSide * 0.3, 0, 0), Color = color, Material = Enum.Material.Neon }, model)
+		BuildUtil.SurfaceText(vertical, if signSide > 0 then Enum.NormalId.Right else Enum.NormalId.Left, signText, color:Lerp(Color3.new(1, 1, 1), 0.3))
+	end
+	model.Parent = parent
+end
+
+-- Простіша вежа для далекого міста за стінами
+local function skylineTower(parent, cframe, width, height, color)
+	BuildUtil.Part({ Name = "SkylineTower", Size = Vector3.new(width, height, width), CFrame = cframe * CFrame.new(0, height / 2, 0), Color = Color3.fromRGB(22, 18, 34), Material = Enum.Material.Concrete, CanCollide = false, CanQuery = false }, parent)
+	for y = 10, height - 8, 16 do
+		BuildUtil.Part({ Name = "SkylineWindows", Size = Vector3.new(width + 0.3, 1.4, width + 0.3), CFrame = cframe * CFrame.new(0, y, 0), Color = color, Material = Enum.Material.Neon, CanCollide = false, CanQuery = false }, parent)
+	end
+end
+
+local function streetLamp(parent, position, color)
+	BuildUtil.Part({ Name = "LampPost", Size = Vector3.new(1, 12, 1), CFrame = CFrame.new(position + Vector3.new(0, 6, 0)), Color = Color3.fromRGB(40, 40, 50), Material = Enum.Material.Metal }, parent)
+	local bulb = BuildUtil.Part({ Name = "Lamp", Size = Vector3.new(2.4, 1, 2.4), CFrame = CFrame.new(position + Vector3.new(0, 12.5, 0)), Color = color, Material = Enum.Material.Neon }, parent)
 	local light = Instance.new("PointLight")
-	light.Name = "AwakenLight"
-	light.Color = AWAKEN_COLOR
-	light.Range = 14
-	light.Brightness = 2.5
-	light.Parent = torso
-	CollectionService:AddTag(light, HeroModelBuilder.AURA_TAG)
+	light.Color = color
+	light.Range = 22
+	light.Brightness = 3
+	light.Parent = bulb
 end
 
-local function addNameplate(model, head, heroDef, level, infoText, awakened)
-	local billboard = Instance.new("BillboardGui")
-	billboard.Name = "Nameplate"
-	billboard.Size = UDim2.fromOffset(220, 56)
-	billboard.StudsOffset = Vector3.new(0, 3, 0)
-	billboard.MaxDistance = 90
-	billboard.Adornee = head
-	billboard.Parent = model
-
-	local nameLabel = Instance.new("TextLabel")
-	nameLabel.Size = UDim2.new(1, 0, 0.55, 0)
-	nameLabel.BackgroundTransparency = 1
-	nameLabel.Font = Enum.Font.FredokaOne
-	nameLabel.TextScaled = true
-	nameLabel.Text = if awakened then "✨ " .. heroDef.awakened.name else heroDef.name
-	nameLabel.TextColor3 = if awakened then AWAKEN_COLOR else RarityConfig.GetColor(heroDef.rarity)
-	nameLabel.TextStrokeTransparency = 0.3
-	nameLabel.Parent = billboard
-
-	local infoLabel = Instance.new("TextLabel")
-	infoLabel.Position = UDim2.fromScale(0, 0.55)
-	infoLabel.Size = UDim2.new(1, 0, 0.45, 0)
-	infoLabel.BackgroundTransparency = 1
-	infoLabel.Font = Enum.Font.GothamBold
-	infoLabel.TextScaled = true
-	infoLabel.Text = ("%s • Lv %d • %s"):format(heroDef.rarity, level, infoText)
-	infoLabel.TextColor3 = Color3.new(1, 1, 1)
-	infoLabel.TextStrokeTransparency = 0.4
-	infoLabel.Parent = billboard
-end
-
-local function addAura(model, torso, rarity)
-	local info = RarityConfig.Info[rarity]
-	if info.aura then
-		local emitter = Instance.new("ParticleEmitter")
-		emitter.Name = "Aura"
-		emitter.Color = ColorSequence.new(info.color)
-		emitter.LightEmission = 1
-		emitter.Size = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0.7), NumberSequenceKeypoint.new(1, 0) })
-		emitter.Transparency = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0.2), NumberSequenceKeypoint.new(1, 1) })
-		emitter.Lifetime = NumberRange.new(0.8, 1.4)
-		emitter.Speed = NumberRange.new(1, 3)
-		emitter.SpreadAngle = Vector2.new(180, 180)
-		emitter.Acceleration = Vector3.new(0, 3, 0)
-		emitter.Rate = 8 * info.rank
-		emitter.Parent = torso
-		CollectionService:AddTag(emitter, HeroModelBuilder.AURA_TAG)
+-- "Нічне місто демонів": темний асфальт, неонові вежі з ієрогліфами, гірлянди, калюжі,
+-- червоний місяць, червона брама й арена королеви.
+local function buildDemonCity(folder, center)
+	local rng = Random.new(303)
+	local spawnPoint = buildWorldBase(folder, center, "DemonCity", Color3.fromRGB(32, 30, 40), Enum.Material.Asphalt, {
+		color = Color3.fromRGB(26, 22, 34),
+		material = Enum.Material.Asphalt,
+		rock = Color3.fromRGB(45, 30, 55),
+	})
+	BuildUtil.Part({ Name = "Avenue", Size = Vector3.new(14, 0.2, WORLD_SIZE - 20), CFrame = center * CFrame.new(0, 0.1, 0), Color = Color3.fromRGB(55, 50, 70), Material = Enum.Material.Asphalt }, folder)
+	for z = -110, 110, 14 do
+		BuildUtil.Part({ Name = "Marking", Size = Vector3.new(0.6, 0.25, 6), CFrame = center * CFrame.new(0, 0.15, z), Color = Color3.fromRGB(255, 210, 80), Material = Enum.Material.Neon }, folder)
 	end
-	if info.light then
-		local light = Instance.new("PointLight")
-		light.Name = "AuraLight"
-		light.Color = info.color
-		light.Range = 12
-		light.Brightness = 2
-		light.Parent = torso
-		CollectionService:AddTag(light, HeroModelBuilder.AURA_TAG)
+	-- Тротуари з неоновим бордюром
+	for _, x in { -12, 12 } do
+		BuildUtil.Part({ Name = "Sidewalk", Size = Vector3.new(10, 0.5, WORLD_SIZE - 20), CFrame = center * CFrame.new(x, 0.25, 0), Color = Color3.fromRGB(60, 55, 72), Material = Enum.Material.Concrete }, folder)
+		BuildUtil.Part({ Name = "CurbGlow", Size = Vector3.new(0.3, 0.55, WORLD_SIZE - 20), CFrame = center * CFrame.new(x - math.sign(x) * 5, 0.28, 0), Color = Color3.fromRGB(255, 60, 180), Material = Enum.Material.Neon }, folder)
 	end
-end
-
----------------------------------------------------------------------
--- Готові моделі з Toolbox
--- Поклади модель у ReplicatedStorage/HeroModels і назви її id героя
--- (наприклад "seren_starblade") — вона заміне просту модель з Part.
--- З копії автоматично прибираються всі скрипти й звуки (захист від "backdoor"),
--- деталі закріплюються, модель масштабується під зріст героя й ставиться ногами в (0,0,0).
----------------------------------------------------------------------
-
-HeroModelBuilder.CUSTOM_FOLDER = "HeroModels"
-
-local function findCustomModel(heroId)
-	local folder = ReplicatedStorage:FindFirstChild(HeroModelBuilder.CUSTOM_FOLDER)
-	local template = folder and folder:FindFirstChild(heroId)
-	if template and template:IsA("Model") then
-		return template
+	-- Калюжі, у яких віддзеркалюється неон
+	for _ = 1, 10 do
+		BuildUtil.Disc(folder, center * CFrame.new(rng:NextNumber(-5, 5), 0.23, rng:NextNumber(-110, 60)), rng:NextNumber(3, 6), 0.02, Color3.fromRGB(40, 30, 80), Enum.Material.Glass, { Name = "Puddle", Transparency = 0.2, CanCollide = false })
 	end
-	return nil
-end
 
-local function findPart(model, names)
-	for _, name in names do
-		local part = model:FindFirstChild(name, true)
-		if part and part:IsA("BasePart") then
-			return part
+	-- Червона демонічна брама на вході
+	BuildUtil.Part({ Name = "GateL", Size = Vector3.new(2.5, 16, 2.5), CFrame = center * CFrame.new(-9, 8, -95), Color = Color3.fromRGB(120, 10, 30), Material = Enum.Material.Slate }, folder)
+	BuildUtil.Part({ Name = "GateR", Size = Vector3.new(2.5, 16, 2.5), CFrame = center * CFrame.new(9, 8, -95), Color = Color3.fromRGB(120, 10, 30), Material = Enum.Material.Slate }, folder)
+	local gateTop = BuildUtil.Part({ Name = "GateTop", Size = Vector3.new(26, 2, 3), CFrame = center * CFrame.new(0, 17, -95), Color = Color3.fromRGB(255, 40, 90), Material = Enum.Material.Neon }, folder)
+	local gateSign = BuildUtil.Part({ Name = "GateSign", Size = Vector3.new(22, 4, 0.5), CFrame = center * CFrame.new(0, 21, -95) * CFrame.Angles(0, math.pi, 0), Color = Color3.fromRGB(20, 10, 30), Material = Enum.Material.SmoothPlastic }, folder)
+	BuildUtil.SurfaceText(gateSign, Enum.NormalId.Back, "👹 DEMON NIGHT CITY", Color3.fromRGB(255, 80, 200))
+	BuildUtil.Light(gateTop, gateTop.Color, 30, 1)
+
+	-- Неонові вежі по обидва боки вулиці
+	local index = 0
+	for _, z in { -80, -40, 0, 40 } do
+		for _, x in { -80, 80, -112, 112 } do
+			index += 1
+			local height = 40 + (index * 17) % 50
+			local signSide = if math.abs(x) == 80 then -math.sign(x) else nil
+			tower(folder, center * CFrame.new(x, 0, z), height, NEON[index % #NEON + 1], signSide, KANJI[index % #KANJI + 1])
 		end
 	end
-	return model.PrimaryPart or model:FindFirstChildWhichIsA("BasePart", true)
+	-- Далеке місто за стінами
+	for _ = 1, 40 do
+		local x, z
+		repeat
+			x, z = rng:NextNumber(-270, 270), rng:NextNumber(-270, 270)
+		until math.max(math.abs(x), math.abs(z)) > WORLD_SIZE / 2 + 15
+		skylineTower(folder, center * CFrame.new(x, -0.4, z), rng:NextNumber(14, 26), rng:NextNumber(50, 150), NEON[rng:NextInteger(1, #NEON)])
+	end
+	for _, z in { -100, -60, -20, 20, 50 } do
+		streetLamp(folder, (center * CFrame.new(-14, 0, z)).Position, NEON[2])
+		streetLamp(folder, (center * CFrame.new(14, 0, z)).Position, NEON[1])
+	end
+	-- Гірлянди між вежами над вулицею
+	for i, z in { -60, -20, 25 } do
+		BuildUtil.LanternString(folder, at(center, -70, z, 24), at(center, 70, z, 24), if i % 2 == 0 then { NEON[1], NEON[3] } else { NEON[2], NEON[4] }, 12)
+	end
+	-- Кривавий місяць над ареною королеви
+	BuildUtil.Part({ Name = "BloodMoon", Shape = Enum.PartType.Ball, Size = Vector3.one * 80, CFrame = center * CFrame.new(-60, 150, 420), Color = Color3.fromRGB(255, 70, 90), Material = Enum.Material.Neon, CanCollide = false, CanQuery = false }, folder)
+
+	-- Арена королеви: темне коло з неоновим кільцем і колонами
+	BuildUtil.Disc(folder, center * CFrame.new(0, 0.6, 92), 62, 0.4, Color3.fromRGB(255, 50, 160), Enum.Material.Neon, { Name = "QueenRing" })
+	BuildUtil.Disc(folder, center * CFrame.new(0, 0.62, 92), 60, 0.6, Color3.fromRGB(30, 15, 40), Enum.Material.Marble, { Name = "QueenArena" })
+	BuildUtil.Disc(folder, center * CFrame.new(0, 0.66, 92), 24, 0.06, Color3.fromRGB(170, 60, 255), Enum.Material.Neon, { Name = "QueenSigil", CanCollide = false })
+	BuildUtil.Disc(folder, center * CFrame.new(0, 0.68, 92), 22, 0.06, Color3.fromRGB(30, 15, 40), Enum.Material.Marble, { Name = "QueenSigilInner", CanCollide = false })
+	for i = 0, 5 do
+		local angle = math.rad(i * 60)
+		local pillar = BuildUtil.Part({
+			Name = "Pillar",
+			Size = Vector3.new(3, 18, 3),
+			CFrame = center * CFrame.new(math.cos(angle) * 34, 9, 92 + math.sin(angle) * 34),
+			Color = Color3.fromRGB(45, 20, 55),
+			Material = Enum.Material.Slate,
+		}, folder)
+		local flame = BuildUtil.Part({ Name = "Flame", Size = Vector3.new(2.4, 2.4, 2.4), Shape = Enum.PartType.Ball, CFrame = pillar.CFrame * CFrame.new(0, 10, 0), Color = Color3.fromRGB(180, 60, 255), Material = Enum.Material.Neon }, folder)
+		BuildUtil.Light(flame, flame.Color, 18, 1)
+	end
+
+	-- Жаринки, що здіймаються над містом
+	BuildUtil.Ambient(folder, center * CFrame.new(0, 3, 0), Vector3.new(WORLD_SIZE, 4, WORLD_SIZE), {
+		Color = Color3.fromRGB(255, 90, 60),
+		Rate = 30,
+		Size = 0.3,
+		Speed = 1.5,
+		Lifetime = 9,
+		Acceleration = Vector3.new(0.5, 0.6, 0),
+		LightEmission = 1,
+	})
+	return spawnPoint
 end
 
-local function buildFromCustom(heroDef, template, level, infoText, awakened)
-	local model = template:Clone()
-	model.Name = heroDef.id
-
-	-- Безпека й фізика: жодних скриптів і звуків, усе закріплене й "прозоре" для кліків
-	for _, descendant in model:GetDescendants() do
-		if descendant:IsA("BaseScript") or descendant:IsA("ModuleScript") or descendant:IsA("Sound") then
-			descendant:Destroy()
-		elseif descendant:IsA("BasePart") then
-			descendant.Anchored = true
-			descendant.CanCollide = false
-			descendant.CanTouch = false
-			descendant.CanQuery = false
-		elseif descendant:IsA("Humanoid") then
-			descendant.DisplayDistanceType = Enum.HumanoidDisplayDistanceType.None
-			descendant.HealthDisplayType = Enum.HumanoidHealthDisplayType.AlwaysOff
-		end
-	end
-
-	-- Ставимо вертикально обличчям до -Z, масштабуємо під зріст героя
-	local s = heroDef.look.height or 1
-	model:PivotTo(CFrame.new())
-	local _, size = model:GetBoundingBox()
-	if size.Y > 0 then
-		model:ScaleTo(model:GetScale() * (6.6 * s) / size.Y)
-	end
-	-- Ноги — у (0,0,0), по центру
-	local box, boxSize = model:GetBoundingBox()
-	local feet = Vector3.new(box.Position.X, box.Position.Y - boxSize.Y / 2, box.Position.Z)
-	model:PivotTo(model:GetPivot() - feet)
-	HeroModelBuilder.SetPivotAtOrigin(model)
-
-	local head = findPart(model, { "Head" })
-	local torso = findPart(model, { "UpperTorso", "Torso", "HumanoidRootPart" })
-	addNameplate(model, head, heroDef, level, infoText, awakened)
-	addAura(model, torso, heroDef.rarity)
-	if awakened then
-		addAwakenedAura(model, torso, boxSize.Y - 1.7 * s, s)
-	end
-	return model
-end
-
--- infoText — другий рядок над героєм, напр. "+5/s" на базі або "⚔️ 40" у бою.
--- awakened — пробуджена форма (німб, золоте сяйво, нове ім'я).
-function HeroModelBuilder.Build(heroDef, level, infoText, awakened)
-	local template = findCustomModel(heroDef.id)
-	if template then
-		return buildFromCustom(heroDef, template, level, infoText, awakened)
-	end
-
-	local model = Instance.new("Model")
-	model.Name = heroDef.id
-
-	local s = heroDef.look.height or 1
-	local accent = HeroConfig.ElementColors[heroDef.element] or Color3.new(1, 1, 1)
-	local legHeight = 2 * s
-	local torsoHeight = 2.2 * s
-	local shoulder = legHeight + torsoHeight -- висота плечей
-
-	addPart(model, "Legs", Vector3.new(1.8, legHeight, 1) * Vector3.new(s, 1, s), CFrame.new(0, legHeight / 2, 0), heroDef.look.body:Lerp(Color3.new(0, 0, 0), 0.35))
-	local torso = addPart(model, "Torso", Vector3.new(2.2 * s, torsoHeight, 1.2 * s), CFrame.new(0, legHeight + torsoHeight / 2, 0), heroDef.look.body)
-	addPart(model, "Belt", Vector3.new(2.3 * s, 0.3 * s, 1.3 * s), CFrame.new(0, legHeight + 0.2 * s, 0), accent, Enum.Material.Neon)
-	local head = addPart(model, "Head", Vector3.new(1.7, 1.7, 1.7) * s, CFrame.new(0, shoulder + 0.85 * s, 0), heroDef.look.skin, Enum.Material.SmoothPlastic, Enum.PartType.Ball)
-	addPart(model, "Hair", Vector3.new(1.85 * s, 0.7 * s, 1.85 * s), CFrame.new(0, shoulder + 1.45 * s, 0.1 * s), heroDef.look.hair)
-	-- Очі дивляться в бік -Z (до гравця, що стоїть перед базою)
-	addPart(model, "EyeL", Vector3.new(0.25, 0.35, 0.1) * s, CFrame.new(-0.35 * s, shoulder + 0.95 * s, -0.8 * s), Color3.fromRGB(30, 30, 40))
-	addPart(model, "EyeR", Vector3.new(0.25, 0.35, 0.1) * s, CFrame.new(0.35 * s, shoulder + 0.95 * s, -0.8 * s), Color3.fromRGB(30, 30, 40))
-
-	local accessory = ACCESSORIES[heroDef.archetype]
-	if accessory then
-		accessory(model, s, accent, shoulder)
-	end
-
-	addNameplate(model, head, heroDef, level, infoText, awakened)
-	addAura(model, torso, heroDef.rarity)
-	if awakened then
-		addAwakenedAura(model, torso, shoulder, s)
-	end
-
-	model.PrimaryPart = torso
-	HeroModelBuilder.SetPivotAtOrigin(model) -- точка опори = ноги
-	return model
-end
-
-return HeroModelBuilder
-]=])
-
-setSource({ "ServerScriptService", "Services", "EnemyModelBuilder" }, "ModuleScript", [=[
--- EnemyModelBuilder: прості моделі ворогів з Part + смуга здоров'я над головою.
--- Модель будується навколо (0,0,0) — це ноги; обличчя дивиться в бік -Z.
-
-local EnemyModelBuilder = {}
-
-local function addPart(model, name, size, cframe, color, material, shape)
-	local part = Instance.new("Part")
-	part.Name = name
-	part.Size = size
-	part.CFrame = cframe
-	part.Color = color
-	part.Material = material or Enum.Material.SmoothPlastic
-	part.Shape = shape or Enum.PartType.Block
-	part.Anchored = true
-	part.CanCollide = false
-	part.CanTouch = false
-	part.TopSurface = Enum.SurfaceType.Smooth
-	part.BottomSurface = Enum.SurfaceType.Smooth
-	part.Parent = model
-	return part
-end
-
--- Додаткові деталі для кожного стилю. s — масштаб, top — висота плечей.
-local STYLES = {
-	Genin = function(model, s, def, top)
-		addPart(model, "Headband", Vector3.new(1.9, 0.35, 1.9) * s, CFrame.new(0, top + 1.1 * s, 0), def.accent)
-		addPart(model, "Mask", Vector3.new(1.5, 0.6, 0.2) * s, CFrame.new(0, top + 0.5 * s, -0.8 * s), Color3.fromRGB(40, 40, 40))
-		addPart(model, "Knife", Vector3.new(0.2, 1.4, 0.3) * s, CFrame.new(1.5 * s, top - 1.6 * s, -0.4 * s), Color3.fromRGB(190, 190, 200), Enum.Material.Metal)
-	end,
-	Puppet = function(model, s, def, top)
-		for i = -1, 1, 2 do
-			addPart(model, "String", Vector3.new(0.08, 6, 0.08) * s, CFrame.new(i * 1.1 * s, top + 4 * s, 0), def.accent, Enum.Material.Neon)
-		end
-		addPart(model, "Blade", Vector3.new(0.2, 2.2, 0.6) * s, CFrame.new(-1.5 * s, top - 1.2 * s, -0.3 * s), def.accent, Enum.Material.Neon)
-	end,
-	Ronin = function(model, s, def, top)
-		addPart(model, "Hat", Vector3.new(0.5, 3.2, 3.2) * s, CFrame.new(0, top + 1.9 * s, 0) * CFrame.Angles(0, 0, math.rad(90)), Color3.fromRGB(200, 170, 100), Enum.Material.Fabric, Enum.PartType.Cylinder)
-		addPart(model, "Katana", Vector3.new(0.18, 4, 0.45) * s, CFrame.new(1.5 * s, top - 0.4 * s, -0.4 * s) * CFrame.Angles(0, 0, -0.3), def.accent, Enum.Material.Metal)
-	end,
-	Oni = function(model, s, def, top)
-		addPart(model, "HornL", Vector3.new(0.4, 1.2, 0.4) * s, CFrame.new(-0.55 * s, top + 1.9 * s, 0) * CFrame.Angles(0, 0, 0.35), def.accent, Enum.Material.Neon)
-		addPart(model, "HornR", Vector3.new(0.4, 1.2, 0.4) * s, CFrame.new(0.55 * s, top + 1.9 * s, 0) * CFrame.Angles(0, 0, -0.35), def.accent, Enum.Material.Neon)
-		addPart(model, "Club", Vector3.new(0.9, 4.5, 0.9) * s, CFrame.new(1.8 * s, top - 0.8 * s, -0.5 * s) * CFrame.Angles(0.3, 0, -0.2), Color3.fromRGB(60, 40, 30), Enum.Material.Wood)
-		addPart(model, "Belt", Vector3.new(2.4, 0.4, 1.4) * s, CFrame.new(0, top - 2.0 * s, 0), def.accent, Enum.Material.Neon)
-		local light = Instance.new("PointLight")
-		light.Color = def.accent
-		light.Range = 20
-		light.Brightness = 2
-		light.Parent = model:FindFirstChild("Torso")
-	end,
-	Brawler = function(model, s, def, top)
-		addPart(model, "Bandana", Vector3.new(1.95, 0.5, 1.95) * s, CFrame.new(0, top + 1.3 * s, 0), def.accent)
-		addPart(model, "Stripes", Vector3.new(2.5, 0.4, 1.4) * s, CFrame.new(0, top - 0.8 * s, 0), Color3.fromRGB(240, 240, 240))
-		addPart(model, "FistL", Vector3.new(0.9, 0.9, 0.9) * s, CFrame.new(-1.6 * s, top - 1.6 * s, -0.4 * s), Color3.fromRGB(240, 200, 170), Enum.Material.SmoothPlastic, Enum.PartType.Ball)
-		addPart(model, "FistR", Vector3.new(0.9, 0.9, 0.9) * s, CFrame.new(1.6 * s, top - 1.6 * s, -0.4 * s), Color3.fromRGB(240, 200, 170), Enum.Material.SmoothPlastic, Enum.PartType.Ball)
-	end,
-	Crab = function(model, s, def, top)
-		-- Широкий панцир поверх тулуба, клешні та гармата на спині
-		addPart(model, "Shell", Vector3.new(4.2, 1.6, 3) * s, CFrame.new(0, top - 0.6 * s, 0), def.body, Enum.Material.SmoothPlastic, Enum.PartType.Ball)
-		addPart(model, "ClawL", Vector3.new(1.4, 0.8, 1.6) * s, CFrame.new(-2.4 * s, top - 1.4 * s, -1.2 * s), def.body:Lerp(Color3.new(1, 1, 1), 0.2))
-		addPart(model, "ClawR", Vector3.new(1.4, 0.8, 1.6) * s, CFrame.new(2.4 * s, top - 1.4 * s, -1.2 * s), def.body:Lerp(Color3.new(1, 1, 1), 0.2))
-		addPart(model, "Cannon", Vector3.new(2.4, 0.9, 0.9) * s, CFrame.new(0, top + 0.4 * s, 0.6 * s) * CFrame.Angles(0, math.rad(90), math.rad(-20)), def.accent, Enum.Material.Metal, Enum.PartType.Cylinder)
-	end,
-	Corsair = function(model, s, def, top)
-		addPart(model, "Hat", Vector3.new(2.6, 0.5, 2) * s, CFrame.new(0, top + 1.9 * s, 0), Color3.fromRGB(20, 25, 30))
-		addPart(model, "Aura", Vector3.new(2.8, 4.6, 1.8) * s, CFrame.new(0, top - 1 * s, 0), def.accent, Enum.Material.ForceField)
-		addPart(model, "Saber", Vector3.new(0.18, 3.4, 0.45) * s, CFrame.new(1.5 * s, top - 0.6 * s, -0.4 * s) * CFrame.Angles(0, 0, -0.25), def.accent, Enum.Material.Neon)
-	end,
-	Imp = function(model, s, def, top)
-		-- Маленькі ріжки, крила й хвіст
-		addPart(model, "HornL", Vector3.new(0.3, 0.8, 0.3) * s, CFrame.new(-0.5 * s, top + 1.8 * s, 0) * CFrame.Angles(0, 0, 0.4), def.accent, Enum.Material.Neon)
-		addPart(model, "HornR", Vector3.new(0.3, 0.8, 0.3) * s, CFrame.new(0.5 * s, top + 1.8 * s, 0) * CFrame.Angles(0, 0, -0.4), def.accent, Enum.Material.Neon)
-		addPart(model, "WingL", Vector3.new(2.2, 1.6, 0.15) * s, CFrame.new(-1.6 * s, top - 0.6 * s, 0.8 * s) * CFrame.Angles(0, 0.5, 0.3), def.body:Lerp(Color3.new(0, 0, 0), 0.3))
-		addPart(model, "WingR", Vector3.new(2.2, 1.6, 0.15) * s, CFrame.new(1.6 * s, top - 0.6 * s, 0.8 * s) * CFrame.Angles(0, -0.5, -0.3), def.body:Lerp(Color3.new(0, 0, 0), 0.3))
-		addPart(model, "Tail", Vector3.new(0.25, 0.25, 2.4) * s, CFrame.new(0, top - 2.6 * s, 1.4 * s) * CFrame.Angles(0.5, 0, 0), def.accent, Enum.Material.Neon)
-	end,
-	Wraith = function(model, s, def, top)
-		-- Напівпрозорий балахон і ліхтар
-		addPart(model, "Robe", Vector3.new(2.8, 4.4, 1.8) * s, CFrame.new(0, top - 1.8 * s, 0), def.body, Enum.Material.ForceField)
-		addPart(model, "Hood", Vector3.new(2.2, 1.4, 2.2) * s, CFrame.new(0, top + 1.3 * s, 0.1 * s), def.body:Lerp(Color3.new(0, 0, 0), 0.4))
-		addPart(model, "Lantern", Vector3.new(0.9, 1.2, 0.9) * s, CFrame.new(1.7 * s, top - 1.6 * s, -0.4 * s), def.accent, Enum.Material.Neon)
-		local light = Instance.new("PointLight")
-		light.Color = def.accent
-		light.Range = 14
-		light.Brightness = 2
-		light.Parent = model:FindFirstChild("Lantern")
-	end,
-	Fiend = function(model, s, def, top)
-		-- Масивні плечі, шипи й світні кігті
-		addPart(model, "Shoulders", Vector3.new(3.6, 1, 1.6) * s, CFrame.new(0, top - 0.2 * s, 0), def.body:Lerp(Color3.new(0.3, 0.3, 0.3), 0.3), Enum.Material.Slate)
-		for i = -1, 1 do
-			addPart(model, "Spike" .. i, Vector3.new(0.35, 1.1, 0.35) * s, CFrame.new(i * 0.9 * s, top + 0.6 * s, 0.4 * s) * CFrame.Angles(-0.3, 0, i * 0.3), def.accent, Enum.Material.Neon)
-		end
-		addPart(model, "ClawL", Vector3.new(0.5, 1.6, 0.5) * s, CFrame.new(-1.9 * s, top - 2.2 * s, -0.5 * s) * CFrame.Angles(0.4, 0, 0), def.accent, Enum.Material.Neon)
-		addPart(model, "ClawR", Vector3.new(0.5, 1.6, 0.5) * s, CFrame.new(1.9 * s, top - 2.2 * s, -0.5 * s) * CFrame.Angles(0.4, 0, 0), def.accent, Enum.Material.Neon)
-	end,
-	DemonQueen = function(model, s, def, top)
-		-- Корона з рогів, сукня-шлейф, крила й коса
-		addPart(model, "Dress", Vector3.new(3.2, 3, 2.4) * s, CFrame.new(0, top - 3.3 * s, 0.1 * s), def.body:Lerp(Color3.new(0, 0, 0), 0.2))
-		for i = -2, 2 do
-			addPart(model, "Crown" .. i, Vector3.new(0.3, 1 + (2 - math.abs(i)) * 0.4, 0.3) * s, CFrame.new(i * 0.4 * s, top + 2 * s, 0) * CFrame.Angles(0, 0, -i * 0.15), def.accent, Enum.Material.Neon)
-		end
-		addPart(model, "WingL", Vector3.new(4, 3, 0.2) * s, CFrame.new(-2.6 * s, top + 0.2 * s, 1 * s) * CFrame.Angles(0, 0.4, 0.35), Color3.fromRGB(30, 10, 40), Enum.Material.SmoothPlastic)
-		addPart(model, "WingR", Vector3.new(4, 3, 0.2) * s, CFrame.new(2.6 * s, top + 0.2 * s, 1 * s) * CFrame.Angles(0, -0.4, -0.35), Color3.fromRGB(30, 10, 40), Enum.Material.SmoothPlastic)
-		addPart(model, "ScytheHandle", Vector3.new(0.3, 6, 0.3) * s, CFrame.new(2 * s, top - 0.8 * s, -0.5 * s), Color3.fromRGB(40, 30, 40), Enum.Material.Metal)
-		addPart(model, "ScytheBlade", Vector3.new(0.2, 0.6, 2.6) * s, CFrame.new(2 * s, top + 2 * s, -1.4 * s) * CFrame.Angles(0.3, 0, 0), def.accent, Enum.Material.Neon)
-		local light = Instance.new("PointLight")
-		light.Color = def.accent
-		light.Range = 26
-		light.Brightness = 3
-		light.Parent = model:FindFirstChild("Torso")
-	end,
-	Captain = function(model, s, def, top)
-		addPart(model, "Coat", Vector3.new(2.6, 3.6, 1.5) * s, CFrame.new(0, top - 1.6 * s, 0.05 * s), Color3.fromRGB(120, 20, 30))
-		addPart(model, "HatBrim", Vector3.new(3.2, 0.25, 2.6) * s, CFrame.new(0, top + 1.8 * s, 0), Color3.fromRGB(20, 20, 25))
-		addPart(model, "HatTop", Vector3.new(2, 0.9, 1.7) * s, CFrame.new(0, top + 2.3 * s, 0), Color3.fromRGB(20, 20, 25))
-		addPart(model, "Feather", Vector3.new(0.2, 1.4, 0.5) * s, CFrame.new(0.8 * s, top + 2.6 * s, 0.3 * s) * CFrame.Angles(0, 0, -0.4), def.accent, Enum.Material.Neon)
-		addPart(model, "Hook", Vector3.new(0.4, 1, 0.4) * s, CFrame.new(-1.6 * s, top - 2 * s, -0.4 * s), Color3.fromRGB(200, 200, 210), Enum.Material.Metal)
-		addPart(model, "Anchor", Vector3.new(0.6, 5, 0.6) * s, CFrame.new(1.8 * s, top - 0.8 * s, -0.4 * s) * CFrame.Angles(0, 0, -0.2), Color3.fromRGB(80, 80, 90), Enum.Material.Metal)
-		local light = Instance.new("PointLight")
-		light.Color = def.accent
-		light.Range = 22
-		light.Brightness = 2
-		light.Parent = model:FindFirstChild("Torso")
-	end,
+local BUILDERS = {
+	NinjaVillage = buildNinjaVillage,
+	PirateIsland = buildPirateIsland,
+	DemonCity = buildDemonCity,
 }
 
-local function addHealthBar(model, adornee, def, height)
-	local s = def.scale
-	local billboard = Instance.new("BillboardGui")
-	billboard.Name = "HealthBar"
-	billboard.Size = UDim2.fromOffset(if def.isBoss then 260 else 150, if def.isBoss then 46 else 34)
-	billboard.StudsOffsetWorldSpace = Vector3.new(0, height + 1.5 * s, 0)
-	billboard.MaxDistance = if def.isBoss then 250 else 120
-	billboard.Adornee = adornee
-	billboard.Parent = model
-
-	local nameLabel = Instance.new("TextLabel")
-	nameLabel.Name = "EnemyName"
-	nameLabel.Size = UDim2.fromScale(1, 0.5)
-	nameLabel.BackgroundTransparency = 1
-	nameLabel.Font = Enum.Font.FredokaOne
-	nameLabel.TextScaled = true
-	nameLabel.TextColor3 = if def.isBoss then Color3.fromRGB(255, 90, 90) else Color3.new(1, 1, 1)
-	nameLabel.TextStrokeTransparency = 0.3
-	nameLabel.Text = def.name
-	nameLabel.Parent = billboard
-
-	local back = Instance.new("Frame")
-	back.Name = "Back"
-	back.Position = UDim2.fromScale(0, 0.55)
-	back.Size = UDim2.fromScale(1, 0.4)
-	back.BackgroundColor3 = Color3.fromRGB(30, 20, 30)
-	back.BorderSizePixel = 0
-	back.Parent = billboard
-
-	local fill = Instance.new("Frame")
-	fill.Name = "Fill"
-	fill.Size = UDim2.fromScale(1, 1)
-	fill.BackgroundColor3 = Color3.fromRGB(90, 220, 110)
-	fill.BorderSizePixel = 0
-	fill.Parent = back
-
-	local text = Instance.new("TextLabel")
-	text.Name = "Text"
-	text.Size = UDim2.fromScale(1, 1)
-	text.BackgroundTransparency = 1
-	text.Font = Enum.Font.GothamBold
-	text.TextScaled = true
-	text.TextColor3 = Color3.new(1, 1, 1)
-	text.TextStrokeTransparency = 0.4
-	text.Parent = back
-end
-
-function EnemyModelBuilder.Build(def)
-	local model = Instance.new("Model")
-	model.Name = def.name
-	local s = def.scale
-	local legHeight = 2 * s
-	local torsoHeight = 2.4 * s
-	local top = legHeight + torsoHeight
-
-	addPart(model, "Legs", Vector3.new(1.9 * s, legHeight, 1.1 * s), CFrame.new(0, legHeight / 2, 0), def.body:Lerp(Color3.new(0, 0, 0), 0.4))
-	addPart(model, "Torso", Vector3.new(2.4 * s, torsoHeight, 1.3 * s), CFrame.new(0, legHeight + torsoHeight / 2, 0), def.body)
-	addPart(model, "Head", Vector3.new(1.8, 1.8, 1.8) * s, CFrame.new(0, top + 0.9 * s, 0), def.body:Lerp(Color3.new(1, 1, 1), 0.15), Enum.Material.SmoothPlastic, Enum.PartType.Ball)
-	-- Світні очі — видно, куди дивиться ворог
-	addPart(model, "EyeL", Vector3.new(0.3, 0.25, 0.1) * s, CFrame.new(-0.38 * s, top + 1 * s, -0.85 * s), Color3.fromRGB(255, 40, 40), Enum.Material.Neon)
-	addPart(model, "EyeR", Vector3.new(0.3, 0.25, 0.1) * s, CFrame.new(0.38 * s, top + 1 * s, -0.85 * s), Color3.fromRGB(255, 40, 40), Enum.Material.Neon)
-
-	local style = STYLES[def.style]
-	if style then
-		style(model, s, def, top)
+-- Переносить гравця у світ (або "Lobby" — на його базу).
+-- force = true — без перевірки, чи відкритий світ (адмін-панель).
+function WorldService.Travel(player, worldId, force)
+	local character = player.Character
+	if not character or not character:FindFirstChild("HumanoidRootPart") then
+		return false, "Персонаж ще не з'явився"
 	end
-
-	-- Невидима "зона кліку": так ворога легко вибрати навіть на телефоні
-	local height = top + 1.8 * s
-	local hitbox = addPart(model, "Hitbox", Vector3.new(4 * s, height, 4 * s), CFrame.new(0, height / 2, 0), Color3.new(1, 1, 1))
-	hitbox.Transparency = 1
-	hitbox.CanQuery = true
-
-	addHealthBar(model, hitbox, def, height / 2)
-
-	model.PrimaryPart = hitbox
-	-- Точка опори = ноги (через PivotOffset: з PrimaryPart присвоєння WorldPivot не діє)
-	hitbox.PivotOffset = hitbox.CFrame:Inverse()
-	return model
+	if worldId == LOBBY then
+		CombatService.ClearTarget(player)
+		player:SetAttribute("World", LOBBY)
+		PlotService.TeleportHome(player)
+		return true, "Ласкаво просимо додому!"
+	end
+	local world = WorldConfig.Worlds[worldId]
+	local spawnPoint = spawnPoints[worldId]
+	if not world or not world.available or not spawnPoint then
+		return false, "Цей світ ще закритий"
+	end
+	local data = DataService.Get(player)
+	if not data then
+		return false, "Дані ще завантажуються"
+	end
+	local unlocked, requirement = GameMath.IsWorldUnlocked(data, worldId)
+	if not unlocked and not force then
+		return false, ("🔒 %s: %s"):format(world.displayName, requirement)
+	end
+	CombatService.ClearTarget(player)
+	player:SetAttribute("World", worldId)
+	character:PivotTo(spawnPoint)
+	return true, ("%s! Натисни на ворога або 🎯, щоб команда атакувала"):format(world.displayName)
 end
 
-return EnemyModelBuilder
-]=])
-
--- Моделі героїв з Creator Store (tools/load_hero_models.lua)
-do
--- Завантажує готові моделі з Creator Store (Toolbox) для героїв — одним запуском.
--- Запускати в Studio: Command Bar (рядок унизу) → встав увесь текст → Enter.
---
--- Для кожного героя скрипт:
---   1. завантажує модель за ID (як вставка з Toolbox),
---   2. видаляє з неї ВСІ скрипти й звуки (захист від шкідливих "backdoor"),
---   3. кладе в ReplicatedStorage/HeroModels з назвою героя.
--- Гра сама масштабує модель і ставить її на слот (див. HeroModelBuilder).
---
--- Можеш змінити будь-який ID на свій або видалити рядок — тоді герой лишиться
--- з простою моделлю з деталей.
-
--- Моделі підібрані за класом і стихією героя: безкоштовні, без персонажів чужих франшиз.
--- Прев'ю всіх: docs/hero-models.png
-local MODELS = {
-	riku_windstep = 1073102214, -- Riku Windstep (Common)
-	tomo_deckhand = 100944702942220, -- Tomo the Deckhand (Common)
-	hana_emberling = 6024404244, -- Hana Emberling (Common)
-	zen_cadet = 11272270678, -- Zen Star Cadet (Common)
-	shiro_quickblade = 15560466932, -- Shiro Quickblade (Rare)
-	kaito_saltfang = 132434304646924, -- Kaito Saltfang (Rare)
-	mira_cinderveil = 10559568125, -- Mira Cinderveil (Rare)
-	yoru_lantern = 136347862663720, -- Yoru Lanternbearer (Rare)
-	akane_crimsonfan = 12306246169, -- Akane Crimson Fan (Epic)
-	raizo_thunderstep = 3162408043, -- Raizo Thunderstep (Epic)
-	nox_hollowhunter = 126153895579904, -- Nox Hollowhunter (Epic)
-	coral_vex = 799516341, -- Captain Coral Vex (Epic)
-	seren_starblade = 8073321485, -- Seren Starblade (Legendary)
-	kuro_moonreaper = 133610989566243, -- Kuro Moonreaper (Legendary)
-	homura_ashcrown = 5123918805, -- Homura Ashcrown (Legendary)
-	ryo_skybolt = 11755051899, -- Ryo Skybolt (Legendary)
-	marisol_tidecaller = 15485406525, -- Marisol Tidecaller (Legendary)
-	rin_hellbane = 631606520, -- Rin Hellbane (Legendary)
-	astra_novaempress = 12229211926, -- Astra, Nova Empress (Mythic)
-	gekko_voidshinobi = 92307562986867, -- Gekko the Void Shinobi (Mythic)
-	volta_stormcaptain = 3552939059, -- Storm Captain Volta (Mythic)
-	ifra_phoenixsaint = 79118375438271, -- Ifra, Phoenix Saint (Mythic)
-	kaizen_deepcrown = 10854041153, -- Admiral Kaizen Deepcrown (Mythic)
-	kagura_duskblade = 8829461349, -- Kagura Duskblade (Mythic)
-	solenne_eclipse = 7084656859, -- Solenne, Eclipse Sovereign (Secret)
-	mugen_dicegod = 114744297, -- Mugen, the Dice God (Secret)
-	vael_abyssal = 121497881801826, -- Vael, Abyssal Emperor (Secret)
-}
-
-local ReplicatedStorage = game:GetService("ReplicatedStorage")
-
-local folder = ReplicatedStorage:FindFirstChild("HeroModels")
-if not folder then
-	folder = Instance.new("Folder")
-	folder.Name = "HeroModels"
-	folder.Parent = ReplicatedStorage
+local function onTravelRequest(player, worldId)
+	if typeof(worldId) ~= "string" or #worldId > 32 then
+		return { ok = false, message = "Невідомий світ" }
+	end
+	if not limiter:Check(player) then
+		return { ok = false, message = "Зачекай трохи перед наступною подорожжю" }
+	end
+	local ok, message = WorldService.Travel(player, worldId)
+	return { ok = ok, message = message }
 end
 
--- Знаходить у завантаженому першу модель-персонажа (з Humanoid), або будь-яку модель
-local function pickCharacter(objects)
-	local fallback = nil
-	for _, object in objects do
-		local candidates = { object }
-		for _, descendant in object:GetDescendants() do
-			table.insert(candidates, descendant)
+-- Торкнувся порталу — переносимо (із захистом від повторних спрацювань).
+local function connectPortal(field)
+	field.Touched:Connect(function(hit)
+		local character = hit.Parent
+		local player = character and Players:GetPlayerFromCharacter(character)
+		if not player then
+			return
 		end
-		for _, candidate in candidates do
-			if candidate:IsA("Model") then
-				if candidate:FindFirstChildOfClass("Humanoid") then
-					return candidate
-				end
-				fallback = fallback or candidate
+		local now = os.clock()
+		if lastPortalUse[player] and now - lastPortalUse[player] < PORTAL_COOLDOWN then
+			return
+		end
+		lastPortalUse[player] = now
+		local worldId = field:GetAttribute("WorldId")
+		if worldId ~= LOBBY then
+			local world = WorldConfig.Worlds[worldId]
+			if not world or not world.available then
+				Remotes.Notify(player, "Цей світ відкриється в наступних оновленнях", "info")
+				return
 			end
 		end
-	end
-	return fallback
-end
-
-local loaded, failed = 0, 0
-for heroId, assetId in MODELS do
-	local ok, objects = pcall(function()
-		return game:GetObjects("rbxassetid://" .. assetId)
+		local ok, message = WorldService.Travel(player, worldId)
+		Remotes.Notify(player, message, if ok then "success" else "error")
 	end)
-	local model = ok and pickCharacter(objects)
-	if model then
-		-- Модель переносимо (а не копіюємо): частина моделей з Toolbox не дозволяє Clone
-		for _, descendant in model:GetDescendants() do
-			if descendant:IsA("BaseScript") or descendant:IsA("ModuleScript") or descendant:IsA("Sound") then
-				descendant:Destroy()
-			end
-		end
-		local old = folder:FindFirstChild(heroId)
-		if old then
-			old:Destroy()
-		end
-		model.Name = heroId
-		model.Parent = folder
-		loaded += 1
-		print(("✅ %s ← %d"):format(heroId, assetId))
-	else
-		failed += 1
-		warn(("❌ %s: не вдалося завантажити модель %d"):format(heroId, assetId))
-	end
-	-- Решта завантаженого (якщо це був пак) не потрапляє в гру
-	if ok then
-		for _, object in objects do
-			if object ~= model and object.Parent ~= folder then
-				object:Destroy()
-			end
-		end
-	end
 end
-print(("Готово: %d моделей, помилок: %d"):format(loaded, failed))
+
+function WorldService.SetupPlayer(player)
+	player:SetAttribute("World", LOBBY)
+	-- Після смерті гравець з'являється на базі (PlotService) — отже, у лобі
+	player.CharacterAdded:Connect(function()
+		player:SetAttribute("World", LOBBY)
+	end)
 end
+
+function WorldService.Init()
+	local worldsFolder = Instance.new("Folder")
+	worldsFolder.Name = "Worlds"
+	worldsFolder.Parent = workspace
+
+	for _, worldId in WorldConfig.Order do
+		local world = WorldConfig.Worlds[worldId]
+		local builder = BUILDERS[worldId]
+		if world.available and builder then
+			local folder = Instance.new("Folder")
+			folder.Name = worldId
+			folder.Parent = worldsFolder
+			local center = CFrame.new(world.center)
+			spawnPoints[worldId] = builder(folder, center)
+			local enemiesFolder = Instance.new("Folder")
+			enemiesFolder.Name = "Enemies"
+			enemiesFolder.Parent = folder
+			EnemyService.SpawnWorldEnemies(worldId, center, enemiesFolder)
+		end
+	end
+
+	-- Усі портали (у лобі та у світах) позначені атрибутом WorldId
+	for _, instance in workspace:GetDescendants() do
+		if instance:IsA("BasePart") and instance:GetAttribute("WorldId") then
+			connectPortal(instance)
+		end
+	end
+
+	Remotes.Handle("Travel", onTravelRequest)
+end
+
+return WorldService
+]=])
 
 if recording then
 	ChangeHistoryService:FinishRecording(recording, Enum.FinishRecordingOperation.Commit)
 end
-print("Частина 3 з 3 готова")
+print("Частина 3 з 5 готова")

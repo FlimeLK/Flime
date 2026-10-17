@@ -679,7 +679,8 @@ local BUILDERS = {
 }
 
 -- Переносить гравця у світ (або "Lobby" — на його базу).
-function WorldService.Travel(player, worldId)
+-- force = true — без перевірки, чи відкритий світ (адмін-панель).
+function WorldService.Travel(player, worldId, force)
 	local character = player.Character
 	if not character or not character:FindFirstChild("HumanoidRootPart") then
 		return false, "Персонаж ще не з'явився"
@@ -700,7 +701,7 @@ function WorldService.Travel(player, worldId)
 		return false, "Дані ще завантажуються"
 	end
 	local unlocked, requirement = GameMath.IsWorldUnlocked(data, worldId)
-	if not unlocked then
+	if not unlocked and not force then
 		return false, ("🔒 %s: %s"):format(world.displayName, requirement)
 	end
 	CombatService.ClearTarget(player)

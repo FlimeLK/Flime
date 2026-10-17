@@ -129,9 +129,23 @@ function GameMath.GetBoostMultiplier(data, boostId, now)
 	return 1
 end
 
--- Удача гравця (множиться на удачу кубика): зілля × бонус Rebirth.
+-- Серверна подія від адміна ("Luck" / "Income"): множник діє для всіх гравців до часу Event<kind>Ends.
+-- Значення лежать в атрибутах workspace, тож їх бачать і сервер, і клієнти. now = nil — подія не враховується.
+function GameMath.GetEventMultiplier(kind, now)
+	if now == nil then
+		return 1
+	end
+	local multiplier = workspace:GetAttribute("Event" .. kind)
+	local ends = workspace:GetAttribute("Event" .. kind .. "Ends")
+	if type(multiplier) == "number" and type(ends) == "number" and ends > now and multiplier > 1 then
+		return multiplier
+	end
+	return 1
+end
+
+-- Удача гравця (множиться на удачу кубика): зілля × бонус Rebirth × серверна подія.
 function GameMath.GetLuck(data, now)
-	return GameMath.GetBoostMultiplier(data, "luck", now) * GameMath.GetRebirthLuck(data.rebirths or 0)
+	return GameMath.GetBoostMultiplier(data, "luck", now) * GameMath.GetRebirthLuck(data.rebirths or 0) * GameMath.GetEventMultiplier("Luck", now)
 end
 
 function GameMath.GetHeroName(heroDef, awakened)
@@ -328,6 +342,7 @@ function GameMath.GetTotalIncome(data, now)
 		* GameMath.GetCollectionMultiplier(data)
 		* GameMath.GetRebirthIncome(data.rebirths or 0)
 		* GameMath.GetBoostMultiplier(data, "income", now)
+		* GameMath.GetEventMultiplier("Income", now)
 end
 
 -- Шкода героя за секунду.
