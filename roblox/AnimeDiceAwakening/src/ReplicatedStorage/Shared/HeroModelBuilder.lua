@@ -150,9 +150,85 @@ local function addAura(model, torso, rarity)
 	end
 end
 
+---------------------------------------------------------------------
+-- Готові моделі з Toolbox
+-- Поклади модель у ReplicatedStorage/HeroModels і назви її id героя
+-- (наприклад "seren_starblade") — вона заміне просту модель з Part.
+-- З копії автоматично прибираються всі скрипти й звуки (захист від "backdoor"),
+-- деталі закріплюються, модель масштабується під зріст героя й ставиться ногами в (0,0,0).
+---------------------------------------------------------------------
+
+HeroModelBuilder.CUSTOM_FOLDER = "HeroModels"
+
+local function findCustomModel(heroId)
+	local folder = ReplicatedStorage:FindFirstChild(HeroModelBuilder.CUSTOM_FOLDER)
+	local template = folder and folder:FindFirstChild(heroId)
+	if template and template:IsA("Model") then
+		return template
+	end
+	return nil
+end
+
+local function findPart(model, names)
+	for _, name in names do
+		local part = model:FindFirstChild(name, true)
+		if part and part:IsA("BasePart") then
+			return part
+		end
+	end
+	return model.PrimaryPart or model:FindFirstChildWhichIsA("BasePart", true)
+end
+
+local function buildFromCustom(heroDef, template, level, infoText, awakened)
+	local model = template:Clone()
+	model.Name = heroDef.id
+
+	-- Безпека й фізика: жодних скриптів і звуків, усе закріплене й "прозоре" для кліків
+	for _, descendant in model:GetDescendants() do
+		if descendant:IsA("BaseScript") or descendant:IsA("ModuleScript") or descendant:IsA("Sound") then
+			descendant:Destroy()
+		elseif descendant:IsA("BasePart") then
+			descendant.Anchored = true
+			descendant.CanCollide = false
+			descendant.CanTouch = false
+			descendant.CanQuery = false
+		elseif descendant:IsA("Humanoid") then
+			descendant.DisplayDistanceType = Enum.HumanoidDisplayDistanceType.None
+			descendant.HealthDisplayType = Enum.HumanoidHealthDisplayType.AlwaysOff
+		end
+	end
+
+	-- Ставимо вертикально обличчям до -Z, масштабуємо під зріст героя
+	local s = heroDef.look.height or 1
+	model:PivotTo(CFrame.new())
+	local _, size = model:GetBoundingBox()
+	if size.Y > 0 then
+		model:ScaleTo(model:GetScale() * (6.6 * s) / size.Y)
+	end
+	-- Ноги — у (0,0,0), по центру
+	local box, boxSize = model:GetBoundingBox()
+	local feet = Vector3.new(box.Position.X, box.Position.Y - boxSize.Y / 2, box.Position.Z)
+	model:PivotTo(model:GetPivot() - feet)
+	model.WorldPivot = CFrame.new()
+
+	local head = findPart(model, { "Head" })
+	local torso = findPart(model, { "UpperTorso", "Torso", "HumanoidRootPart" })
+	addNameplate(model, head, heroDef, level, infoText, awakened)
+	addAura(model, torso, heroDef.rarity)
+	if awakened then
+		addAwakenedAura(model, torso, boxSize.Y - 1.7 * s, s)
+	end
+	return model
+end
+
 -- infoText — другий рядок над героєм, напр. "+5/s" на базі або "⚔️ 40" у бою.
 -- awakened — пробуджена форма (німб, золоте сяйво, нове ім'я).
 function HeroModelBuilder.Build(heroDef, level, infoText, awakened)
+	local template = findCustomModel(heroDef.id)
+	if template then
+		return buildFromCustom(heroDef, template, level, infoText, awakened)
+	end
+
 	local model = Instance.new("Model")
 	model.Name = heroDef.id
 

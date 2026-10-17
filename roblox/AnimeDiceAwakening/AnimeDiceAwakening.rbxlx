@@ -1876,9 +1876,85 @@ local function addAura(model, torso, rarity)
 	end
 end
 
+---------------------------------------------------------------------
+-- Готові моделі з Toolbox
+-- Поклади модель у ReplicatedStorage/HeroModels і назви її id героя
+-- (наприклад "seren_starblade") — вона заміне просту модель з Part.
+-- З копії автоматично прибираються всі скрипти й звуки (захист від "backdoor"),
+-- деталі закріплюються, модель масштабується під зріст героя й ставиться ногами в (0,0,0).
+---------------------------------------------------------------------
+
+HeroModelBuilder.CUSTOM_FOLDER = "HeroModels"
+
+local function findCustomModel(heroId)
+	local folder = ReplicatedStorage:FindFirstChild(HeroModelBuilder.CUSTOM_FOLDER)
+	local template = folder and folder:FindFirstChild(heroId)
+	if template and template:IsA("Model") then
+		return template
+	end
+	return nil
+end
+
+local function findPart(model, names)
+	for _, name in names do
+		local part = model:FindFirstChild(name, true)
+		if part and part:IsA("BasePart") then
+			return part
+		end
+	end
+	return model.PrimaryPart or model:FindFirstChildWhichIsA("BasePart", true)
+end
+
+local function buildFromCustom(heroDef, template, level, infoText, awakened)
+	local model = template:Clone()
+	model.Name = heroDef.id
+
+	-- Безпека й фізика: жодних скриптів і звуків, усе закріплене й "прозоре" для кліків
+	for _, descendant in model:GetDescendants() do
+		if descendant:IsA("BaseScript") or descendant:IsA("ModuleScript") or descendant:IsA("Sound") then
+			descendant:Destroy()
+		elseif descendant:IsA("BasePart") then
+			descendant.Anchored = true
+			descendant.CanCollide = false
+			descendant.CanTouch = false
+			descendant.CanQuery = false
+		elseif descendant:IsA("Humanoid") then
+			descendant.DisplayDistanceType = Enum.HumanoidDisplayDistanceType.None
+			descendant.HealthDisplayType = Enum.HumanoidHealthDisplayType.AlwaysOff
+		end
+	end
+
+	-- Ставимо вертикально обличчям до -Z, масштабуємо під зріст героя
+	local s = heroDef.look.height or 1
+	model:PivotTo(CFrame.new())
+	local _, size = model:GetBoundingBox()
+	if size.Y > 0 then
+		model:ScaleTo(model:GetScale() * (6.6 * s) / size.Y)
+	end
+	-- Ноги — у (0,0,0), по центру
+	local box, boxSize = model:GetBoundingBox()
+	local feet = Vector3.new(box.Position.X, box.Position.Y - boxSize.Y / 2, box.Position.Z)
+	model:PivotTo(model:GetPivot() - feet)
+	model.WorldPivot = CFrame.new()
+
+	local head = findPart(model, { "Head" })
+	local torso = findPart(model, { "UpperTorso", "Torso", "HumanoidRootPart" })
+	addNameplate(model, head, heroDef, level, infoText, awakened)
+	addAura(model, torso, heroDef.rarity)
+	if awakened then
+		addAwakenedAura(model, torso, boxSize.Y - 1.7 * s, s)
+	end
+	return model
+end
+
 -- infoText — другий рядок над героєм, напр. "+5/s" на базі або "⚔️ 40" у бою.
 -- awakened — пробуджена форма (німб, золоте сяйво, нове ім'я).
 function HeroModelBuilder.Build(heroDef, level, infoText, awakened)
+	local template = findCustomModel(heroDef.id)
+	if template then
+		return buildFromCustom(heroDef, template, level, infoText, awakened)
+	end
+
 	local model = Instance.new("Model")
 	model.Name = heroDef.id
 
@@ -1997,12 +2073,17 @@ return Remotes
         </Properties>
       </Item>
     </Item>
+    <Item class="Folder" referent="17">
+      <Properties>
+        <string name="Name">HeroModels</string>
+      </Properties>
+    </Item>
   </Item>
-  <Item class="ServerScriptService" referent="17">
+  <Item class="ServerScriptService" referent="18">
     <Properties>
       <string name="Name">ServerScriptService</string>
     </Properties>
-    <Item class="Script" referent="18">
+    <Item class="Script" referent="19">
       <Properties>
         <string name="Name">Main</string>
         <token name="RunContext">0</token>
@@ -2085,11 +2166,11 @@ print("[Main] Anime Dice: Awakening — сервер запущено")
 ]]></string>
       </Properties>
     </Item>
-    <Item class="Folder" referent="19">
+    <Item class="Folder" referent="20">
       <Properties>
         <string name="Name">Services</string>
       </Properties>
-      <Item class="ModuleScript" referent="20">
+      <Item class="ModuleScript" referent="21">
         <Properties>
           <string name="Name">BuildUtil</string>
           <string name="Source"><![CDATA[-- BuildUtil: спільні функції для будівництва карти з простих Part.
@@ -2159,7 +2240,7 @@ return BuildUtil
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="21">
+      <Item class="ModuleScript" referent="22">
         <Properties>
           <string name="Name">CombatService</string>
           <string name="Source"><![CDATA[-- CombatService: вибір цілі та автоатака бойової команди.
@@ -2382,7 +2463,7 @@ return CombatService
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="22">
+      <Item class="ModuleScript" referent="23">
         <Properties>
           <string name="Name">DataService</string>
           <string name="Source"><![CDATA[-- DataService: завантаження, зберігання та синхронізація даних гравців.
@@ -2846,7 +2927,7 @@ return DataService
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="23">
+      <Item class="ModuleScript" referent="24">
         <Properties>
           <string name="Name">EnemyModelBuilder</string>
           <string name="Source"><![CDATA[-- EnemyModelBuilder: прості моделі ворогів з Part + смуга здоров'я над головою.
@@ -3060,7 +3141,7 @@ return EnemyModelBuilder
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="24">
+      <Item class="ModuleScript" referent="25">
         <Properties>
           <string name="Name">EnemyService</string>
           <string name="Source"><![CDATA[-- EnemyService: вороги та боси — поява, здоров'я, нагороди, атаки боса.
@@ -3350,7 +3431,7 @@ return EnemyService
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="25">
+      <Item class="ModuleScript" referent="26">
         <Properties>
           <string name="Name">IncomeService</string>
           <string name="Source"><![CDATA[-- IncomeService: нарахування монет від героїв на базі та офлайн-дохід.
@@ -3412,7 +3493,7 @@ return IncomeService
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="26">
+      <Item class="ModuleScript" referent="27">
         <Properties>
           <string name="Name">InventoryService</string>
           <string name="Source"><![CDATA[-- InventoryService: герої гравця — видача, розміщення на базі, блокування,
@@ -3655,7 +3736,7 @@ return InventoryService
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="27">
+      <Item class="ModuleScript" referent="28">
         <Properties>
           <string name="Name">PlotService</string>
           <string name="Source"><![CDATA[-- PlotService: будує лобі й ділянки, видає кожному гравцеві власну базу,
@@ -3942,7 +4023,7 @@ return PlotService
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="28">
+      <Item class="ModuleScript" referent="29">
         <Properties>
           <string name="Name">QuestService</string>
           <string name="Source"><![CDATA[-- QuestService: сюжетні та щоденні завдання, нагороди колекції, відкриття зон.
@@ -4136,7 +4217,7 @@ return QuestService
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="29">
+      <Item class="ModuleScript" referent="30">
         <Properties>
           <string name="Name">RateLimiter</string>
           <string name="Source"><![CDATA[-- RateLimiter: обмеження частоти запитів (алгоритм "відро з жетонами").
@@ -4175,7 +4256,7 @@ return RateLimiter
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="30">
+      <Item class="ModuleScript" referent="31">
         <Properties>
           <string name="Name">RebirthService</string>
           <string name="Source"><![CDATA[-- RebirthService: Rebirth — віддаєш монети, слоти бази й рівень доходу,
@@ -4246,7 +4327,7 @@ return RebirthService
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="31">
+      <Item class="ModuleScript" referent="32">
         <Properties>
           <string name="Name">RollService</string>
           <string name="Source"><![CDATA[-- RollService: кидки кубиків. Результат визначає ТІЛЬКИ сервер;
@@ -4421,7 +4502,7 @@ return RollService
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="32">
+      <Item class="ModuleScript" referent="33">
         <Properties>
           <string name="Name">SettingsService</string>
           <string name="Source"><![CDATA[-- SettingsService: збереження налаштувань гравця (звук, ефекти, пропуск анімацій).
@@ -4467,7 +4548,7 @@ return SettingsService
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="33">
+      <Item class="ModuleScript" referent="34">
         <Properties>
           <string name="Name">ShopService</string>
           <string name="Source"><![CDATA[-- ShopService: покупки за Crystals — зілля (тимчасові бусти) і більша сумка.
@@ -4546,7 +4627,7 @@ return ShopService
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="34">
+      <Item class="ModuleScript" referent="35">
         <Properties>
           <string name="Name">TeamService</string>
           <string name="Source"><![CDATA[-- TeamService: бойова команда з 3 героїв.
@@ -4713,7 +4794,7 @@ return TeamService
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="35">
+      <Item class="ModuleScript" referent="36">
         <Properties>
           <string name="Name">UpgradeService</string>
           <string name="Source"><![CDATA[-- UpgradeService: покупка покращень бази (слоти та дохід).
@@ -4789,7 +4870,7 @@ return UpgradeService
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="36">
+      <Item class="ModuleScript" referent="37">
         <Properties>
           <string name="Name">WorldService</string>
           <string name="Source"><![CDATA[-- WorldService: будує світи, переносить гравців через портали та кнопку Worlds.
@@ -5258,19 +5339,19 @@ return WorldService
       </Item>
     </Item>
   </Item>
-  <Item class="StarterPlayer" referent="37">
+  <Item class="StarterPlayer" referent="38">
     <Properties>
       <string name="Name">StarterPlayer</string>
     </Properties>
-    <Item class="StarterPlayerScripts" referent="38">
+    <Item class="StarterPlayerScripts" referent="39">
       <Properties>
         <string name="Name">StarterPlayerScripts</string>
       </Properties>
-      <Item class="Folder" referent="39">
+      <Item class="Folder" referent="40">
         <Properties>
           <string name="Name">Client</string>
         </Properties>
-        <Item class="ModuleScript" referent="40">
+        <Item class="ModuleScript" referent="41">
           <Properties>
             <string name="Name">ClientState</string>
             <string name="Source"><![CDATA[-- ClientState: копія даних гравця на клієнті + запити до сервера.
@@ -5374,7 +5455,7 @@ return ClientState
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="41">
+        <Item class="ModuleScript" referent="42">
           <Properties>
             <string name="Name">CombatUI</string>
             <string name="Source"><![CDATA[-- CombatUI: інтерфейс бою — поточна ціль, смуга здоров'я боса з попередженням
@@ -5622,7 +5703,7 @@ return CombatUI
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="42">
+        <Item class="ModuleScript" referent="43">
           <Properties>
             <string name="Name">EnemyRegistry</string>
             <string name="Source"><![CDATA[-- EnemyRegistry: швидкий пошук моделі ворога за EnemyId на клієнті.
@@ -5674,7 +5755,7 @@ return EnemyRegistry
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="43">
+        <Item class="ModuleScript" referent="44">
           <Properties>
             <string name="Name">FollowerController</string>
             <string name="Source"><![CDATA[-- FollowerController: герої бойової команди йдуть за своїм гравцем.
@@ -5814,7 +5895,7 @@ return FollowerController
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="44">
+        <Item class="ModuleScript" referent="45">
           <Properties>
             <string name="Name">Hud</string>
             <string name="Source"><![CDATA[-- Hud: головний екран у стилі аніме-симуляторів.
@@ -6374,7 +6455,7 @@ return Hud
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="45">
+        <Item class="ModuleScript" referent="46">
           <Properties>
             <string name="Name">InventoryUI</string>
             <string name="Source"><![CDATA[-- InventoryUI: сітка героїв, сортування, Equip Best і дії з вибраним героєм
@@ -6761,7 +6842,7 @@ return InventoryUI
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="46">
+        <Item class="ModuleScript" referent="47">
           <Properties>
             <string name="Name">QuestsUI</string>
             <string name="Source"><![CDATA[-- QuestsUI: вікно Quests з вкладками "Завдання" (сюжет + щоденні) і "Колекція"
@@ -7207,7 +7288,7 @@ return QuestsUI
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="47">
+        <Item class="ModuleScript" referent="48">
           <Properties>
             <string name="Name">RebirthUI</string>
             <string name="Source"><![CDATA[-- RebirthUI: вікно Rebirth — прогрес до наступного Rebirth, що отримаєш і що скинеться.
@@ -7365,7 +7446,7 @@ return RebirthUI
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="48">
+        <Item class="ModuleScript" referent="49">
           <Properties>
             <string name="Name">RollUI</string>
             <string name="Source"><![CDATA[-- RollUI: вікно кубиків (вибір кубика, шанси, гарантія), кнопки Roll / Auto / Skip
@@ -8140,7 +8221,7 @@ return RollUI
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="49">
+        <Item class="ModuleScript" referent="50">
           <Properties>
             <string name="Name">SettingsUI</string>
             <string name="Source"><![CDATA[-- SettingsUI: перемикачі звуку, ефектів і пропуску анімацій.
@@ -8221,7 +8302,7 @@ return SettingsUI
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="50">
+        <Item class="ModuleScript" referent="51">
           <Properties>
             <string name="Name">SoundController</string>
             <string name="Source"><![CDATA[-- SoundController: звуки інтерфейсу. ID звуків — у Config/AssetConfig.
@@ -8265,7 +8346,7 @@ return SoundController
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="51">
+        <Item class="ModuleScript" referent="52">
           <Properties>
             <string name="Name">TeamUI</string>
             <string name="Source"><![CDATA[-- TeamUI: вікно бойової команди. Зверху 3 слоти, нижче — усі герої за шкодою.
@@ -8528,7 +8609,7 @@ return TeamUI
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="52">
+        <Item class="ModuleScript" referent="53">
           <Properties>
             <string name="Name">UIKit</string>
             <string name="Source"><![CDATA[-- UIKit: стиль і готові елементи інтерфейсу.
@@ -9202,7 +9283,7 @@ return UIKit
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="53">
+        <Item class="ModuleScript" referent="54">
           <Properties>
             <string name="Name">UpgradesUI</string>
             <string name="Source"><![CDATA[-- UpgradesUI: покращення бази за Coins і магазин за Crystals (зілля, більша сумка).
@@ -9453,7 +9534,7 @@ return UpgradesUI
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="54">
+        <Item class="ModuleScript" referent="55">
           <Properties>
             <string name="Name">WorldEffects</string>
             <string name="Source"><![CDATA[-- WorldEffects: локально вмикає/вимикає аури героїв за налаштуванням "Ефекти".
@@ -9499,7 +9580,7 @@ return WorldEffects
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="55">
+        <Item class="ModuleScript" referent="56">
           <Properties>
             <string name="Name">WorldLighting</string>
             <string name="Source"><![CDATA[-- WorldLighting: освітлення світу на екрані цього гравця.
@@ -9554,7 +9635,7 @@ return WorldLighting
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="56">
+        <Item class="ModuleScript" referent="57">
           <Properties>
             <string name="Name">WorldsUI</string>
             <string name="Source"><![CDATA[-- WorldsUI: список світів і кнопки подорожі. Переносить гравця сервер.
@@ -9683,7 +9764,7 @@ return WorldsUI
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="57">
+        <Item class="ModuleScript" referent="58">
           <Properties>
             <string name="Name">ZoneGates</string>
             <string name="Source"><![CDATA[-- ZoneGates: ворота зон на екрані цього гравця.
@@ -9742,7 +9823,7 @@ return ZoneGates
           </Properties>
         </Item>
       </Item>
-      <Item class="LocalScript" referent="58">
+      <Item class="LocalScript" referent="59">
         <Properties>
           <string name="Name">ClientMain</string>
           <string name="Source"><![CDATA[-- ClientMain: точка входу клієнта. Будує інтерфейс і підключає модулі.

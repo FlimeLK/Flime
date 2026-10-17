@@ -3,7 +3,10 @@
   "tree": {
     "$className": "DataModel",
     "ReplicatedStorage": {
-      "$path": "src/ReplicatedStorage"
+      "$path": "src/ReplicatedStorage",
+      "HeroModels": {
+        "$className": "Folder"
+      }
     },
     "ServerScriptService": {
       "$path": "src/ServerScriptService"
