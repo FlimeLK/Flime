@@ -268,8 +268,8 @@ function PlotService.RefreshPlot(player)
 			local heroDef = hero and HeroConfig.Heroes[hero.id]
 			if heroDef then
 				slot.Gui.Label.Text = ""
-				local income = GameMath.GetHeroIncome(heroDef, hero.level, data.incomeLevel)
-				local heroModel = HeroModelBuilder.Build(heroDef, hero.level, "+" .. GameMath.FormatNumber(income) .. "/s")
+				local income = GameMath.GetHeroIncome(heroDef, hero.level, data.incomeLevel, hero.awakened)
+				local heroModel = HeroModelBuilder.Build(heroDef, hero.level, "+" .. GameMath.FormatNumber(income) .. "/s", hero.awakened)
 				-- Герой стоїть на слоті й дивиться до входу в базу
 				heroModel:PivotTo(slot.CFrame * CFrame.new(0, SLOT_SIZE.Y / 2, 0))
 				heroModel.Parent = plot.heroesFolder

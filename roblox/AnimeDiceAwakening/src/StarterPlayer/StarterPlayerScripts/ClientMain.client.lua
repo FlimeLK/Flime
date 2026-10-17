@@ -21,6 +21,7 @@ local WorldsUI = require(Client:WaitForChild("WorldsUI"))
 local CombatUI = require(Client:WaitForChild("CombatUI"))
 local QuestsUI = require(Client:WaitForChild("QuestsUI"))
 local ZoneGates = require(Client:WaitForChild("ZoneGates"))
+local RebirthUI = require(Client:WaitForChild("RebirthUI"))
 
 local gui = UIKit.CreateScreenGui()
 
@@ -35,6 +36,7 @@ EnemyRegistry.Init()
 FollowerController.Init()
 CombatUI.Init(gui)
 QuestsUI.Init(gui)
+RebirthUI.Init(gui)
 ZoneGates.Init()
 WorldEffects.Init()
 

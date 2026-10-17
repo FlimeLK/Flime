@@ -46,12 +46,13 @@ local function rebuild(player)
 	local slot = 0
 	for token in string.gmatch(teamData .. ";", "([^;]*);") do
 		slot += 1
-		local heroId, level = string.match(token, "^([%w_]+):(%d+)$")
+		local heroId, level, flag = string.match(token, "^([%w_]+):(%d+):?(%a?)$")
+		local awakened = flag == "A"
 		local heroDef = heroId and HeroConfig.Heroes[heroId]
 		if heroDef and slot <= CombatConfig.TeamSize then
 			local heroLevel = tonumber(level) or 1
-			local damage = GameMath.GetHeroDamage(heroDef, heroLevel)
-			local model = HeroModelBuilder.Build(heroDef, heroLevel, "⚔️ " .. GameMath.FormatNumber(math.floor(damage)))
+			local damage = GameMath.GetHeroDamage(heroDef, heroLevel, awakened)
+			local model = HeroModelBuilder.Build(heroDef, heroLevel, "⚔️ " .. GameMath.FormatNumber(math.floor(damage)), awakened)
 			model.Name = ("%s_%d"):format(player.Name, slot)
 			model:SetAttribute("HeroId", heroDef.id)
 			model:ScaleTo(CombatConfig.FollowerScale)

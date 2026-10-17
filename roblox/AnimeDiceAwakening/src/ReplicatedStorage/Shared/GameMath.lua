@@ -43,13 +43,18 @@ function GameMath.GetIncomeMultiplier(incomeLevel)
 	return 1 + (incomeLevel or 0) * EconomyConfig.IncomeUpgrade.bonusPerLevel
 end
 
-function GameMath.GetHeroIncome(heroDef, level, incomeLevel)
-	local levelBonus = 1 + EconomyConfig.LevelIncomeBonus * (level - 1)
-	return heroDef.income * levelBonus * GameMath.GetIncomeMultiplier(incomeLevel)
+-- Множник пробудженої форми (1, якщо герой не пробуджений)
+function GameMath.GetAwakenMultiplier(heroDef, awakened)
+	return if awakened then heroDef.awakened.multiplier else 1
 end
 
-function GameMath.GetHeroDamage(heroDef, level)
-	return heroDef.damage * (1 + EconomyConfig.LevelDamageBonus * (level - 1))
+function GameMath.GetHeroIncome(heroDef, level, incomeLevel, awakened)
+	local levelBonus = 1 + EconomyConfig.LevelIncomeBonus * (level - 1)
+	return heroDef.income * levelBonus * GameMath.GetIncomeMultiplier(incomeLevel) * GameMath.GetAwakenMultiplier(heroDef, awakened)
+end
+
+function GameMath.GetHeroDamage(heroDef, level, awakened)
+	return heroDef.damage * (1 + EconomyConfig.LevelDamageBonus * (level - 1)) * GameMath.GetAwakenMultiplier(heroDef, awakened)
 end
 
 function GameMath.GetSellPrice(heroDef, level)
@@ -92,9 +97,39 @@ function GameMath.GetBoostMultiplier(data, boostId, now)
 	return 1
 end
 
--- Удача гравця (множиться на удачу кубика).
+-- Удача гравця (множиться на удачу кубика): зілля × бонус Rebirth.
 function GameMath.GetLuck(data, now)
-	return GameMath.GetBoostMultiplier(data, "luck", now)
+	return GameMath.GetBoostMultiplier(data, "luck", now) * GameMath.GetRebirthLuck(data.rebirths or 0)
+end
+
+function GameMath.GetHeroName(heroDef, awakened)
+	return if awakened then heroDef.awakened.name else heroDef.name
+end
+
+-- Чи можна пробудити героя. Повертає ok, причина, ціна.
+function GameMath.CanAwaken(heroDef, hero)
+	local info = RarityConfig.Info[heroDef.rarity]
+	if hero.awakened then
+		return false, "Герой уже пробуджений", info.awakenCost
+	end
+	if hero.level < info.maxLevel then
+		return false, ("Потрібен максимальний рівень %d (зараз %d)"):format(info.maxLevel, hero.level), info.awakenCost
+	end
+	return true, nil, info.awakenCost
+end
+
+-- Rebirth
+function GameMath.GetRebirthCost(rebirths)
+	local config = EconomyConfig.Rebirth
+	return math.floor(config.baseCost * config.growth ^ rebirths)
+end
+
+function GameMath.GetRebirthIncome(rebirths)
+	return 1 + rebirths * EconomyConfig.Rebirth.incomeBonus
+end
+
+function GameMath.GetRebirthLuck(rebirths)
+	return 1 + rebirths * EconomyConfig.Rebirth.luckBonus
 end
 
 function GameMath.CountDiscovered(data)
@@ -198,6 +233,16 @@ function GameMath.GetMetric(data, metric)
 			end
 		end
 		return count
+	elseif metric == "rebirths" then
+		return data.rebirths or 0
+	elseif metric == "awakenedHeroes" then
+		local count = 0
+		for _, hero in data.heroes do
+			if hero.awakened then
+				count += 1
+			end
+		end
+		return count
 	elseif metric == "maxHeroLevel" then
 		local best = 0
 		for _, hero in data.heroes do
@@ -244,15 +289,18 @@ function GameMath.GetTotalIncome(data, now)
 		local hero = uid and uid ~= "" and data.heroes[uid]
 		local heroDef = hero and HeroConfig.Heroes[hero.id]
 		if heroDef then
-			total += GameMath.GetHeroIncome(heroDef, hero.level, data.incomeLevel)
+			total += GameMath.GetHeroIncome(heroDef, hero.level, data.incomeLevel, hero.awakened)
 		end
 	end
-	return total * GameMath.GetCollectionMultiplier(data) * GameMath.GetBoostMultiplier(data, "income", now)
+	return total
+		* GameMath.GetCollectionMultiplier(data)
+		* GameMath.GetRebirthIncome(data.rebirths or 0)
+		* GameMath.GetBoostMultiplier(data, "income", now)
 end
 
 -- Шкода героя за секунду.
-function GameMath.GetHeroDps(heroDef, level)
-	return GameMath.GetHeroDamage(heroDef, level) * heroDef.attackSpeed
+function GameMath.GetHeroDps(heroDef, level, awakened)
+	return GameMath.GetHeroDamage(heroDef, level, awakened) * heroDef.attackSpeed
 end
 
 -- Чи входить герой до бойової команди.
@@ -283,7 +331,7 @@ function GameMath.GetTeamDps(data)
 		local hero = uid and uid ~= "" and data.heroes[uid]
 		local heroDef = hero and HeroConfig.Heroes[hero.id]
 		if heroDef then
-			total += GameMath.GetHeroDps(heroDef, hero.level)
+			total += GameMath.GetHeroDps(heroDef, hero.level, hero.awakened)
 		end
 	end
 	return total

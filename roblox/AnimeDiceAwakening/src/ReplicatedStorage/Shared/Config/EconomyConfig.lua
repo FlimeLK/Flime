@@ -29,6 +29,16 @@ local EconomyConfig = {
 	OfflineMaxSeconds = 2 * 60 * 60, -- офлайн-дохід максимум за 2 години
 	OfflineRate = 0.5, -- офлайн герої заробляють 50% від звичайного
 
+	-- Rebirth: віддаєш монети, слоти й покращення доходу — отримуєш назавжди
+	-- +50% доходу і +5% удачі за кожен Rebirth та кристали.
+	Rebirth = {
+		baseCost = 250000, -- ціна першого Rebirth у Coins
+		growth = 2.5, -- кожен наступний дорожчий у 2.5 раза
+		incomeBonus = 0.5,
+		luckBonus = 0.05,
+		crystalReward = 10, -- × номер Rebirth (10, 20, 30…)
+	},
+
 	-- Колекція: кожен відкритий герой дає +2% до доходу бази
 	CollectionIncomeBonus = 0.02,
 

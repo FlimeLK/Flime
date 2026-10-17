@@ -179,6 +179,16 @@ local EconomyConfig = {
 	OfflineMaxSeconds = 2 * 60 * 60, -- офлайн-дохід максимум за 2 години
 	OfflineRate = 0.5, -- офлайн герої заробляють 50% від звичайного
 
+	-- Rebirth: віддаєш монети, слоти й покращення доходу — отримуєш назавжди
+	-- +50% доходу і +5% удачі за кожен Rebirth та кристали.
+	Rebirth = {
+		baseCost = 250000, -- ціна першого Rebirth у Coins
+		growth = 2.5, -- кожен наступний дорожчий у 2.5 раза
+		incomeBonus = 0.5,
+		luckBonus = 0.05,
+		crystalReward = 10, -- × номер Rebirth (10, 20, 30…)
+	},
+
 	-- Колекція: кожен відкритий герой дає +2% до доходу бази
 	CollectionIncomeBonus = 0.02,
 
@@ -758,6 +768,8 @@ QuestConfig.Main = {
 	{ id = "collector2", title = "Колекціонер II", description = "Відкрий 15 різних героїв", metric = "discovered", target = 15, reward = { crystals = 20 } },
 	{ id = "dock", title = "Причал капітана", description = "60 перемог на острові — відкриється Captain's Dock", metric = "kills:PirateIsland", target = 60, reward = { crystals = 15 } },
 	{ id = "sea_terror", title = "Гроза морів", description = "Переможи Captain Blackwake — відкриється Tidal Dice", metric = "boss:captain_blackwake", target = 1, reward = { crystals = 60 } },
+	{ id = "awakening", title = "Пробудження", description = "Пробуди героя: максимальний рівень + 💎 (Backpack → Awaken)", metric = "awakenedHeroes", target = 1, reward = { crystals = 30 } },
+	{ id = "rebirth", title = "Новий початок", description = "Зроби перший ♻️ Rebirth", metric = "rebirths", target = 1, reward = { crystals = 50 } },
 }
 
 QuestConfig.DailyPool = {
@@ -805,6 +817,7 @@ return QuestConfig
 -- maxLevel      — максимальний рівень через злиття дублікатів
 -- autoLock      — герой одразу блокується від випадкового продажу
 -- aura / light  — візуальні ефекти героя на базі
+-- awakenCost    — ціна пробудження в Crystals (герой має бути максимального рівня)
 
 local RarityConfig = {}
 
@@ -817,6 +830,7 @@ RarityConfig.Info = {
 		luckAffected = false,
 		sellPrice = 5,
 		maxLevel = 10,
+		awakenCost = 5,
 		autoLock = false,
 		aura = false,
 		light = false,
@@ -827,6 +841,7 @@ RarityConfig.Info = {
 		luckAffected = true,
 		sellPrice = 20,
 		maxLevel = 15,
+		awakenCost = 10,
 		autoLock = false,
 		aura = false,
 		light = false,
@@ -837,6 +852,7 @@ RarityConfig.Info = {
 		luckAffected = true,
 		sellPrice = 75,
 		maxLevel = 20,
+		awakenCost = 25,
 		autoLock = false,
 		aura = true,
 		light = false,
@@ -847,6 +863,7 @@ RarityConfig.Info = {
 		luckAffected = true,
 		sellPrice = 300,
 		maxLevel = 25,
+		awakenCost = 60,
 		autoLock = true,
 		aura = true,
 		light = false,
@@ -857,6 +874,7 @@ RarityConfig.Info = {
 		luckAffected = true,
 		sellPrice = 1500,
 		maxLevel = 30,
+		awakenCost = 150,
 		autoLock = true,
 		aura = true,
 		light = true,
@@ -867,6 +885,7 @@ RarityConfig.Info = {
 		luckAffected = true,
 		sellPrice = 10000,
 		maxLevel = 40,
+		awakenCost = 400,
 		autoLock = true,
 		aura = true,
 		light = true,
@@ -1055,13 +1074,18 @@ function GameMath.GetIncomeMultiplier(incomeLevel)
 	return 1 + (incomeLevel or 0) * EconomyConfig.IncomeUpgrade.bonusPerLevel
 end
 
-function GameMath.GetHeroIncome(heroDef, level, incomeLevel)
-	local levelBonus = 1 + EconomyConfig.LevelIncomeBonus * (level - 1)
-	return heroDef.income * levelBonus * GameMath.GetIncomeMultiplier(incomeLevel)
+-- Множник пробудженої форми (1, якщо герой не пробуджений)
+function GameMath.GetAwakenMultiplier(heroDef, awakened)
+	return if awakened then heroDef.awakened.multiplier else 1
 end
 
-function GameMath.GetHeroDamage(heroDef, level)
-	return heroDef.damage * (1 + EconomyConfig.LevelDamageBonus * (level - 1))
+function GameMath.GetHeroIncome(heroDef, level, incomeLevel, awakened)
+	local levelBonus = 1 + EconomyConfig.LevelIncomeBonus * (level - 1)
+	return heroDef.income * levelBonus * GameMath.GetIncomeMultiplier(incomeLevel) * GameMath.GetAwakenMultiplier(heroDef, awakened)
+end
+
+function GameMath.GetHeroDamage(heroDef, level, awakened)
+	return heroDef.damage * (1 + EconomyConfig.LevelDamageBonus * (level - 1)) * GameMath.GetAwakenMultiplier(heroDef, awakened)
 end
 
 function GameMath.GetSellPrice(heroDef, level)
@@ -1104,9 +1128,39 @@ function GameMath.GetBoostMultiplier(data, boostId, now)
 	return 1
 end
 
--- Удача гравця (множиться на удачу кубика).
+-- Удача гравця (множиться на удачу кубика): зілля × бонус Rebirth.
 function GameMath.GetLuck(data, now)
-	return GameMath.GetBoostMultiplier(data, "luck", now)
+	return GameMath.GetBoostMultiplier(data, "luck", now) * GameMath.GetRebirthLuck(data.rebirths or 0)
+end
+
+function GameMath.GetHeroName(heroDef, awakened)
+	return if awakened then heroDef.awakened.name else heroDef.name
+end
+
+-- Чи можна пробудити героя. Повертає ok, причина, ціна.
+function GameMath.CanAwaken(heroDef, hero)
+	local info = RarityConfig.Info[heroDef.rarity]
+	if hero.awakened then
+		return false, "Герой уже пробуджений", info.awakenCost
+	end
+	if hero.level < info.maxLevel then
+		return false, ("Потрібен максимальний рівень %d (зараз %d)"):format(info.maxLevel, hero.level), info.awakenCost
+	end
+	return true, nil, info.awakenCost
+end
+
+-- Rebirth
+function GameMath.GetRebirthCost(rebirths)
+	local config = EconomyConfig.Rebirth
+	return math.floor(config.baseCost * config.growth ^ rebirths)
+end
+
+function GameMath.GetRebirthIncome(rebirths)
+	return 1 + rebirths * EconomyConfig.Rebirth.incomeBonus
+end
+
+function GameMath.GetRebirthLuck(rebirths)
+	return 1 + rebirths * EconomyConfig.Rebirth.luckBonus
 end
 
 function GameMath.CountDiscovered(data)
@@ -1210,6 +1264,16 @@ function GameMath.GetMetric(data, metric)
 			end
 		end
 		return count
+	elseif metric == "rebirths" then
+		return data.rebirths or 0
+	elseif metric == "awakenedHeroes" then
+		local count = 0
+		for _, hero in data.heroes do
+			if hero.awakened then
+				count += 1
+			end
+		end
+		return count
 	elseif metric == "maxHeroLevel" then
 		local best = 0
 		for _, hero in data.heroes do
@@ -1256,15 +1320,18 @@ function GameMath.GetTotalIncome(data, now)
 		local hero = uid and uid ~= "" and data.heroes[uid]
 		local heroDef = hero and HeroConfig.Heroes[hero.id]
 		if heroDef then
-			total += GameMath.GetHeroIncome(heroDef, hero.level, data.incomeLevel)
+			total += GameMath.GetHeroIncome(heroDef, hero.level, data.incomeLevel, hero.awakened)
 		end
 	end
-	return total * GameMath.GetCollectionMultiplier(data) * GameMath.GetBoostMultiplier(data, "income", now)
+	return total
+		* GameMath.GetCollectionMultiplier(data)
+		* GameMath.GetRebirthIncome(data.rebirths or 0)
+		* GameMath.GetBoostMultiplier(data, "income", now)
 end
 
 -- Шкода героя за секунду.
-function GameMath.GetHeroDps(heroDef, level)
-	return GameMath.GetHeroDamage(heroDef, level) * heroDef.attackSpeed
+function GameMath.GetHeroDps(heroDef, level, awakened)
+	return GameMath.GetHeroDamage(heroDef, level, awakened) * heroDef.attackSpeed
 end
 
 -- Чи входить герой до бойової команди.
@@ -1295,7 +1362,7 @@ function GameMath.GetTeamDps(data)
 		local hero = uid and uid ~= "" and data.heroes[uid]
 		local heroDef = hero and HeroConfig.Heroes[hero.id]
 		if heroDef then
-			total += GameMath.GetHeroDps(heroDef, hero.level)
+			total += GameMath.GetHeroDps(heroDef, hero.level, hero.awakened)
 		end
 	end
 	return total
@@ -1415,7 +1482,34 @@ local ACCESSORIES = {
 	end,
 }
 
-local function addNameplate(model, head, heroDef, level, infoText)
+local AWAKEN_COLOR = Color3.fromRGB(255, 215, 90)
+
+-- Пробуджена форма: золотий німб над головою, сяйво й світло
+local function addAwakenedAura(model, torso, top, s)
+	addPart(model, "Halo", Vector3.new(0.25, 2.4, 2.4) * s, CFrame.new(0, top + 2.3 * s, 0) * CFrame.Angles(0, 0, math.rad(90)), AWAKEN_COLOR, Enum.Material.Neon, Enum.PartType.Cylinder)
+	local emitter = Instance.new("ParticleEmitter")
+	emitter.Name = "AwakenAura"
+	emitter.Color = ColorSequence.new(AWAKEN_COLOR, Color3.new(1, 1, 1))
+	emitter.LightEmission = 1
+	emitter.Size = NumberSequence.new({ NumberSequenceKeypoint.new(0, 1), NumberSequenceKeypoint.new(1, 0) })
+	emitter.Transparency = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0.1), NumberSequenceKeypoint.new(1, 1) })
+	emitter.Lifetime = NumberRange.new(0.8, 1.2)
+	emitter.Speed = NumberRange.new(2, 4)
+	emitter.SpreadAngle = Vector2.new(30, 30)
+	emitter.EmissionDirection = Enum.NormalId.Top
+	emitter.Rate = 40
+	emitter.Parent = torso
+	CollectionService:AddTag(emitter, HeroModelBuilder.AURA_TAG)
+	local light = Instance.new("PointLight")
+	light.Name = "AwakenLight"
+	light.Color = AWAKEN_COLOR
+	light.Range = 14
+	light.Brightness = 2.5
+	light.Parent = torso
+	CollectionService:AddTag(light, HeroModelBuilder.AURA_TAG)
+end
+
+local function addNameplate(model, head, heroDef, level, infoText, awakened)
 	local billboard = Instance.new("BillboardGui")
 	billboard.Name = "Nameplate"
 	billboard.Size = UDim2.fromOffset(220, 56)
@@ -1429,8 +1523,8 @@ local function addNameplate(model, head, heroDef, level, infoText)
 	nameLabel.BackgroundTransparency = 1
 	nameLabel.Font = Enum.Font.FredokaOne
 	nameLabel.TextScaled = true
-	nameLabel.Text = heroDef.name
-	nameLabel.TextColor3 = RarityConfig.GetColor(heroDef.rarity)
+	nameLabel.Text = if awakened then "✨ " .. heroDef.awakened.name else heroDef.name
+	nameLabel.TextColor3 = if awakened then AWAKEN_COLOR else RarityConfig.GetColor(heroDef.rarity)
 	nameLabel.TextStrokeTransparency = 0.3
 	nameLabel.Parent = billboard
 
@@ -1475,7 +1569,8 @@ local function addAura(model, torso, rarity)
 end
 
 -- infoText — другий рядок над героєм, напр. "+5/s" на базі або "⚔️ 40" у бою.
-function HeroModelBuilder.Build(heroDef, level, infoText)
+-- awakened — пробуджена форма (німб, золоте сяйво, нове ім'я).
+function HeroModelBuilder.Build(heroDef, level, infoText, awakened)
 	local model = Instance.new("Model")
 	model.Name = heroDef.id
 
@@ -1499,8 +1594,11 @@ function HeroModelBuilder.Build(heroDef, level, infoText)
 		accessory(model, s, accent, shoulder)
 	end
 
-	addNameplate(model, head, heroDef, level, infoText)
+	addNameplate(model, head, heroDef, level, infoText, awakened)
 	addAura(model, torso, heroDef.rarity)
+	if awakened then
+		addAwakenedAura(model, torso, shoulder, s)
+	end
 
 	model.PrimaryPart = torso
 	model.WorldPivot = CFrame.new() -- точка опори = ноги
@@ -1534,6 +1632,7 @@ local DEFINITIONS = {
 	Travel = "RemoteFunction", -- (worldId) -> { ok, message }
 	QuestAction = "RemoteFunction", -- (action, arg) -> { ok, message }
 	BuyShopItem = "RemoteFunction", -- (itemId) -> { ok, message }
+	Rebirth = "RemoteFunction", -- () -> { ok, message }
 	-- Сервер -> клієнт
 	DataSync = "RemoteEvent", -- повні дані гравця
 	Notify = "RemoteEvent", -- (text, kind) спливаюче повідомлення
@@ -1621,6 +1720,7 @@ local CombatService = require(Services.CombatService)
 local WorldService = require(Services.WorldService)
 local QuestService = require(Services.QuestService)
 local ShopService = require(Services.ShopService)
+local RebirthService = require(Services.RebirthService)
 
 DataService.Init()
 PlotService.Init()
@@ -1634,6 +1734,7 @@ CombatService.Init()
 WorldService.Init() -- після PlotService: підключає портали лобі
 QuestService.Init()
 ShopService.Init()
+RebirthService.Init()
 
 local function onPlayerAdded(player)
 	WorldService.SetupPlayer(player)
@@ -1898,7 +1999,7 @@ local function stepPlayer(player, state, dt, fx)
 			state.cooldowns[slot] -= dt
 			if state.cooldowns[slot] <= 0 then
 				state.cooldowns[slot] = math.max(state.cooldowns[slot] + 1 / heroDef.attackSpeed, 0)
-				local damage = GameMath.GetHeroDamage(heroDef, hero.level)
+				local damage = GameMath.GetHeroDamage(heroDef, hero.level, hero.awakened)
 				local killed = EnemyService.ApplyDamage(enemy.id, player, damage)
 				table.insert(fx, { player.UserId, slot, enemy.id, math.floor(damage + 0.5) })
 				if killed then
@@ -2052,6 +2153,7 @@ local function makeTemplate()
 		inventoryBonus = 0, -- додаткові місця в інвентарі
 		worldKills = {}, -- [worldId] = перемог у цьому світі (для зон)
 		bossKills = {}, -- [enemyId боса] = скільки разів переможено (відкриває світи й кубики)
+		rebirths = 0,
 		lastSeen = 0,
 	}
 end
@@ -2085,6 +2187,7 @@ local function sanitize(data)
 	data.slotCount = math.clamp(math.floor(data.slotCount), EconomyConfig.StartSlots, EconomyConfig.MaxSlots)
 	data.coins = math.max(0, math.floor(data.coins))
 	data.crystals = math.max(0, math.floor(data.crystals))
+	data.rebirths = math.max(0, math.floor(data.rebirths))
 	data.quests.main = math.clamp(math.floor(data.quests.main), 1, #QuestConfig.Main + 1)
 	-- Міграція з етапу 3: тоді всі перемоги були в Ninja Village, а єдиним босом був Oni.
 	if data.worldKills.NinjaVillage == nil then
@@ -2096,6 +2199,7 @@ local function sanitize(data)
 	for _, hero in data.heroes do
 		hero.level = math.max(1, math.floor(tonumber(hero.level) or 1))
 		hero.locked = hero.locked == true
+		hero.awakened = hero.awakened == true
 	end
 	local seen = {}
 	for i = 1, EconomyConfig.MaxSlots do
@@ -3091,7 +3195,7 @@ function heroActions.Merge(player, data, uid, hero, heroDef)
 	end
 	local fodderUid, fodderLevel = nil, math.huge
 	for otherUid, other in data.heroes do
-		if otherUid ~= uid and other.id == hero.id and not other.locked and not GameMath.IsInTeam(data, otherUid) and not findSlot(data, otherUid) then
+		if otherUid ~= uid and other.id == hero.id and not other.locked and not other.awakened and not GameMath.IsInTeam(data, otherUid) and not findSlot(data, otherUid) then
 			if other.level < fodderLevel then
 				fodderUid, fodderLevel = otherUid, other.level
 			end
@@ -3106,12 +3210,28 @@ function heroActions.Merge(player, data, uid, hero, heroDef)
 	return true, ("%s тепер рівня %d!"):format(heroDef.name, hero.level)
 end
 
+-- Пробудження: герой максимального рівня + Crystals -> пробуджена форма
+-- (нове ім'я, множник шкоди й доходу, особлива аура).
+function heroActions.Awaken(player, data, _uid, hero, heroDef)
+	local canAwaken, reason, cost = GameMath.CanAwaken(heroDef, hero)
+	if not canAwaken then
+		return false, reason
+	end
+	if not DataService.SpendCrystals(player, cost) then
+		return false, ("Потрібно %d 💎"):format(cost)
+	end
+	hero.awakened = true
+	hero.locked = true -- пробуджених героїв захищаємо від продажу
+	QuestService.Track(player, "awaken")
+	return true, ("✨ %s пробуджується! Сила ×%s"):format(heroDef.awakened.name, tostring(heroDef.awakened.multiplier))
+end
+
 local function equipBest(player, data)
 	local list = {}
 	for uid, hero in data.heroes do
 		local heroDef = HeroConfig.Heroes[hero.id]
 		if heroDef and not GameMath.IsInTeam(data, uid) then
-			table.insert(list, { uid = uid, income = GameMath.GetHeroIncome(heroDef, hero.level, data.incomeLevel) })
+			table.insert(list, { uid = uid, income = GameMath.GetHeroIncome(heroDef, hero.level, data.incomeLevel, hero.awakened) })
 		end
 	end
 	if #list == 0 then
@@ -3456,8 +3576,8 @@ function PlotService.RefreshPlot(player)
 			local heroDef = hero and HeroConfig.Heroes[hero.id]
 			if heroDef then
 				slot.Gui.Label.Text = ""
-				local income = GameMath.GetHeroIncome(heroDef, hero.level, data.incomeLevel)
-				local heroModel = HeroModelBuilder.Build(heroDef, hero.level, "+" .. GameMath.FormatNumber(income) .. "/s")
+				local income = GameMath.GetHeroIncome(heroDef, hero.level, data.incomeLevel, hero.awakened)
+				local heroModel = HeroModelBuilder.Build(heroDef, hero.level, "+" .. GameMath.FormatNumber(income) .. "/s", hero.awakened)
 				-- Герой стоїть на слоті й дивиться до входу в базу
 				heroModel:PivotTo(slot.CFrame * CFrame.new(0, SLOT_SIZE.Y / 2, 0))
 				heroModel.Parent = plot.heroesFolder
@@ -3705,6 +3825,77 @@ return RateLimiter
       </Item>
       <Item class="ModuleScript" referent="29">
         <Properties>
+          <string name="Name">RebirthService</string>
+          <string name="Source"><![CDATA[-- RebirthService: Rebirth — віддаєш монети, слоти бази й рівень доходу,
+-- а натомість назавжди отримуєш +50% доходу, +5% удачі та Crystals.
+-- Герої, команда, кристали, завдання, світи й колекція залишаються.
+
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+local Shared = ReplicatedStorage:WaitForChild("Shared")
+local EconomyConfig = require(Shared.Config.EconomyConfig)
+local GameMath = require(Shared.GameMath)
+local Remotes = require(Shared.Remotes)
+
+local DataService = require(script.Parent.DataService)
+local PlotService = require(script.Parent.PlotService)
+local QuestService = require(script.Parent.QuestService)
+local RateLimiter = require(script.Parent.RateLimiter)
+
+local RebirthService = {}
+
+local limiter = RateLimiter.new(2, 0.2)
+
+local function onRebirth(player)
+	if not limiter:Check(player) then
+		return { ok = false, message = "Зачекай трохи" }
+	end
+	local data = DataService.Get(player)
+	if not data then
+		return { ok = false, message = "Дані ще завантажуються" }
+	end
+	local cost = GameMath.GetRebirthCost(data.rebirths)
+	if data.coins < cost then
+		return { ok = false, message = ("Потрібно %s 🪙"):format(GameMath.FormatNumber(cost)) }
+	end
+
+	-- Скидання: монети, слоти, рівень доходу. Герої з прибраних слотів повертаються в рюкзак.
+	DataService.SpendCoins(player, data.coins)
+	DataService.AddCoins(player, EconomyConfig.StartingCoins)
+	data.slotCount = EconomyConfig.StartSlots
+	for i = EconomyConfig.StartSlots + 1, EconomyConfig.MaxSlots do
+		data.slots[i] = ""
+	end
+	data.incomeLevel = 0
+
+	data.rebirths += 1
+	local crystals = EconomyConfig.Rebirth.crystalReward * data.rebirths
+	DataService.AddCrystals(player, crystals)
+	QuestService.Track(player, "rebirth")
+
+	DataService.MarkChanged(player)
+	PlotService.RefreshPlot(player)
+	return {
+		ok = true,
+		message = ("♻️ Rebirth %d! Дохід ×%.1f, удача ×%.2f, +%d 💎"):format(
+			data.rebirths,
+			GameMath.GetRebirthIncome(data.rebirths),
+			GameMath.GetRebirthLuck(data.rebirths),
+			crystals
+		),
+	}
+end
+
+function RebirthService.Init()
+	Remotes.Handle("Rebirth", onRebirth)
+end
+
+return RebirthService
+]]></string>
+        </Properties>
+      </Item>
+      <Item class="ModuleScript" referent="30">
+        <Properties>
           <string name="Name">RollService</string>
           <string name="Source"><![CDATA[-- RollService: кидки кубиків. Результат визначає ТІЛЬКИ сервер;
 -- клієнт отримує вже готовий результат і лише показує анімацію.
@@ -3878,7 +4069,7 @@ return RollService
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="30">
+      <Item class="ModuleScript" referent="31">
         <Properties>
           <string name="Name">SettingsService</string>
           <string name="Source"><![CDATA[-- SettingsService: збереження налаштувань гравця (звук, ефекти, пропуск анімацій).
@@ -3924,7 +4115,7 @@ return SettingsService
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="31">
+      <Item class="ModuleScript" referent="32">
         <Properties>
           <string name="Name">ShopService</string>
           <string name="Source"><![CDATA[-- ShopService: покупки за Crystals — зілля (тимчасові бусти) і більша сумка.
@@ -4003,7 +4194,7 @@ return ShopService
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="32">
+      <Item class="ModuleScript" referent="33">
         <Properties>
           <string name="Name">TeamService</string>
           <string name="Source"><![CDATA[-- TeamService: бойова команда з 3 героїв.
@@ -4080,7 +4271,7 @@ local function bestTeam(data)
 	for uid, hero in data.heroes do
 		local heroDef = HeroConfig.Heroes[hero.id]
 		if heroDef and not GameMath.IsOnBase(data, uid) then
-			table.insert(list, { uid = uid, dps = GameMath.GetHeroDps(heroDef, hero.level) })
+			table.insert(list, { uid = uid, dps = GameMath.GetHeroDps(heroDef, hero.level, hero.awakened) })
 		end
 	end
 	if #list == 0 then
@@ -4105,13 +4296,13 @@ local function clearTeam(data)
 	return true, "Команду розпущено"
 end
 
--- "riku_windstep:3;;seren_starblade:1"
+-- "riku_windstep:3;;seren_starblade:1:A" (":A" — пробуджений)
 function TeamService.Encode(data)
 	local parts = {}
 	for i = 1, CombatConfig.TeamSize do
 		local uid = data.team[i]
 		local hero = uid ~= "" and data.heroes[uid]
-		parts[i] = if hero then hero.id .. ":" .. hero.level else ""
+		parts[i] = if hero then hero.id .. ":" .. hero.level .. (if hero.awakened then ":A" else "") else ""
 	end
 	return table.concat(parts, ";")
 end
@@ -4170,7 +4361,7 @@ return TeamService
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="33">
+      <Item class="ModuleScript" referent="34">
         <Properties>
           <string name="Name">UpgradeService</string>
           <string name="Source"><![CDATA[-- UpgradeService: покупка покращень бази (слоти та дохід).
@@ -4246,7 +4437,7 @@ return UpgradeService
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="34">
+      <Item class="ModuleScript" referent="35">
         <Properties>
           <string name="Name">WorldService</string>
           <string name="Source"><![CDATA[-- WorldService: будує світи, переносить гравців через портали та кнопку Worlds.
@@ -4631,19 +4822,19 @@ return WorldService
       </Item>
     </Item>
   </Item>
-  <Item class="StarterPlayer" referent="35">
+  <Item class="StarterPlayer" referent="36">
     <Properties>
       <string name="Name">StarterPlayer</string>
     </Properties>
-    <Item class="StarterPlayerScripts" referent="36">
+    <Item class="StarterPlayerScripts" referent="37">
       <Properties>
         <string name="Name">StarterPlayerScripts</string>
       </Properties>
-      <Item class="Folder" referent="37">
+      <Item class="Folder" referent="38">
         <Properties>
           <string name="Name">Client</string>
         </Properties>
-        <Item class="ModuleScript" referent="38">
+        <Item class="ModuleScript" referent="39">
           <Properties>
             <string name="Name">ClientState</string>
             <string name="Source"><![CDATA[-- ClientState: копія даних гравця на клієнті + запити до сервера.
@@ -4747,7 +4938,7 @@ return ClientState
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="39">
+        <Item class="ModuleScript" referent="40">
           <Properties>
             <string name="Name">CombatUI</string>
             <string name="Source"><![CDATA[-- CombatUI: інтерфейс бою — поточна ціль, смуга здоров'я боса з попередженням
@@ -4875,7 +5066,7 @@ local function update()
 	ui.target.frame.Visible = showTarget
 	-- Смуги стоять під верхньою панеллю валют (з урахуванням масштабу екрана)
 	local scale = ui.boss.scale.Scale
-	local top = 8 + 60 * scale
+	local top = 8 + 78 * scale -- під верхніми кнопками Worlds / Home / Shop
 	ui.boss.frame.Position = UDim2.new(0.5, 0, 0, top)
 	ui.target.frame.Position = UDim2.new(0.5, 0, 0, if bossVisible then top + 56 * scale else top)
 	if showTarget then
@@ -4995,7 +5186,7 @@ return CombatUI
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="40">
+        <Item class="ModuleScript" referent="41">
           <Properties>
             <string name="Name">EnemyRegistry</string>
             <string name="Source"><![CDATA[-- EnemyRegistry: швидкий пошук моделі ворога за EnemyId на клієнті.
@@ -5047,7 +5238,7 @@ return EnemyRegistry
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="41">
+        <Item class="ModuleScript" referent="42">
           <Properties>
             <string name="Name">FollowerController</string>
             <string name="Source"><![CDATA[-- FollowerController: герої бойової команди йдуть за своїм гравцем.
@@ -5098,12 +5289,13 @@ local function rebuild(player)
 	local slot = 0
 	for token in string.gmatch(teamData .. ";", "([^;]*);") do
 		slot += 1
-		local heroId, level = string.match(token, "^([%w_]+):(%d+)$")
+		local heroId, level, flag = string.match(token, "^([%w_]+):(%d+):?(%a?)$")
+		local awakened = flag == "A"
 		local heroDef = heroId and HeroConfig.Heroes[heroId]
 		if heroDef and slot <= CombatConfig.TeamSize then
 			local heroLevel = tonumber(level) or 1
-			local damage = GameMath.GetHeroDamage(heroDef, heroLevel)
-			local model = HeroModelBuilder.Build(heroDef, heroLevel, "⚔️ " .. GameMath.FormatNumber(math.floor(damage)))
+			local damage = GameMath.GetHeroDamage(heroDef, heroLevel, awakened)
+			local model = HeroModelBuilder.Build(heroDef, heroLevel, "⚔️ " .. GameMath.FormatNumber(math.floor(damage)), awakened)
 			model.Name = ("%s_%d"):format(player.Name, slot)
 			model:SetAttribute("HeroId", heroDef.id)
 			model:ScaleTo(CombatConfig.FollowerScale)
@@ -5186,18 +5378,29 @@ return FollowerController
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="42">
+        <Item class="ModuleScript" referent="43">
           <Properties>
             <string name="Name">Hud</string>
-            <string name="Source"><![CDATA[-- Hud: верхня панель валют, нижнє меню кнопок, підказки навчання
--- та перемикання вікон (одночасно відкрите лише одне).
+            <string name="Source"><![CDATA[-- Hud: головний екран у стилі аніме-симуляторів.
+--
+--   зверху по центру     — 🌍 Worlds / 🏠 Home / 💎 Shop
+--   ліворуч              — великі кнопки 📜 Quests, ♻️ Rebirth, 📖 Index
+--   внизу по центру      — ⚔️ Team, 🎒 Backpack, великий 🎲 ROLL, ⬆️ Upgrades
+--   над ROLL             — вибір кубика
+--   внизу ліворуч        — гроші, кристали й дохід
+--   внизу праворуч       — Auto Roll і поточна удача 🍀
+--   вгорі праворуч       — ⚙️ та активні зілля
+--
+-- Інші модулі змінюють поведінку кнопок через Hud.SetAction і читають їх через Hud.Get.
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local TweenService = game:GetService("TweenService")
 
 local Shared = ReplicatedStorage:WaitForChild("Shared")
 local GameMath = require(Shared:WaitForChild("GameMath"))
-local CombatConfig = require(Shared:WaitForChild("Config"):WaitForChild("CombatConfig"))
-local ShopConfig = require(Shared:WaitForChild("Config"):WaitForChild("ShopConfig"))
+local Config = Shared:WaitForChild("Config")
+local CombatConfig = require(Config:WaitForChild("CombatConfig"))
+local ShopConfig = require(Config:WaitForChild("ShopConfig"))
 
 local Client = script.Parent
 local UIKit = require(Client:WaitForChild("UIKit"))
@@ -5206,27 +5409,32 @@ local ClientState = require(Client:WaitForChild("ClientState"))
 local Hud = {}
 
 local panels = {} -- [name] = Frame
-local menuButtons = {}
+local elements = {} -- [name] = кнопка або напис
+local actions = {} -- [name] = функція, що замінює стандартну дію кнопки
 
-local MENU = {
-	{ name = "Roll", text = "🎲 Roll", color = Color3.fromRGB(255, 110, 200) },
-	{ name = "Inventory", text = "🎒 Inventory", color = Color3.fromRGB(110, 170, 255) },
-	{ name = "Team", text = "⚔️ Team", color = Color3.fromRGB(255, 140, 80) },
-	{ name = "Upgrades", text = "⬆️ Upgrades", color = Color3.fromRGB(90, 210, 130) },
-	{ name = "Quests", text = "📜 Quests", color = Color3.fromRGB(255, 200, 70) },
-	{ name = "Worlds", text = "🌍 Worlds", color = Color3.fromRGB(150, 110, 255) },
-	{ name = "Settings", text = "⚙️", color = Color3.fromRGB(120, 120, 150), width = 64 },
+-- Кнопка відкриває вікно з такою назвою (якщо назви різні)
+local PANEL_FOR = {
+	Backpack = "Inventory",
+	Dice = "Roll",
+	Index = "Quests",
 }
 
-local updateHint = function() end
+local COLORS = {
+	Worlds = Color3.fromRGB(255, 185, 40),
+	Home = Color3.fromRGB(60, 165, 255),
+	Shop = Color3.fromRGB(60, 205, 85),
+	Quests = Color3.fromRGB(255, 150, 40),
+	Rebirth = Color3.fromRGB(255, 65, 90),
+	Index = Color3.fromRGB(70, 130, 255),
+	Team = Color3.fromRGB(255, 120, 60),
+	Backpack = Color3.fromRGB(135, 85, 255),
+	Roll = Color3.fromRGB(190, 70, 255),
+	Upgrades = Color3.fromRGB(70, 205, 100),
+	Settings = Color3.fromRGB(110, 110, 150),
+}
+Hud.Colors = COLORS
 
-function Hud.RegisterPanel(name, panel)
-	panels[name] = panel
-	-- Підказка навчання ховається, поки відкрите будь-яке вікно
-	panel:GetPropertyChangedSignal("Visible"):Connect(function()
-		updateHint()
-	end)
-end
+local updateHint = function() end
 
 local function anyPanelOpen()
 	for _, panel in panels do
@@ -5237,53 +5445,74 @@ local function anyPanelOpen()
 	return false
 end
 
+function Hud.RegisterPanel(name, panel)
+	panels[name] = panel
+	-- Підказка навчання ховається, поки відкрите будь-яке вікно
+	panel:GetPropertyChangedSignal("Visible"):Connect(function()
+		updateHint()
+	end)
+end
+
+function Hud.OpenPanel(name)
+	for panelName, panel in panels do
+		panel.Visible = panelName == name
+	end
+end
+
 function Hud.TogglePanel(name)
 	local target = panels[name]
 	if not target then
 		return
 	end
-	local open = not target.Visible
-	for _, panel in panels do
-		panel.Visible = false
+	if target.Visible then
+		target.Visible = false
+	else
+		Hud.OpenPanel(name)
 	end
-	target.Visible = open
 end
 
-function Hud.GetMenuButton(name)
-	return menuButtons[name]
+function Hud.IsPanelOpen(name)
+	return panels[name] ~= nil and panels[name].Visible
 end
 
--- Червона позначка "!" на кнопці меню (наприклад, є нагорода в Quests).
-function Hud.SetBadge(name, visible)
-	local button = menuButtons[name]
-	if not button then
-		return
-	end
-	local badge = button:FindFirstChild("Badge")
-	if not badge then
-		badge = UIKit.Label({
-			Name = "Badge",
-			AnchorPoint = Vector2.new(0.5, 0.5),
-			Position = UDim2.new(1, -4, 0, 4),
-			Size = UDim2.fromOffset(24, 24),
-			BackgroundColor3 = UIKit.Colors.Danger,
-			Font = UIKit.Font,
-			TextSize = 16,
-			Text = "!",
-			ZIndex = 5,
-			Parent = button,
-		})
-		UIKit.Corner(badge, 12)
-	end
-	badge.Visible = visible
+-- Замінити дію кнопки (наприклад, ROLL кидає кубик, а не відкриває вікно).
+function Hud.SetAction(name, callback)
+	actions[name] = callback
 end
 
-local function buildTopBar(gui)
+-- Кнопка або напис головного екрана за назвою.
+function Hud.Get(name)
+	return elements[name]
+end
+
+Hud.GetMenuButton = Hud.Get
+
+-- Червона позначка на кнопці: true — "!", число — лічильник, false — сховати.
+function Hud.SetBadge(name, value)
+	local button = elements[name]
+	if button then
+		UIKit.SetBadge(button, value)
+	end
+end
+
+local function press(name)
+	if actions[name] then
+		actions[name]()
+	else
+		Hud.TogglePanel(PANEL_FOR[name] or name)
+	end
+end
+
+---------------------------------------------------------------------
+-- Зверху: Worlds / Home / Shop
+---------------------------------------------------------------------
+
+local function buildTopNav(gui)
 	local bar = UIKit.Create("Frame", {
-		Name = "TopBar",
+		Name = "TopNav",
 		AnchorPoint = Vector2.new(0.5, 0),
-		Position = UDim2.new(0.5, 0, 0, 8),
-		Size = UDim2.fromOffset(560, 52),
+		Position = UDim2.new(0.5, 0, 0, 6),
+		Size = UDim2.fromOffset(660, 66),
 		BackgroundTransparency = 1,
 		Parent = gui,
 	})
@@ -5291,41 +5520,194 @@ local function buildTopBar(gui)
 	UIKit.Create("UIListLayout", {
 		FillDirection = Enum.FillDirection.Horizontal,
 		HorizontalAlignment = Enum.HorizontalAlignment.Center,
-		Padding = UDim.new(0, 10),
+		Padding = UDim.new(0, 12),
 		SortOrder = Enum.SortOrder.LayoutOrder,
 		Parent = bar,
 	})
-
-	local function counter(order, width, color)
-		local label = UIKit.Label({
-			LayoutOrder = order,
-			Size = UDim2.fromOffset(width, 52),
-			BackgroundColor3 = UIKit.Colors.Background,
-			BackgroundTransparency = 0.15,
-			Font = UIKit.Font,
-			TextSize = 24,
-			TextColor3 = color,
-			Text = "...",
+	for index, entry in { { "Worlds", "🌍 Worlds" }, { "Home", "🏠 Home" }, { "Shop", "💎 Shop" } } do
+		local name = entry[1]
+		local button = UIKit.Button({
+			Name = name,
+			LayoutOrder = index,
+			Size = UDim2.fromOffset(205, 62),
+			BackgroundColor3 = COLORS[name],
+			Text = entry[2],
+			TextSize = 32,
 			Parent = bar,
-		})
-		UIKit.Corner(label, 14)
-		UIKit.Stroke(label, color, 2)
-		return label
+		}, function()
+			press(name)
+		end)
+		button.TextOutline.Thickness = 3
+		button.Outline.UIStroke.Thickness = 4
+		elements[name] = button
+	end
+end
+
+---------------------------------------------------------------------
+-- Ліворуч: великі квадратні кнопки
+---------------------------------------------------------------------
+
+local function buildLeftColumn(gui)
+	local column = UIKit.Create("Frame", {
+		Name = "LeftButtons",
+		AnchorPoint = Vector2.new(0, 0.5),
+		Position = UDim2.new(0, 12, 0.5, -24),
+		Size = UDim2.fromOffset(104, 336),
+		BackgroundTransparency = 1,
+		Parent = gui,
+	})
+	UIKit.AddScale(column)
+	UIKit.Create("UIListLayout", { Padding = UDim.new(0, 12), SortOrder = Enum.SortOrder.LayoutOrder, Parent = column })
+	for index, entry in { { "Quests", "📜", "Quests" }, { "Rebirth", "♻️", "Rebirth" }, { "Index", "📖", "Index" } } do
+		local name = entry[1]
+		elements[name] = UIKit.IconButton({
+			Name = name,
+			Icon = entry[2],
+			Text = entry[3],
+			Color = COLORS[name],
+			Size = UDim2.fromOffset(104, 104),
+			LayoutOrder = index,
+			Parent = column,
+		}, function()
+			press(name)
+		end)
+	end
+end
+
+---------------------------------------------------------------------
+-- Внизу по центру: Team, Backpack, ROLL, Upgrades + вибір кубика
+---------------------------------------------------------------------
+
+local function buildBottomBar(gui)
+	local bar = UIKit.Create("Frame", {
+		Name = "BottomBar",
+		AnchorPoint = Vector2.new(0.5, 1),
+		Position = UDim2.new(0.5, 0, 1, -8),
+		Size = UDim2.fromOffset(520, 146),
+		BackgroundTransparency = 1,
+		Parent = gui,
+	})
+	UIKit.AddScale(bar)
+	UIKit.Create("UIListLayout", {
+		FillDirection = Enum.FillDirection.Horizontal,
+		HorizontalAlignment = Enum.HorizontalAlignment.Center,
+		VerticalAlignment = Enum.VerticalAlignment.Bottom,
+		Padding = UDim.new(0, 14),
+		SortOrder = Enum.SortOrder.LayoutOrder,
+		Parent = bar,
+	})
+	local items = {
+		{ "Team", "⚔️", "TEAM", 104 },
+		{ "Backpack", "🎒", "BACKPACK", 104 },
+		{ "Roll", "🎲", "ROLL", 142, "🎁 FREE" },
+		{ "Upgrades", "⬆️", "UPGRADES", 104 },
+	}
+	for index, item in items do
+		local name = item[1]
+		elements[name] = UIKit.IconButton({
+			Name = name,
+			Icon = item[2],
+			Text = item[3],
+			Sub = item[5],
+			Color = COLORS[name],
+			Size = UDim2.fromOffset(item[4], item[4]),
+			LayoutOrder = index,
+			Parent = bar,
+		}, function()
+			press(name)
+		end)
 	end
 
-	local coinsLabel = counter(1, 200, UIKit.Colors.Gold)
-	local crystalsLabel = counter(2, 150, UIKit.Colors.Accent2)
-	local incomeLabel = counter(3, 180, UIKit.Colors.Success)
+	-- Іконка ROLL "дихає", щоб привертати увагу
+	local rollScale = UIKit.Create("UIScale", { Parent = elements.Roll.Icon })
+	TweenService:Create(rollScale, TweenInfo.new(0.8, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut, -1, true), { Scale = 1.12 }):Play()
 
-	ClientState.OnCurrencyChanged(function(coins, crystals)
-		coinsLabel.Text = "🪙 " .. GameMath.FormatNumber(coins)
-		crystalsLabel.Text = "💎 " .. GameMath.FormatNumber(crystals)
+	-- Вибір кубика над ROLL
+	local dice = UIKit.Button({
+		Name = "Dice",
+		AnchorPoint = Vector2.new(0.5, 1),
+		Position = UDim2.new(0.5, 0, 1, -162),
+		Size = UDim2.fromOffset(240, 40),
+		BackgroundColor3 = UIKit.Colors.Panel,
+		Text = "🎲 Basic Dice ▾",
+		TextSize = 20,
+		Parent = gui,
+	}, function()
+		press("Dice")
 	end)
+	UIKit.AddScale(dice)
+	elements.Dice = dice
+end
+
+---------------------------------------------------------------------
+-- Внизу ліворуч: гроші
+---------------------------------------------------------------------
+
+local function buildMoney(gui)
+	local frame = UIKit.Create("Frame", {
+		Name = "Money",
+		AnchorPoint = Vector2.new(0, 1),
+		Position = UDim2.new(0, 14, 1, -10),
+		Size = UDim2.fromOffset(270, 110),
+		BackgroundTransparency = 1,
+		Parent = gui,
+	})
+	UIKit.AddScale(frame)
+	local coins = UIKit.Label({
+		Name = "Coins",
+		Size = UDim2.new(1, 0, 0, 62),
+		Font = UIKit.Font,
+		TextScaled = true,
+		TextColor3 = UIKit.Colors.Money,
+		TextXAlignment = Enum.TextXAlignment.Left,
+		Text = "🪙 ...",
+		Outline = 4,
+		Parent = frame,
+	})
+	UIKit.Shade(coins, 0.25)
+	local crystals = UIKit.Label({
+		Name = "Crystals",
+		Position = UDim2.fromOffset(0, 64),
+		Size = UDim2.fromOffset(120, 36),
+		Font = UIKit.Font,
+		TextScaled = true,
+		TextColor3 = UIKit.Colors.Accent2,
+		TextXAlignment = Enum.TextXAlignment.Left,
+		Text = "💎 0",
+		Outline = 3,
+		Parent = frame,
+	})
+	local income = UIKit.Label({
+		Name = "Income",
+		Position = UDim2.fromOffset(126, 64),
+		Size = UDim2.fromOffset(144, 36),
+		Font = UIKit.Font,
+		TextScaled = true,
+		TextColor3 = UIKit.Colors.Gold,
+		TextXAlignment = Enum.TextXAlignment.Left,
+		Text = "⚡ +0/s",
+		Outline = 3,
+		Parent = frame,
+	})
+	elements.Coins, elements.Crystals, elements.Income = coins, crystals, income
+
+	local lastCoins = nil
+	ClientState.OnCurrencyChanged(function(coinsValue, crystalsValue)
+		coins.Text = "🪙 " .. GameMath.FormatNumber(coinsValue)
+		crystals.Text = "💎 " .. GameMath.FormatNumber(crystalsValue)
+		-- Маленький "стрибок" при отриманні монет
+		if lastCoins and coinsValue > lastCoins then
+			coins.Size = UDim2.new(1, 0, 0, 68)
+			TweenService:Create(coins, TweenInfo.new(0.2), { Size = UDim2.new(1, 0, 0, 62) }):Play()
+		end
+		lastCoins = coinsValue
+	end)
+
 	-- Дохід залежить і від часу (буст може закінчитись), тому оновлюємо щосекунди
 	local function updateIncome()
 		local data = ClientState.Data
 		if data then
-			incomeLabel.Text = "+" .. GameMath.FormatNumber(GameMath.GetTotalIncome(data, workspace:GetServerTimeNow())) .. "/s"
+			income.Text = "⚡ +" .. GameMath.FormatNumber(GameMath.GetTotalIncome(data, workspace:GetServerTimeNow())) .. "/s"
 		end
 	end
 	ClientState.OnDataChanged(updateIncome)
@@ -5337,33 +5719,103 @@ local function buildTopBar(gui)
 	end)
 end
 
--- Активні бусти (зілля) у верхньому лівому куті з таймером
-local function buildBoostBar(gui)
+---------------------------------------------------------------------
+-- Внизу праворуч: Auto Roll та удача
+---------------------------------------------------------------------
+
+local function buildLuck(gui)
+	local frame = UIKit.Create("Frame", {
+		Name = "LuckArea",
+		AnchorPoint = Vector2.new(1, 1),
+		Position = UDim2.new(1, -14, 1, -10),
+		Size = UDim2.fromOffset(160, 160),
+		BackgroundTransparency = 1,
+		Parent = gui,
+	})
+	UIKit.AddScale(frame)
+	elements.Auto = UIKit.Button({
+		Name = "Auto",
+		Size = UDim2.fromOffset(160, 46),
+		BackgroundColor3 = UIKit.Colors.Disabled,
+		Text = "🔒 AUTO",
+		TextSize = 22,
+		Parent = frame,
+	}, function()
+		press("Auto")
+	end)
+	UIKit.Label({
+		Name = "Clover",
+		Position = UDim2.fromOffset(30, 52),
+		Size = UDim2.fromOffset(100, 66),
+		TextScaled = true,
+		Text = "🍀",
+		Outline = 0,
+		Parent = frame,
+	})
+	elements.Luck = UIKit.Label({
+		Name = "Luck",
+		Position = UDim2.fromOffset(0, 116),
+		Size = UDim2.fromOffset(160, 40),
+		Font = UIKit.Font,
+		TextScaled = true,
+		Text = "x1",
+		Outline = 3,
+		Parent = frame,
+	})
+end
+
+---------------------------------------------------------------------
+-- Вгорі праворуч: налаштування й зілля
+---------------------------------------------------------------------
+
+local function buildTopRight(gui)
+	local settings = UIKit.Button({
+		Name = "Settings",
+		AnchorPoint = Vector2.new(1, 0),
+		Position = UDim2.new(1, -12, 0, 8),
+		Size = UDim2.fromOffset(58, 58),
+		BackgroundColor3 = COLORS.Settings,
+		Text = "⚙️",
+		TextSize = 32,
+		Parent = gui,
+	}, function()
+		press("Settings")
+	end)
+	UIKit.AddScale(settings)
+	elements.Settings = settings
+
 	local bar = UIKit.Create("Frame", {
 		Name = "Boosts",
-		Position = UDim2.fromOffset(10, 8),
-		Size = UDim2.fromOffset(190, 70),
+		AnchorPoint = Vector2.new(1, 0),
+		Position = UDim2.new(1, -12, 0, 76),
+		Size = UDim2.fromOffset(200, 80),
 		BackgroundTransparency = 1,
 		Parent = gui,
 	})
 	UIKit.AddScale(bar)
-	UIKit.Create("UIListLayout", { Padding = UDim.new(0, 4), SortOrder = Enum.SortOrder.LayoutOrder, Parent = bar })
+	UIKit.Create("UIListLayout", {
+		Padding = UDim.new(0, 6),
+		HorizontalAlignment = Enum.HorizontalAlignment.Right,
+		SortOrder = Enum.SortOrder.LayoutOrder,
+		Parent = bar,
+	})
 	local labels = {}
 	local order = 0
 	for boostId, boost in ShopConfig.Boosts do
 		order += 1
 		local label = UIKit.Label({
 			LayoutOrder = order,
-			Size = UDim2.fromOffset(190, 30),
-			BackgroundColor3 = UIKit.Colors.Background,
-			BackgroundTransparency = 0.2,
+			Size = UDim2.fromOffset(200, 34),
+			BackgroundColor3 = UIKit.Colors.Success,
+			BackgroundTransparency = 0,
 			Font = UIKit.Font,
-			TextSize = 17,
-			TextColor3 = UIKit.Colors.Success,
+			TextSize = 18,
 			Visible = false,
 			Parent = bar,
 		})
-		UIKit.Corner(label, 8)
+		UIKit.Corner(label, 10)
+		UIKit.Stroke(label, UIKit.Colors.Outline, 3)
+		UIKit.Shade(label, 0.25)
 		labels[boostId] = { label = label, boost = boost }
 	end
 	task.spawn(function()
@@ -5382,56 +5834,28 @@ local function buildBoostBar(gui)
 	end)
 end
 
-local function buildMenu(gui)
-	local bar = UIKit.Create("Frame", {
-		Name = "MenuBar",
-		AnchorPoint = Vector2.new(0.5, 1),
-		Position = UDim2.new(0.5, 0, 1, -8),
-		Size = UDim2.fromOffset(880, 68),
-		BackgroundColor3 = UIKit.Colors.Background,
-		BackgroundTransparency = 0.25,
-		Parent = gui,
-	})
-	UIKit.Corner(bar, 16)
-	UIKit.AddScale(bar)
-	UIKit.Create("UIListLayout", {
-		FillDirection = Enum.FillDirection.Horizontal,
-		HorizontalAlignment = Enum.HorizontalAlignment.Center,
-		VerticalAlignment = Enum.VerticalAlignment.Center,
-		Padding = UDim.new(0, 8),
-		SortOrder = Enum.SortOrder.LayoutOrder,
-		Parent = bar,
-	})
-	for index, entry in MENU do
-		menuButtons[entry.name] = UIKit.Button({
-			Name = entry.name,
-			LayoutOrder = index,
-			Size = UDim2.fromOffset(entry.width or 122, 56),
-			BackgroundColor3 = entry.color,
-			Text = entry.text,
-			TextSize = 19,
-			Parent = bar,
-		}, function()
-			Hud.TogglePanel(entry.name)
-		end)
-	end
-end
+---------------------------------------------------------------------
+-- Підказка навчання над кнопкою ROLL
+---------------------------------------------------------------------
 
 local function buildTutorialHint(gui)
 	local hint = UIKit.Label({
 		Name = "TutorialHint",
 		AnchorPoint = Vector2.new(0.5, 1),
-		Position = UDim2.new(0.5, 0, 1, -88),
-		Size = UDim2.fromOffset(620, 46),
+		Position = UDim2.new(0.5, 0, 1, -212),
+		Size = UDim2.fromOffset(600, 48),
 		BackgroundColor3 = UIKit.Colors.Gold,
+		BackgroundTransparency = 0,
 		Font = UIKit.Font,
-		TextSize = 21,
-		TextColor3 = Color3.fromRGB(40, 25, 10),
+		TextSize = 22,
 		Visible = false,
 		Parent = gui,
 	})
-	UIKit.Corner(hint, 12)
+	UIKit.Corner(hint, 14)
+	UIKit.Stroke(hint, UIKit.Colors.Outline, 3)
 	UIKit.AddScale(hint)
+	-- Підказка м'яко гойдається
+	TweenService:Create(hint, TweenInfo.new(0.7, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut, -1, true), { Position = UDim2.new(0.5, 0, 1, -220) }):Play()
 
 	local function teamIsEmpty(data)
 		for i = 1, CombatConfig.TeamSize do
@@ -5448,11 +5872,11 @@ local function buildTutorialHint(gui)
 		if not data then
 			text = nil
 		elseif not data.tutorial.freeRollUsed then
-			text = "👉 Натисни 🎲 Roll і зроби перший БЕЗКОШТОВНИЙ кидок!"
+			text = "👇 Натисни великий 🎲 ROLL — перший кидок безкоштовний!"
 		elseif not data.tutorial.completed then
-			text = "👉 Відкрий 🎒 Inventory, вибери героя і натисни Place"
+			text = "👇 Відкрий 🎒 BACKPACK, вибери героя й натисни Place"
 		elseif teamIsEmpty(data) and data.totalRolls >= 5 and data.stats.enemiesDefeated == 0 then
-			text = "⚔️ Збери команду в Team і вирушай у 🌍 Worlds → Ninja Village"
+			text = "⚔️ Збери TEAM і вирушай у 🌍 Worlds → Ninja Village"
 		end
 		if text then
 			hint.Text = text
@@ -5465,17 +5889,26 @@ local function buildTutorialHint(gui)
 end
 
 function Hud.Init(gui)
-	buildTopBar(gui)
-	buildBoostBar(gui)
-	buildMenu(gui)
+	buildTopNav(gui)
+	buildLeftColumn(gui)
+	buildBottomBar(gui)
+	buildMoney(gui)
+	buildLuck(gui)
+	buildTopRight(gui)
 	buildTutorialHint(gui)
+
+	-- Home: повернення на свою базу з будь-якого світу
+	Hud.SetAction("Home", function()
+		local result = ClientState.Request("Travel", "Lobby")
+		UIKit.Toast(result.message or "", if result.ok then "success" else "error")
+	end)
 end
 
 return Hud
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="43">
+        <Item class="ModuleScript" referent="44">
           <Properties>
             <string name="Name">InventoryUI</string>
             <string name="Source"><![CDATA[-- InventoryUI: сітка героїв, сортування, Equip Best і дії з вибраним героєм
@@ -5531,7 +5964,7 @@ local function getSortedHeroes(data)
 				hero = hero,
 				def = heroDef,
 				rank = RarityConfig.GetRank(heroDef.rarity),
-				income = GameMath.GetHeroIncome(heroDef, hero.level, data.incomeLevel),
+				income = GameMath.GetHeroIncome(heroDef, hero.level, data.incomeLevel, hero.awakened),
 				number = tonumber(string.sub(uid, 2)) or 0,
 			})
 		end
@@ -5594,19 +6027,18 @@ local function makeCard(entry, placed, order)
 		Text = "",
 		Parent = ui.grid,
 	})
-	UIKit.Corner(card, 10)
-	local stroke = UIKit.Stroke(card, color, if entry.uid == selectedUid then 4 else 2)
-	if entry.uid == selectedUid then
-		stroke.Color = Color3.new(1, 1, 1)
-	end
+	UIKit.Corner(card, 12)
+	UIKit.Shade(card, 0.3)
+	local selected = entry.uid == selectedUid
+	UIKit.Stroke(card, if selected then Color3.new(1, 1, 1) elseif entry.hero.awakened then UIKit.Colors.Gold else color, if selected then 4 else 3)
 
 	UIKit.Label({
 		Position = UDim2.fromOffset(4, 4),
 		Size = UDim2.new(1, -8, 0, 38),
 		Font = UIKit.Font,
 		TextSize = 15,
-		TextColor3 = color,
-		Text = entry.def.name,
+		TextColor3 = if entry.hero.awakened then UIKit.Colors.Gold else color,
+		Text = (if entry.hero.awakened then "✨" else "") .. GameMath.GetHeroName(entry.def, entry.hero.awakened),
 		Parent = card,
 	})
 	UIKit.Label({
@@ -5646,17 +6078,17 @@ local function refreshDetails(data, placed)
 	local rarityInfo = RarityConfig.Info[heroDef.rarity]
 	local isPlaced = placed[selectedUid] == true
 	ui.detailText.Text = ("<font color=\"#%s\"><b>%s</b> (%s)</font>\n%s %s • %s • Lv %d/%d\n⚔️ %s  ⏱ %.1f/s  🪙 +%s/s\n✦ %s: %s"):format(
-		rarityInfo.color:ToHex(),
-		heroDef.name,
+		(if hero.awakened then UIKit.Colors.Gold else rarityInfo.color):ToHex(),
+		(if hero.awakened then "✨ " else "") .. GameMath.GetHeroName(heroDef, hero.awakened),
 		heroDef.rarity,
 		HeroConfig.ElementIcons[heroDef.element] or "",
 		heroDef.element,
 		heroDef.archetype,
 		hero.level,
 		rarityInfo.maxLevel,
-		GameMath.FormatNumber(GameMath.GetHeroDamage(heroDef, hero.level)),
+		GameMath.FormatNumber(GameMath.GetHeroDamage(heroDef, hero.level, hero.awakened)),
 		heroDef.attackSpeed,
-		GameMath.FormatNumber(GameMath.GetHeroIncome(heroDef, hero.level, data.incomeLevel)),
+		GameMath.FormatNumber(GameMath.GetHeroIncome(heroDef, hero.level, data.incomeLevel, hero.awakened)),
 		heroDef.ability.name,
 		heroDef.ability.description
 	)
@@ -5670,6 +6102,15 @@ local function refreshDetails(data, placed)
 	local canSell = not hero.locked and not isPlaced and not GameMath.IsInTeam(data, selectedUid)
 	ui.sellButton.Text = "💰 Sell " .. GameMath.FormatNumber(GameMath.GetSellPrice(heroDef, hero.level))
 	ui.sellButton.BackgroundColor3 = if canSell then UIKit.Colors.Gold:Lerp(UIKit.Colors.Danger, 0.3) else UIKit.Colors.Disabled
+
+	local canAwaken, _, cost = GameMath.CanAwaken(heroDef, hero)
+	if hero.awakened then
+		ui.awakenButton.Text = "✨ Пробуджено"
+		ui.awakenButton.BackgroundColor3 = UIKit.Colors.Disabled
+	else
+		ui.awakenButton.Text = ("✨ Awaken %d💎"):format(cost)
+		ui.awakenButton.BackgroundColor3 = if canAwaken and ClientState.Crystals >= cost then UIKit.Colors.Gold else UIKit.Colors.Disabled
+	end
 end
 
 function refreshAll()
@@ -5699,7 +6140,7 @@ function refreshAll()
 end
 
 local function buildPanel(gui)
-	local panel, content = UIKit.Panel(gui, "Inventory", "🎒 Inventory")
+	local panel, content = UIKit.Panel(gui, "Inventory", "🎒 Backpack", Color3.fromRGB(135, 85, 255))
 	ui.panel = panel
 	Hud.RegisterPanel("Inventory", panel)
 	panel:GetPropertyChangedSignal("Visible"):Connect(function()
@@ -5788,7 +6229,7 @@ local function buildPanel(gui)
 	ui.details = UIKit.Create("Frame", { Size = UDim2.fromScale(1, 1), BackgroundTransparency = 1, Parent = bottom })
 	ui.detailText = UIKit.Label({
 		Position = UDim2.fromOffset(10, 4),
-		Size = UDim2.new(1, -310, 1, -8),
+		Size = UDim2.new(1, -456, 1, -8),
 		TextSize = 14,
 		RichText = true,
 		TextXAlignment = Enum.TextXAlignment.Left,
@@ -5798,12 +6239,12 @@ local function buildPanel(gui)
 	local actions = UIKit.Create("Frame", {
 		AnchorPoint = Vector2.new(1, 0.5),
 		Position = UDim2.new(1, -8, 0.5, 0),
-		Size = UDim2.fromOffset(290, 92),
+		Size = UDim2.fromOffset(440, 92),
 		BackgroundTransparency = 1,
 		Parent = ui.details,
 	})
 	UIKit.Create("UIGridLayout", {
-		CellSize = UDim2.fromOffset(141, 43),
+		CellSize = UDim2.fromOffset(140, 43),
 		CellPadding = UDim2.fromOffset(8, 6),
 		SortOrder = Enum.SortOrder.LayoutOrder,
 		Parent = actions,
@@ -5834,6 +6275,12 @@ local function buildPanel(gui)
 			request("Sell", selectedUid)
 		end
 	end)
+	-- Пробудження: герой максимального рівня + кристали
+	ui.awakenButton = actionButton(5, function()
+		if selectedUid then
+			request("Awaken", selectedUid)
+		end
+	end)
 end
 
 function InventoryUI.Init(gui)
@@ -5847,7 +6294,7 @@ return InventoryUI
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="44">
+        <Item class="ModuleScript" referent="45">
           <Properties>
             <string name="Name">QuestsUI</string>
             <string name="Source"><![CDATA[-- QuestsUI: вікно Quests з вкладками "Завдання" (сюжет + щоденні) і "Колекція"
@@ -6094,7 +6541,7 @@ local function refresh()
 	if not data then
 		return
 	end
-	Hud.SetBadge("Quests", countClaimable(data) > 0)
+	Hud.SetBadge("Quests", countClaimable(data))
 	if not ui.panel.Visible then
 		return
 	end
@@ -6225,7 +6672,7 @@ local function buildCollectionBody(content)
 end
 
 function QuestsUI.Init(gui)
-	local panel, content = UIKit.Panel(gui, "Quests", "📜 Quests")
+	local panel, content = UIKit.Panel(gui, "Quests", "📜 Quests", Color3.fromRGB(255, 150, 40))
 	ui.panel = panel
 	Hud.RegisterPanel("Quests", panel)
 
@@ -6248,6 +6695,22 @@ function QuestsUI.Init(gui)
 	buildQuestsBody(content)
 	buildCollectionBody(content)
 	selectTab("Quests")
+
+	-- 📜 Quests і 📖 Index відкривають одне вікно на різних вкладках
+	local function openTab(tab)
+		if panel.Visible and activeTab == tab then
+			panel.Visible = false
+		else
+			Hud.OpenPanel("Quests")
+			selectTab(tab)
+		end
+	end
+	Hud.SetAction("Quests", function()
+		openTab("Quests")
+	end)
+	Hud.SetAction("Index", function()
+		openTab("Collection")
+	end)
 
 	panel:GetPropertyChangedSignal("Visible"):Connect(refresh)
 	ClientState.OnDataChanged(refresh)
@@ -6272,7 +6735,165 @@ return QuestsUI
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="45">
+        <Item class="ModuleScript" referent="46">
+          <Properties>
+            <string name="Name">RebirthUI</string>
+            <string name="Source"><![CDATA[-- RebirthUI: вікно Rebirth — прогрес до наступного Rebirth, що отримаєш і що скинеться.
+-- Підтвердження вимагає двох натискань, щоб не зробити Rebirth випадково.
+
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+local Shared = ReplicatedStorage:WaitForChild("Shared")
+local EconomyConfig = require(Shared:WaitForChild("Config"):WaitForChild("EconomyConfig"))
+local GameMath = require(Shared:WaitForChild("GameMath"))
+
+local Client = script.Parent
+local UIKit = require(Client:WaitForChild("UIKit"))
+local ClientState = require(Client:WaitForChild("ClientState"))
+local Hud = require(Client:WaitForChild("Hud"))
+
+local RebirthUI = {}
+
+local ui: { [string]: any } = {}
+local confirmUntil = 0
+
+local function infoCard(parent, position, title, color)
+	local card = UIKit.Create("Frame", {
+		Position = position,
+		Size = UDim2.new(0.5, -8, 0, 150),
+		BackgroundColor3 = UIKit.Colors.Background,
+		BackgroundTransparency = 0.15,
+		Parent = parent,
+	})
+	UIKit.Corner(card, 16)
+	UIKit.Stroke(card, color, 3)
+	UIKit.Label({
+		Position = UDim2.fromOffset(12, 6),
+		Size = UDim2.new(1, -24, 0, 30),
+		Font = UIKit.Font,
+		TextSize = 22,
+		TextColor3 = color,
+		TextXAlignment = Enum.TextXAlignment.Left,
+		Text = title,
+		Parent = card,
+	})
+	return UIKit.Label({
+		Position = UDim2.fromOffset(12, 38),
+		Size = UDim2.new(1, -24, 1, -44),
+		TextSize = 16,
+		TextXAlignment = Enum.TextXAlignment.Left,
+		TextYAlignment = Enum.TextYAlignment.Top,
+		Parent = card,
+	})
+end
+
+local function refresh()
+	local data = ClientState.Data
+	if not data then
+		return
+	end
+	local rebirths = data.rebirths or 0
+	local cost = GameMath.GetRebirthCost(rebirths)
+	local coins = ClientState.Coins
+	local ready = coins >= cost
+
+	ui.count.Text = ("♻️ Rebirth: %d"):format(rebirths)
+	ui.current.Text = ("Зараз: дохід ×%.1f • удача ×%.2f"):format(GameMath.GetRebirthIncome(rebirths), GameMath.GetRebirthLuck(rebirths))
+	ui.fill.Size = UDim2.fromScale(math.clamp(coins / cost, 0, 1), 1)
+	ui.progress.Text = ("🪙 %s / %s"):format(GameMath.FormatNumber(coins), GameMath.FormatNumber(cost))
+
+	local nextRebirth = rebirths + 1
+	ui.gain.Text = ("💰 Дохід ×%.1f назавжди\n🍀 Удача ×%.2f назавжди\n💎 +%d кристалів"):format(
+		GameMath.GetRebirthIncome(nextRebirth),
+		GameMath.GetRebirthLuck(nextRebirth),
+		EconomyConfig.Rebirth.crystalReward * nextRebirth
+	)
+
+	if os.clock() < confirmUntil then
+		ui.button.Text = "⚠️ Точно? Натисни ще раз!"
+		ui.button.BackgroundColor3 = UIKit.Colors.Danger
+	elseif ready then
+		ui.button.Text = "♻️ REBIRTH!"
+		ui.button.BackgroundColor3 = Hud.Colors.Rebirth
+	else
+		ui.button.Text = "Потрібно ще 🪙 " .. GameMath.FormatNumber(cost - coins)
+		ui.button.BackgroundColor3 = UIKit.Colors.Disabled
+	end
+	Hud.SetBadge("Rebirth", ready)
+end
+
+function RebirthUI.Init(gui)
+	local panel, content = UIKit.Panel(gui, "Rebirth", "♻️ Rebirth", Hud.Colors.Rebirth)
+	Hud.RegisterPanel("Rebirth", panel)
+
+	ui.count = UIKit.Label({
+		Size = UDim2.new(0.5, 0, 0, 36),
+		Font = UIKit.Font,
+		TextSize = 30,
+		TextXAlignment = Enum.TextXAlignment.Left,
+		Parent = content,
+	})
+	ui.current = UIKit.Label({
+		Position = UDim2.new(0.5, 0, 0, 0),
+		Size = UDim2.new(0.5, 0, 0, 36),
+		Font = UIKit.Font,
+		TextSize = 19,
+		TextColor3 = UIKit.Colors.Gold,
+		TextXAlignment = Enum.TextXAlignment.Right,
+		Parent = content,
+	})
+
+	local back = UIKit.Create("Frame", {
+		Position = UDim2.fromOffset(0, 46),
+		Size = UDim2.new(1, 0, 0, 34),
+		BackgroundColor3 = UIKit.Colors.Background,
+		Parent = content,
+	})
+	UIKit.Corner(back, 12)
+	UIKit.Stroke(back, UIKit.Colors.Outline, 3)
+	ui.fill = UIKit.Create("Frame", { Size = UDim2.fromScale(0, 1), BackgroundColor3 = UIKit.Colors.Money, Parent = back })
+	UIKit.Corner(ui.fill, 12)
+	UIKit.Shade(ui.fill, 0.35)
+	ui.progress = UIKit.Label({ Size = UDim2.fromScale(1, 1), Font = UIKit.Font, TextSize = 20, Parent = back })
+
+	ui.gain = infoCard(content, UDim2.fromOffset(0, 94), "✅ Отримаєш", UIKit.Colors.Success)
+	infoCard(content, UDim2.new(0.5, 8, 0, 94), "❌ Скинеться", UIKit.Colors.Danger).Text =
+		"🪙 Монети → " .. EconomyConfig.StartingCoins .. "\n🧱 Слоти бази → " .. EconomyConfig.StartSlots .. "\n💰 Рівень доходу → 0\nГерої, команда, 💎 і світи залишаться!"
+
+	ui.button = UIKit.Button({
+		AnchorPoint = Vector2.new(0.5, 1),
+		Position = UDim2.fromScale(0.5, 1),
+		Size = UDim2.fromOffset(400, 70),
+		TextSize = 30,
+		Parent = content,
+	}, function()
+		local data = ClientState.Data
+		if not data or ClientState.Coins < GameMath.GetRebirthCost(data.rebirths or 0) then
+			UIKit.Toast("Ще не вистачає монет для Rebirth", "error")
+			return
+		end
+		if os.clock() >= confirmUntil then
+			confirmUntil = os.clock() + 3
+			refresh()
+			task.delay(3.05, refresh)
+			return
+		end
+		confirmUntil = 0
+		local result = ClientState.Request("Rebirth")
+		UIKit.Toast(result.message or "", if result.ok then "success" else "error")
+		refresh()
+	end)
+	ui.button.TextOutline.Thickness = 3
+
+	ClientState.OnDataChanged(refresh)
+	ClientState.OnCurrencyChanged(refresh)
+end
+
+return RebirthUI
+]]></string>
+          </Properties>
+        </Item>
+        <Item class="ModuleScript" referent="47">
           <Properties>
             <string name="Name">RollUI</string>
             <string name="Source"><![CDATA[-- RollUI: вікно кубиків (вибір кубика, шанси, гарантія), кнопки Roll / Auto / Skip
@@ -6631,29 +7252,50 @@ function refreshButtons()
 			button.Text = ("🔒 %s\n%s"):format(dice.displayName, requirement)
 		end
 		button.BackgroundColor3 = if unlocked then dice.color:Lerp(UIKit.Colors.Panel, 0.45) else UIKit.Colors.Disabled
-		local stroke = button:FindFirstChildOfClass("UIStroke")
-		stroke.Color = if diceId == selectedDice then Color3.new(1, 1, 1) else Color3.fromRGB(20, 15, 35)
-		stroke.Thickness = if diceId == selectedDice then 4 else 2
+		UIKit.SetOutline(button, if diceId == selectedDice then Color3.new(1, 1, 1) else UIKit.Colors.Outline, if diceId == selectedDice then 5 else 3)
 	end
 
 	local dice = DiceConfig.Dice[selectedDice]
 	local free = data ~= nil and not data.tutorial.freeRollUsed and selectedDice == DiceConfig.TutorialDice
+	local canAfford = free or (ClientState.Coins >= dice.price and isDiceUnlocked(data, dice))
+	local priceText = if free then "🎁 FREE" else "🪙 " .. GameMath.FormatNumber(dice.price)
 	if free then
 		ui.rollButton.Text = "ROLL\n🎁 FREE!"
 		ui.rollButton.BackgroundColor3 = UIKit.Colors.Success
 	else
-		ui.rollButton.Text = "ROLL\n🪙 " .. GameMath.FormatNumber(dice.price)
-		local canAfford = ClientState.Coins >= dice.price and isDiceUnlocked(data, dice)
+		ui.rollButton.Text = "ROLL\n" .. priceText
 		ui.rollButton.BackgroundColor3 = if canAfford then UIKit.Colors.Accent else UIKit.Colors.Disabled
 	end
 
+	-- Велика кнопка ROLL і вибір кубика на головному екрані
+	local bigRoll = Hud.Get("Roll")
+	if bigRoll then
+		bigRoll.Sub.Text = priceText
+		bigRoll.Sub.TextColor3 = if canAfford then UIKit.Colors.Gold else UIKit.Colors.Danger
+		bigRoll.Icon.Text = dice.icon
+	end
+	local dicePill = Hud.Get("Dice")
+	if dicePill then
+		dicePill.Text = ("%s %s ▾"):format(dice.icon, dice.displayName)
+	end
+
 	local autoUnlocked = data ~= nil and data.tutorial.completed
-	if not autoUnlocked then
-		ui.autoButton.Text = "🔒 Auto"
-		ui.autoButton.BackgroundColor3 = UIKit.Colors.Disabled
-	else
-		ui.autoButton.Text = if autoRolling then "Auto: ON" else "Auto: OFF"
-		ui.autoButton.BackgroundColor3 = if autoRolling then UIKit.Colors.Success else UIKit.Colors.PanelLight
+	local autoButtons = { ui.autoButton, Hud.Get("Auto") }
+	for _, button in autoButtons do
+		if not autoUnlocked then
+			button.Text = "🔒 AUTO"
+			button.BackgroundColor3 = UIKit.Colors.Disabled
+		else
+			button.Text = if autoRolling then "AUTO: ON" else "AUTO: OFF"
+			button.BackgroundColor3 = if autoRolling then UIKit.Colors.Success else UIKit.Colors.PanelLight
+		end
+	end
+
+	-- Поточна удача (кубик × зілля × Rebirth)
+	local luckLabel = Hud.Get("Luck")
+	if luckLabel then
+		local playerLuck = if data then GameMath.GetLuck(data, workspace:GetServerTimeNow()) else 1
+		luckLabel.Text = "x" .. GameMath.FormatNumber(math.floor(dice.luck * playerLuck * 100 + 0.5) / 100)
 	end
 
 	local skip = ClientState.GetSetting("skipAnimations")
@@ -6661,8 +7303,17 @@ function refreshButtons()
 	ui.skipButton.BackgroundColor3 = if skip then UIKit.Colors.Success else UIKit.Colors.PanelLight
 end
 
+local function toggleAuto()
+	local data = ClientState.Data
+	if not (data and data.tutorial.completed) then
+		UIKit.Toast("Auto Roll відкриється після навчання: постав героя на базу", "info")
+		return
+	end
+	setAuto(not autoRolling)
+end
+
 local function buildPanel(gui)
-	local panel, content = UIKit.Panel(gui, "Roll", "🎲 Dice")
+	local panel, content = UIKit.Panel(gui, "Roll", "🎲 Dice", Color3.fromRGB(190, 70, 255))
 	ui.panel = panel
 	Hud.RegisterPanel("Roll", panel)
 
@@ -6778,14 +7429,7 @@ local function buildPanel(gui)
 		task.spawn(doRoll)
 	end)
 	ui.rollButton.Parent = buttons
-	ui.autoButton = UIKit.Button({ LayoutOrder = 2, Size = UDim2.fromOffset(130, 64), TextSize = 20 }, function()
-		local data = ClientState.Data
-		if not (data and data.tutorial.completed) then
-			UIKit.Toast("Auto Roll відкриється після навчання: постав героя на базу", "info")
-			return
-		end
-		setAuto(not autoRolling)
-	end)
+	ui.autoButton = UIKit.Button({ LayoutOrder = 2, Size = UDim2.fromOffset(130, 64), TextSize = 20 }, toggleAuto)
 	ui.autoButton.Parent = buttons
 	ui.skipButton = UIKit.Button({ LayoutOrder = 3, Size = UDim2.fromOffset(152, 64), TextSize = 19 }, function()
 		ClientState.SetSetting("skipAnimations", not ClientState.GetSetting("skipAnimations"))
@@ -6796,6 +7440,11 @@ end
 function RollUI.Init(gui)
 	buildPanel(gui)
 	buildOverlay(gui)
+	-- Велика кнопка ROLL одразу кидає вибраний кубик; AUTO вмикає автокидки
+	Hud.SetAction("Roll", function()
+		task.spawn(doRoll)
+	end)
+	Hud.SetAction("Auto", toggleAuto)
 	refreshInfo()
 	refreshButtons()
 	ClientState.OnDataChanged(function()
@@ -6808,10 +7457,11 @@ function RollUI.Init(gui)
 	ClientState.OnSettingChanged(function()
 		refreshButtons()
 	end)
-	-- Зілля удачі може закінчитись — оновлюємо шанси, поки вікно відкрите
+	-- Зілля удачі може закінчитись — оновлюємо шанси й удачу
 	task.spawn(function()
 		while true do
 			task.wait(2)
+			refreshButtons()
 			if ui.panel and ui.panel.Visible then
 				refreshInfo()
 			end
@@ -6823,7 +7473,7 @@ return RollUI
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="46">
+        <Item class="ModuleScript" referent="48">
           <Properties>
             <string name="Name">SettingsUI</string>
             <string name="Source"><![CDATA[-- SettingsUI: перемикачі звуку, ефектів і пропуску анімацій.
@@ -6853,7 +7503,7 @@ local function refresh()
 end
 
 function SettingsUI.Init(gui)
-	local panel, content = UIKit.Panel(gui, "Settings", "⚙️ Settings")
+	local panel, content = UIKit.Panel(gui, "Settings", "⚙️ Settings", Color3.fromRGB(110, 110, 150))
 	Hud.RegisterPanel("Settings", panel)
 	UIKit.Create("UIListLayout", { Padding = UDim.new(0, 10), SortOrder = Enum.SortOrder.LayoutOrder, Parent = content })
 
@@ -6904,7 +7554,7 @@ return SettingsUI
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="47">
+        <Item class="ModuleScript" referent="49">
           <Properties>
             <string name="Name">TeamUI</string>
             <string name="Source"><![CDATA[-- TeamUI: вікно бойової команди. Зверху 3 слоти, нижче — усі герої за шкодою.
@@ -6941,7 +7591,7 @@ local function request(action, uid)
 end
 
 local function heroLine(heroDef, hero)
-	return ("Lv %d • ⚔️ %s/s"):format(hero.level, GameMath.FormatNumber(math.floor(GameMath.GetHeroDps(heroDef, hero.level))))
+	return ("Lv %d • ⚔️ %s/s"):format(hero.level, GameMath.FormatNumber(math.floor(GameMath.GetHeroDps(heroDef, hero.level, hero.awakened))))
 end
 
 local function refreshSlots(data)
@@ -6978,7 +7628,7 @@ local function refreshGrid(data)
 	for uid, hero in data.heroes do
 		local heroDef = HeroConfig.Heroes[hero.id]
 		if heroDef then
-			table.insert(list, { uid = uid, hero = hero, def = heroDef, dps = GameMath.GetHeroDps(heroDef, hero.level) })
+			table.insert(list, { uid = uid, hero = hero, def = heroDef, dps = GameMath.GetHeroDps(heroDef, hero.level, hero.awakened) })
 		end
 	end
 	table.sort(list, function(a, b)
@@ -7044,7 +7694,7 @@ local function refresh()
 end
 
 function TeamUI.Init(gui)
-	local panel, content = UIKit.Panel(gui, "Team", "⚔️ Team")
+	local panel, content = UIKit.Panel(gui, "Team", "⚔️ Team", Color3.fromRGB(255, 120, 60))
 	ui.panel = panel
 	Hud.RegisterPanel("Team", panel)
 	panel:GetPropertyChangedSignal("Visible"):Connect(function()
@@ -7166,11 +7816,12 @@ return TeamUI
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="48">
+        <Item class="ModuleScript" referent="50">
           <Properties>
             <string name="Name">UIKit</string>
-            <string name="Source"><![CDATA[-- UIKit: кольори, шрифти й готові елементи інтерфейсу.
--- Увесь інтерфейс будується кодом, тож ScreenGui вручну створювати не потрібно.
+            <string name="Source"><![CDATA[-- UIKit: стиль і готові елементи інтерфейсу.
+-- Стиль "аніме-симулятор": яскраві кнопки з градієнтом, товста темна обводка,
+-- білий текст з чорним контуром, великі емодзі-іконки (працюють без жодних картинок).
 --
 -- Адаптивність: усі розміри задані для екрана ~1100×650, а UIScale
 -- автоматично зменшує або збільшує їх під ПК, планшет чи телефон.
@@ -7183,17 +7834,19 @@ local player = Players.LocalPlayer
 local UIKit = {}
 
 UIKit.Colors = {
-	Background = Color3.fromRGB(26, 22, 46),
-	Panel = Color3.fromRGB(40, 33, 72),
-	PanelLight = Color3.fromRGB(58, 48, 100),
-	Accent = Color3.fromRGB(255, 110, 200),
-	Accent2 = Color3.fromRGB(110, 200, 255),
+	Background = Color3.fromRGB(24, 18, 44),
+	Panel = Color3.fromRGB(44, 32, 82),
+	PanelLight = Color3.fromRGB(72, 58, 128),
+	Outline = Color3.fromRGB(18, 10, 32),
+	Accent = Color3.fromRGB(255, 90, 200),
+	Accent2 = Color3.fromRGB(80, 190, 255),
 	Text = Color3.fromRGB(255, 255, 255),
-	SubText = Color3.fromRGB(200, 195, 235),
-	Success = Color3.fromRGB(90, 220, 130),
-	Danger = Color3.fromRGB(255, 90, 110),
-	Gold = Color3.fromRGB(255, 205, 70),
-	Disabled = Color3.fromRGB(90, 85, 110),
+	SubText = Color3.fromRGB(205, 198, 240),
+	Success = Color3.fromRGB(70, 210, 90),
+	Danger = Color3.fromRGB(255, 70, 90),
+	Gold = Color3.fromRGB(255, 205, 60),
+	Money = Color3.fromRGB(120, 255, 80),
+	Disabled = Color3.fromRGB(95, 88, 120),
 }
 
 UIKit.Font = Enum.Font.FredokaOne
@@ -7238,11 +7891,34 @@ function UIKit.Corner(parent, radius)
 	return UIKit.Create("UICorner", { CornerRadius = UDim.new(0, radius or 12), Parent = parent })
 end
 
+-- Обводка рамки елемента
 function UIKit.Stroke(parent, color, thickness)
 	return UIKit.Create("UIStroke", {
-		Color = color or Color3.new(0, 0, 0),
+		Color = color or UIKit.Colors.Outline,
 		Thickness = thickness or 2,
 		ApplyStrokeMode = Enum.ApplyStrokeMode.Border,
+		Parent = parent,
+	})
+end
+
+-- Чорний контур навколо тексту (як у популярних симуляторах)
+function UIKit.TextOutline(parent, thickness, color)
+	return UIKit.Create("UIStroke", {
+		Name = "TextOutline",
+		Color = color or UIKit.Colors.Outline,
+		Thickness = thickness or 2,
+		ApplyStrokeMode = Enum.ApplyStrokeMode.Contextual,
+		LineJoinMode = Enum.LineJoinMode.Round,
+		Parent = parent,
+	})
+end
+
+-- Вертикальний градієнт: зверху світліше, знизу темніше
+function UIKit.Shade(parent, amount)
+	local bottom = 1 - (amount or 0.18)
+	return UIKit.Create("UIGradient", {
+		Color = ColorSequence.new(Color3.new(1, 1, 1), Color3.new(bottom, bottom, bottom)),
+		Rotation = 90,
 		Parent = parent,
 	})
 end
@@ -7257,7 +7933,14 @@ function UIKit.AddScale(guiObject)
 	return scaleObject
 end
 
+function UIKit.GetScale()
+	return currentScale
+end
+
+-- Текст. Псевдовластивість Outline = товщина контуру (0 — без контуру).
+-- Для заголовкового шрифту контур додається автоматично.
 function UIKit.Label(props)
+	local outline = props.Outline
 	local defaults = {
 		BackgroundTransparency = 1,
 		Font = UIKit.BodyFont,
@@ -7266,12 +7949,21 @@ function UIKit.Label(props)
 		TextWrapped = true,
 	}
 	for key, value in props do
-		defaults[key] = value
+		if key ~= "Outline" then
+			defaults[key] = value
+		end
 	end
-	return UIKit.Create("TextLabel", defaults)
+	local label = UIKit.Create("TextLabel", defaults)
+	if outline == nil and defaults.Font == UIKit.Font then
+		outline = 2
+	end
+	if outline and outline > 0 then
+		UIKit.TextOutline(label, outline)
+	end
+	return label
 end
 
--- Кнопка з округленими кутами та ефектом натискання.
+-- Кнопка: градієнт, "блиск" зверху, товста обводка, текст з контуром, ефект натискання.
 function UIKit.Button(props, onClick)
 	local defaults = {
 		BackgroundColor3 = UIKit.Colors.Accent,
@@ -7285,25 +7977,144 @@ function UIKit.Button(props, onClick)
 		defaults[key] = value
 	end
 	local button = UIKit.Create("TextButton", defaults)
-	UIKit.Corner(button, 10)
-	UIKit.Stroke(button, Color3.fromRGB(20, 15, 35), 2)
+	UIKit.Corner(button, 12)
+	UIKit.TextOutline(button, 2)
+	UIKit.Shade(button, 0.2)
+
+	local shine = UIKit.Create("Frame", {
+		Name = "Shine",
+		Position = UDim2.fromOffset(4, 3),
+		Size = UDim2.new(1, -8, 0.42, 0),
+		BackgroundColor3 = Color3.new(1, 1, 1),
+		BackgroundTransparency = 0.82,
+		Parent = button,
+	})
+	UIKit.Corner(shine, 9)
+
+	local outline = UIKit.Create("Frame", {
+		Name = "Outline",
+		Size = UDim2.fromScale(1, 1),
+		BackgroundTransparency = 1,
+		Parent = button,
+	})
+	UIKit.Corner(outline, 12)
+	UIKit.Stroke(outline, UIKit.Colors.Outline, 3)
+
 	local pressScale = UIKit.Create("UIScale", { Parent = button })
 	button.MouseButton1Down:Connect(function()
-		TweenService:Create(pressScale, TweenInfo.new(0.06), { Scale = 0.94 }):Play()
+		TweenService:Create(pressScale, TweenInfo.new(0.06), { Scale = 0.92 }):Play()
 	end)
 	local function release()
-		TweenService:Create(pressScale, TweenInfo.new(0.1), { Scale = 1 }):Play()
+		TweenService:Create(pressScale, TweenInfo.new(0.12, Enum.EasingStyle.Back), { Scale = 1 }):Play()
 	end
 	button.MouseButton1Up:Connect(release)
 	button.MouseLeave:Connect(release)
+	button.MouseEnter:Connect(function()
+		TweenService:Create(pressScale, TweenInfo.new(0.1), { Scale = 1.05 }):Play()
+	end)
 	if onClick then
 		button.Activated:Connect(onClick)
 	end
 	return button
 end
 
--- Панель-вікно по центру екрана. Повертає panel, content.
-function UIKit.Panel(gui, name, title)
+-- Колір і товщина обводки кнопки (наприклад, щоб виділити вибраний кубик).
+function UIKit.SetOutline(button, color, thickness)
+	local outline = button:FindFirstChild("Outline")
+	local stroke = outline and outline:FindFirstChildOfClass("UIStroke")
+	if stroke then
+		stroke.Color = color
+		stroke.Thickness = thickness or 3
+	end
+end
+
+-- Велика квадратна кнопка з емодзі-іконкою та підписом (як Shop / Rebirth / ROLL).
+-- props: Name, Icon, Text, Sub (необов'язковий другий рядок), Color, Size, Position,
+--        AnchorPoint, LayoutOrder, Parent
+function UIKit.IconButton(props, onClick)
+	local button = UIKit.Button({
+		Name = props.Name,
+		Size = props.Size or UDim2.fromOffset(100, 100),
+		Position = props.Position,
+		AnchorPoint = props.AnchorPoint,
+		LayoutOrder = props.LayoutOrder,
+		BackgroundColor3 = props.Color or UIKit.Colors.Accent,
+		Text = "",
+		Parent = props.Parent,
+	}, onClick)
+	button.UICorner.CornerRadius = UDim.new(0, 18)
+	button.Outline.UICorner.CornerRadius = UDim.new(0, 18)
+	button.Outline.UIStroke.Thickness = 4
+
+	local hasSub = props.Sub ~= nil
+	local iconHeight = if hasSub then 0.5 else 0.6
+	UIKit.Label({
+		Name = "Icon",
+		AnchorPoint = Vector2.new(0.5, 0.5), -- щоб анімація масштабу йшла від центру
+		Position = UDim2.fromScale(0.5, 0.04 + iconHeight / 2),
+		Size = UDim2.fromScale(0.84, iconHeight),
+		Font = UIKit.Font,
+		TextScaled = true,
+		Text = props.Icon,
+		Outline = 0,
+		Parent = button,
+	})
+	UIKit.Label({
+		Name = "Caption",
+		Position = UDim2.fromScale(0.04, if hasSub then 0.54 else 0.64),
+		Size = UDim2.fromScale(0.92, if hasSub then 0.24 else 0.3),
+		Font = UIKit.Font,
+		TextScaled = true,
+		Text = props.Text,
+		Outline = 2.5,
+		Parent = button,
+	})
+	if hasSub then
+		UIKit.Label({
+			Name = "Sub",
+			Position = UDim2.fromScale(0.04, 0.78),
+			Size = UDim2.fromScale(0.92, 0.18),
+			Font = UIKit.Font,
+			TextScaled = true,
+			TextColor3 = UIKit.Colors.Gold,
+			Text = props.Sub,
+			Outline = 2,
+			Parent = button,
+		})
+	end
+	return button
+end
+
+-- Червоний кружечок з числом або "!" у куті кнопки. value: false/nil — сховати.
+function UIKit.SetBadge(button, value)
+	local badge = button:FindFirstChild("Badge")
+	if not badge then
+		badge = UIKit.Label({
+			Name = "Badge",
+			AnchorPoint = Vector2.new(0.5, 0.5),
+			Position = UDim2.new(1, -6, 0, 6),
+			Size = UDim2.fromOffset(32, 32),
+			BackgroundColor3 = UIKit.Colors.Danger,
+			BackgroundTransparency = 0,
+			Font = UIKit.Font,
+			TextSize = 20,
+			ZIndex = 5,
+			Parent = button,
+		})
+		UIKit.Corner(badge, 16)
+		UIKit.Stroke(badge, Color3.new(1, 1, 1), 2.5)
+	end
+	badge.Visible = value ~= nil and value ~= false and value ~= 0
+	if type(value) == "number" then
+		badge.Text = if value > 9 then "9+" else tostring(value)
+	else
+		badge.Text = "!"
+	end
+end
+
+-- Вікно по центру екрана з кольоровою шапкою. Повертає panel, content.
+function UIKit.Panel(gui, name, title, color)
+	color = color or UIKit.Colors.Accent
 	local panel = UIKit.Create("Frame", {
 		Name = name .. "Panel",
 		AnchorPoint = Vector2.new(0.5, 0.5),
@@ -7311,47 +8122,91 @@ function UIKit.Panel(gui, name, title)
 		Size = UDim2.fromOffset(780, 470),
 		BackgroundColor3 = UIKit.Colors.Panel,
 		Visible = false,
+		ZIndex = 10,
 		Parent = gui,
 	})
-	UIKit.Corner(panel, 18)
-	UIKit.Stroke(panel, UIKit.Colors.Accent, 3)
+	UIKit.Corner(panel, 22)
+	UIKit.Stroke(panel, UIKit.Colors.Outline, 5)
 	UIKit.AddScale(panel)
 	UIKit.Create("UIGradient", {
-		Color = ColorSequence.new(UIKit.Colors.PanelLight, UIKit.Colors.Panel),
+		Color = ColorSequence.new(UIKit.Colors.PanelLight, UIKit.Colors.Background),
 		Rotation = 90,
 		Parent = panel,
 	})
 
+	-- Кольорова шапка
+	local header = UIKit.Create("Frame", {
+		Name = "Header",
+		Size = UDim2.new(1, 0, 0, 60),
+		BackgroundColor3 = color,
+		Parent = panel,
+	})
+	UIKit.Corner(header, 22)
+	-- Нижні кути шапки прямі: прикриваємо їх смужкою того ж кольору
+	UIKit.Create("Frame", {
+		Position = UDim2.new(0, 0, 1, -22),
+		Size = UDim2.new(1, 0, 0, 22),
+		BackgroundColor3 = color,
+		BorderSizePixel = 0,
+		Parent = header,
+	})
+	local shine = UIKit.Create("Frame", {
+		Position = UDim2.fromOffset(10, 5),
+		Size = UDim2.new(1, -20, 0, 20),
+		BackgroundColor3 = Color3.new(1, 1, 1),
+		BackgroundTransparency = 0.8,
+		Parent = header,
+	})
+	UIKit.Corner(shine, 10)
+	UIKit.Create("Frame", {
+		Name = "Divider",
+		Position = UDim2.new(0, 0, 1, 0),
+		Size = UDim2.new(1, 0, 0, 4),
+		BackgroundColor3 = UIKit.Colors.Outline,
+		BorderSizePixel = 0,
+		Parent = header,
+	})
+
 	UIKit.Label({
 		Name = "Title",
-		Position = UDim2.fromOffset(20, 8),
-		Size = UDim2.new(1, -80, 0, 44),
+		Position = UDim2.fromOffset(22, 6),
+		Size = UDim2.new(1, -100, 0, 48),
 		Font = UIKit.Font,
-		TextSize = 30,
+		TextSize = 34,
 		TextXAlignment = Enum.TextXAlignment.Left,
 		Text = title,
-		Parent = panel,
+		Outline = 3,
+		Parent = header,
 	})
 
 	UIKit.Button({
 		Name = "Close",
-		AnchorPoint = Vector2.new(1, 0),
-		Position = UDim2.new(1, -10, 0, 10),
-		Size = UDim2.fromOffset(44, 44),
+		AnchorPoint = Vector2.new(1, 0.5),
+		Position = UDim2.new(1, -10, 0.5, 0),
+		Size = UDim2.fromOffset(46, 46),
 		BackgroundColor3 = UIKit.Colors.Danger,
-		Text = "X",
-		Parent = panel,
+		Text = "✕",
+		TextSize = 26,
+		Parent = header,
 	}, function()
 		panel.Visible = false
 	end)
 
 	local content = UIKit.Create("Frame", {
 		Name = "Content",
-		Position = UDim2.fromOffset(18, 62),
-		Size = UDim2.new(1, -36, 1, -78),
+		Position = UDim2.fromOffset(18, 76),
+		Size = UDim2.new(1, -36, 1, -90),
 		BackgroundTransparency = 1,
 		Parent = panel,
 	})
+
+	-- Поява вікна з легким "стрибком"
+	panel:GetPropertyChangedSignal("Visible"):Connect(function()
+		if panel.Visible then
+			panel.Position = UDim2.new(0.5, 0, 0.5, 24)
+			TweenService:Create(panel, TweenInfo.new(0.22, Enum.EasingStyle.Back, Enum.EasingDirection.Out), { Position = UDim2.fromScale(0.5, 0.5) }):Play()
+		end
+	end)
 	return panel, content
 end
 
@@ -7359,23 +8214,24 @@ end
 local toastContainer = nil
 
 function UIKit.Toast(text, kind, color)
-	if not toastContainer then
+	if not toastContainer or text == nil or text == "" then
 		return
 	end
 	local background = color
 		or (if kind == "error" then UIKit.Colors.Danger elseif kind == "success" then UIKit.Colors.Success else UIKit.Colors.PanelLight)
 	local toast = UIKit.Label({
-		Size = UDim2.fromOffset(460, 0),
+		Size = UDim2.fromOffset(480, 0),
 		AutomaticSize = Enum.AutomaticSize.Y,
 		BackgroundColor3 = background,
-		BackgroundTransparency = 0.05,
+		BackgroundTransparency = 0,
 		Font = UIKit.Font,
-		TextSize = 20,
-		TextStrokeTransparency = 0.6,
+		TextSize = 21,
 		Text = text,
 		Parent = toastContainer,
 	})
-	UIKit.Corner(toast, 10)
+	UIKit.Corner(toast, 12)
+	UIKit.Stroke(toast, UIKit.Colors.Outline, 3)
+	UIKit.Shade(toast, 0.25)
 	UIKit.Create("UIPadding", {
 		PaddingTop = UDim.new(0, 8),
 		PaddingBottom = UDim.new(0, 8),
@@ -7399,6 +8255,10 @@ function UIKit.Toast(text, kind, color)
 		if toast.Parent then
 			local tween = TweenService:Create(toast, TweenInfo.new(0.4), { BackgroundTransparency = 1, TextTransparency = 1 })
 			tween:Play()
+			local stroke = toast:FindFirstChild("TextOutline")
+			if stroke then
+				TweenService:Create(stroke, TweenInfo.new(0.4), { Transparency = 1 }):Play()
+			end
 			tween.Completed:Wait()
 			toast:Destroy()
 		end
@@ -7416,8 +8276,8 @@ function UIKit.CreateScreenGui()
 	toastContainer = UIKit.Create("Frame", {
 		Name = "Toasts",
 		AnchorPoint = Vector2.new(0.5, 0),
-		Position = UDim2.new(0.5, 0, 0, 80),
-		Size = UDim2.fromOffset(460, 300),
+		Position = UDim2.new(0.5, 0, 0, 84),
+		Size = UDim2.fromOffset(480, 300),
 		BackgroundTransparency = 1,
 		ZIndex = 50,
 		Parent = gui,
@@ -7448,7 +8308,7 @@ return UIKit
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="49">
+        <Item class="ModuleScript" referent="51">
           <Properties>
             <string name="Name">UpgradesUI</string>
             <string name="Source"><![CDATA[-- UpgradesUI: покращення бази за Coins і магазин за Crystals (зілля, більша сумка).
@@ -7469,7 +8329,6 @@ local Hud = require(Client:WaitForChild("Hud"))
 local UpgradesUI = {}
 
 local rows = {}
-local panel = nil
 
 -- Кожен рядок: currency ("Coins" | "Crystals"), describe(data, now), getPrice(data, now) -> ціна або nil (MAX), buy()
 local ENTRIES = {
@@ -7535,6 +8394,7 @@ local function refresh()
 		return
 	end
 	local now = workspace:GetServerTimeNow()
+	local affordableUpgrades = 0
 	for _, entry in ENTRIES do
 		local row = rows[entry.id]
 		row.description.Text = entry.describe(data, now)
@@ -7542,35 +8402,84 @@ local function refresh()
 		if price then
 			local icon = if entry.currency == "Crystals" then "💎" else "🪙"
 			local balance = if entry.currency == "Crystals" then ClientState.Crystals else ClientState.Coins
-			row.button.Text = ("Buy %s %s"):format(icon, GameMath.FormatNumber(price))
+			row.button.Text = ("%s %s"):format(icon, GameMath.FormatNumber(price))
 			row.button.BackgroundColor3 = if balance >= price
 				then (if entry.currency == "Crystals" then UIKit.Colors.Accent2 else UIKit.Colors.Success)
 				else UIKit.Colors.Disabled
+			if entry.currency == "Coins" and balance >= price then
+				affordableUpgrades += 1
+			end
 		else
 			row.button.Text = "MAX"
 			row.button.BackgroundColor3 = UIKit.Colors.Disabled
 		end
 	end
+	-- Лічильник на кнопці UPGRADES: скільки покращень можна купити просто зараз
+	Hud.SetBadge("Upgrades", affordableUpgrades)
 end
 
-local function sectionHeader(parent, order, text)
-	UIKit.Label({
+local function buildRow(list, order, entry)
+	local row = UIKit.Create("Frame", {
 		LayoutOrder = order,
-		Size = UDim2.new(1, -12, 0, 28),
-		Font = UIKit.Font,
-		TextSize = 21,
-		TextColor3 = UIKit.Colors.Gold,
-		TextXAlignment = Enum.TextXAlignment.Left,
-		Text = text,
-		Parent = parent,
+		Size = UDim2.new(1, -12, 0, 88),
+		BackgroundColor3 = UIKit.Colors.Background,
+		BackgroundTransparency = 0.2,
+		Parent = list,
 	})
+	UIKit.Corner(row, 16)
+	UIKit.Stroke(row, UIKit.Colors.Outline, 3)
+
+	-- Квадратна іконка ліворуч (перший символ назви — емодзі)
+	local icon, name = string.match(entry.title, "^(%S+)%s+(.+)$")
+	local iconBox = UIKit.Label({
+		Position = UDim2.fromOffset(10, 10),
+		Size = UDim2.fromOffset(68, 68),
+		BackgroundColor3 = if entry.currency == "Crystals" then UIKit.Colors.Accent2 else UIKit.Colors.Success,
+		BackgroundTransparency = 0,
+		TextScaled = true,
+		Text = icon or "⭐",
+		Outline = 0,
+		Parent = row,
+	})
+	UIKit.Corner(iconBox, 14)
+	UIKit.Stroke(iconBox, UIKit.Colors.Outline, 3)
+	UIKit.Shade(iconBox, 0.3)
+
+	UIKit.Label({
+		Position = UDim2.fromOffset(92, 8),
+		Size = UDim2.new(1, -300, 0, 34),
+		Font = UIKit.Font,
+		TextSize = 26,
+		TextXAlignment = Enum.TextXAlignment.Left,
+		Text = name or entry.title,
+		Outline = 2.5,
+		Parent = row,
+	})
+	local description = UIKit.Label({
+		Position = UDim2.fromOffset(92, 44),
+		Size = UDim2.new(1, -300, 0, 38),
+		TextSize = 15,
+		TextColor3 = UIKit.Colors.SubText,
+		TextXAlignment = Enum.TextXAlignment.Left,
+		Parent = row,
+	})
+	local button = UIKit.Button({
+		AnchorPoint = Vector2.new(1, 0.5),
+		Position = UDim2.new(1, -14, 0.5, 0),
+		Size = UDim2.fromOffset(190, 60),
+		TextSize = 24,
+		Parent = row,
+	}, function()
+		local result = ClientState.Request(entry.remote, entry.id)
+		UIKit.Toast(result.message or "", if result.ok then "success" else "error")
+	end)
+	rows[entry.id] = { description = description, button = button }
 end
 
-function UpgradesUI.Init(gui)
-	local content
-	panel, content = UIKit.Panel(gui, "Upgrades", "⬆️ Upgrades & Shop")
-	Hud.RegisterPanel("Upgrades", panel)
-
+-- Вікно зі списком покращень однієї валюти
+local function buildPanel(gui, panelName, title, color, currency, hint)
+	local newPanel, content = UIKit.Panel(gui, panelName, title, color)
+	Hud.RegisterPanel(panelName, newPanel)
 	local list = UIKit.Create("ScrollingFrame", {
 		Size = UDim2.fromScale(1, 1),
 		BackgroundTransparency = 1,
@@ -7581,52 +8490,28 @@ function UpgradesUI.Init(gui)
 		ScrollingDirection = Enum.ScrollingDirection.Y,
 		Parent = content,
 	})
-	UIKit.Create("UIListLayout", { Padding = UDim.new(0, 8), SortOrder = Enum.SortOrder.LayoutOrder, Parent = list })
-
-	sectionHeader(list, 0, "🪙 Покращення бази")
-	local shopHeaderAdded = false
+	UIKit.Create("UIListLayout", { Padding = UDim.new(0, 10), SortOrder = Enum.SortOrder.LayoutOrder, Parent = list })
+	UIKit.Create("UIPadding", { PaddingTop = UDim.new(0, 4), PaddingLeft = UDim.new(0, 4), Parent = list })
+	UIKit.Label({
+		LayoutOrder = 0,
+		Size = UDim2.new(1, -12, 0, 26),
+		TextSize = 16,
+		TextColor3 = UIKit.Colors.SubText,
+		TextXAlignment = Enum.TextXAlignment.Left,
+		Text = hint,
+		Parent = list,
+	})
 	for index, entry in ENTRIES do
-		if entry.currency == "Crystals" and not shopHeaderAdded then
-			sectionHeader(list, index * 2 - 1, "💎 Crystal Shop — кристали дають боси, завдання й колекція")
-			shopHeaderAdded = true
+		if entry.currency == currency then
+			buildRow(list, index, entry)
 		end
-		local row = UIKit.Create("Frame", {
-			LayoutOrder = index * 2,
-			Size = UDim2.new(1, -12, 0, 84),
-			BackgroundColor3 = UIKit.Colors.Background,
-			BackgroundTransparency = 0.3,
-			Parent = list,
-		})
-		UIKit.Corner(row, 14)
-		UIKit.Label({
-			Position = UDim2.fromOffset(16, 6),
-			Size = UDim2.new(1, -250, 0, 32),
-			Font = UIKit.Font,
-			TextSize = 23,
-			TextXAlignment = Enum.TextXAlignment.Left,
-			Text = entry.title,
-			Parent = row,
-		})
-		local description = UIKit.Label({
-			Position = UDim2.fromOffset(16, 40),
-			Size = UDim2.new(1, -250, 0, 38),
-			TextSize = 15,
-			TextColor3 = UIKit.Colors.SubText,
-			TextXAlignment = Enum.TextXAlignment.Left,
-			Parent = row,
-		})
-		local button = UIKit.Button({
-			AnchorPoint = Vector2.new(1, 0.5),
-			Position = UDim2.new(1, -14, 0.5, 0),
-			Size = UDim2.fromOffset(210, 58),
-			TextSize = 21,
-			Parent = row,
-		}, function()
-			local result = ClientState.Request(entry.remote, entry.id)
-			UIKit.Toast(result.message or "", if result.ok then "success" else "error")
-		end)
-		rows[entry.id] = { description = description, button = button }
 	end
+	return newPanel
+end
+
+function UpgradesUI.Init(gui)
+	local upgradesPanel = buildPanel(gui, "Upgrades", "⬆️ Upgrades", Color3.fromRGB(70, 205, 100), "Coins", "Покращення бази за 🪙 Coins")
+	local shopPanel = buildPanel(gui, "Shop", "💎 Crystal Shop", Color3.fromRGB(60, 205, 85), "Crystals", "💎 Кристали дають боси, завдання, колекція та Rebirth")
 
 	ClientState.OnDataChanged(refresh)
 	ClientState.OnCurrencyChanged(refresh)
@@ -7634,7 +8519,7 @@ function UpgradesUI.Init(gui)
 	task.spawn(function()
 		while true do
 			task.wait(1)
-			if panel.Visible then
+			if upgradesPanel.Visible or shopPanel.Visible then
 				refresh()
 			end
 		end
@@ -7645,7 +8530,7 @@ return UpgradesUI
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="50">
+        <Item class="ModuleScript" referent="52">
           <Properties>
             <string name="Name">WorldEffects</string>
             <string name="Source"><![CDATA[-- WorldEffects: локально вмикає/вимикає аури героїв за налаштуванням "Ефекти".
@@ -7691,7 +8576,7 @@ return WorldEffects
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="51">
+        <Item class="ModuleScript" referent="53">
           <Properties>
             <string name="Name">WorldsUI</string>
             <string name="Source"><![CDATA[-- WorldsUI: список світів і кнопки подорожі. Переносить гравця сервер.
@@ -7801,7 +8686,7 @@ local function addRow(content, order, worldId, title, subtitle, color, available
 end
 
 function WorldsUI.Init(gui)
-	local panel, content = UIKit.Panel(gui, "Worlds", "🌍 Worlds")
+	local panel, content = UIKit.Panel(gui, "Worlds", "🌍 Worlds", Color3.fromRGB(255, 185, 40))
 	Hud.RegisterPanel("Worlds", panel)
 	UIKit.Create("UIListLayout", { Padding = UDim.new(0, 6), SortOrder = Enum.SortOrder.LayoutOrder, Parent = content })
 
@@ -7820,7 +8705,7 @@ return WorldsUI
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="52">
+        <Item class="ModuleScript" referent="54">
           <Properties>
             <string name="Name">ZoneGates</string>
             <string name="Source"><![CDATA[-- ZoneGates: ворота зон на екрані цього гравця.
@@ -7879,7 +8764,7 @@ return ZoneGates
           </Properties>
         </Item>
       </Item>
-      <Item class="LocalScript" referent="53">
+      <Item class="LocalScript" referent="55">
         <Properties>
           <string name="Name">ClientMain</string>
           <string name="Source"><![CDATA[-- ClientMain: точка входу клієнта. Будує інтерфейс і підключає модулі.
@@ -7905,6 +8790,7 @@ local WorldsUI = require(Client:WaitForChild("WorldsUI"))
 local CombatUI = require(Client:WaitForChild("CombatUI"))
 local QuestsUI = require(Client:WaitForChild("QuestsUI"))
 local ZoneGates = require(Client:WaitForChild("ZoneGates"))
+local RebirthUI = require(Client:WaitForChild("RebirthUI"))
 
 local gui = UIKit.CreateScreenGui()
 
@@ -7919,6 +8805,7 @@ EnemyRegistry.Init()
 FollowerController.Init()
 CombatUI.Init(gui)
 QuestsUI.Init(gui)
+RebirthUI.Init(gui)
 ZoneGates.Init()
 WorldEffects.Init()
 

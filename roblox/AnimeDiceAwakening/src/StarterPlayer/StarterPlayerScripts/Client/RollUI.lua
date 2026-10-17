@@ -354,29 +354,50 @@ function refreshButtons()
 			button.Text = ("🔒 %s\n%s"):format(dice.displayName, requirement)
 		end
 		button.BackgroundColor3 = if unlocked then dice.color:Lerp(UIKit.Colors.Panel, 0.45) else UIKit.Colors.Disabled
-		local stroke = button:FindFirstChildOfClass("UIStroke")
-		stroke.Color = if diceId == selectedDice then Color3.new(1, 1, 1) else Color3.fromRGB(20, 15, 35)
-		stroke.Thickness = if diceId == selectedDice then 4 else 2
+		UIKit.SetOutline(button, if diceId == selectedDice then Color3.new(1, 1, 1) else UIKit.Colors.Outline, if diceId == selectedDice then 5 else 3)
 	end
 
 	local dice = DiceConfig.Dice[selectedDice]
 	local free = data ~= nil and not data.tutorial.freeRollUsed and selectedDice == DiceConfig.TutorialDice
+	local canAfford = free or (ClientState.Coins >= dice.price and isDiceUnlocked(data, dice))
+	local priceText = if free then "🎁 FREE" else "🪙 " .. GameMath.FormatNumber(dice.price)
 	if free then
 		ui.rollButton.Text = "ROLL\n🎁 FREE!"
 		ui.rollButton.BackgroundColor3 = UIKit.Colors.Success
 	else
-		ui.rollButton.Text = "ROLL\n🪙 " .. GameMath.FormatNumber(dice.price)
-		local canAfford = ClientState.Coins >= dice.price and isDiceUnlocked(data, dice)
+		ui.rollButton.Text = "ROLL\n" .. priceText
 		ui.rollButton.BackgroundColor3 = if canAfford then UIKit.Colors.Accent else UIKit.Colors.Disabled
 	end
 
+	-- Велика кнопка ROLL і вибір кубика на головному екрані
+	local bigRoll = Hud.Get("Roll")
+	if bigRoll then
+		bigRoll.Sub.Text = priceText
+		bigRoll.Sub.TextColor3 = if canAfford then UIKit.Colors.Gold else UIKit.Colors.Danger
+		bigRoll.Icon.Text = dice.icon
+	end
+	local dicePill = Hud.Get("Dice")
+	if dicePill then
+		dicePill.Text = ("%s %s ▾"):format(dice.icon, dice.displayName)
+	end
+
 	local autoUnlocked = data ~= nil and data.tutorial.completed
-	if not autoUnlocked then
-		ui.autoButton.Text = "🔒 Auto"
-		ui.autoButton.BackgroundColor3 = UIKit.Colors.Disabled
-	else
-		ui.autoButton.Text = if autoRolling then "Auto: ON" else "Auto: OFF"
-		ui.autoButton.BackgroundColor3 = if autoRolling then UIKit.Colors.Success else UIKit.Colors.PanelLight
+	local autoButtons = { ui.autoButton, Hud.Get("Auto") }
+	for _, button in autoButtons do
+		if not autoUnlocked then
+			button.Text = "🔒 AUTO"
+			button.BackgroundColor3 = UIKit.Colors.Disabled
+		else
+			button.Text = if autoRolling then "AUTO: ON" else "AUTO: OFF"
+			button.BackgroundColor3 = if autoRolling then UIKit.Colors.Success else UIKit.Colors.PanelLight
+		end
+	end
+
+	-- Поточна удача (кубик × зілля × Rebirth)
+	local luckLabel = Hud.Get("Luck")
+	if luckLabel then
+		local playerLuck = if data then GameMath.GetLuck(data, workspace:GetServerTimeNow()) else 1
+		luckLabel.Text = "x" .. GameMath.FormatNumber(math.floor(dice.luck * playerLuck * 100 + 0.5) / 100)
 	end
 
 	local skip = ClientState.GetSetting("skipAnimations")
@@ -384,8 +405,17 @@ function refreshButtons()
 	ui.skipButton.BackgroundColor3 = if skip then UIKit.Colors.Success else UIKit.Colors.PanelLight
 end
 
+local function toggleAuto()
+	local data = ClientState.Data
+	if not (data and data.tutorial.completed) then
+		UIKit.Toast("Auto Roll відкриється після навчання: постав героя на базу", "info")
+		return
+	end
+	setAuto(not autoRolling)
+end
+
 local function buildPanel(gui)
-	local panel, content = UIKit.Panel(gui, "Roll", "🎲 Dice")
+	local panel, content = UIKit.Panel(gui, "Roll", "🎲 Dice", Color3.fromRGB(190, 70, 255))
 	ui.panel = panel
 	Hud.RegisterPanel("Roll", panel)
 
@@ -501,14 +531,7 @@ local function buildPanel(gui)
 		task.spawn(doRoll)
 	end)
 	ui.rollButton.Parent = buttons
-	ui.autoButton = UIKit.Button({ LayoutOrder = 2, Size = UDim2.fromOffset(130, 64), TextSize = 20 }, function()
-		local data = ClientState.Data
-		if not (data and data.tutorial.completed) then
-			UIKit.Toast("Auto Roll відкриється після навчання: постав героя на базу", "info")
-			return
-		end
-		setAuto(not autoRolling)
-	end)
+	ui.autoButton = UIKit.Button({ LayoutOrder = 2, Size = UDim2.fromOffset(130, 64), TextSize = 20 }, toggleAuto)
 	ui.autoButton.Parent = buttons
 	ui.skipButton = UIKit.Button({ LayoutOrder = 3, Size = UDim2.fromOffset(152, 64), TextSize = 19 }, function()
 		ClientState.SetSetting("skipAnimations", not ClientState.GetSetting("skipAnimations"))
@@ -519,6 +542,11 @@ end
 function RollUI.Init(gui)
 	buildPanel(gui)
 	buildOverlay(gui)
+	-- Велика кнопка ROLL одразу кидає вибраний кубик; AUTO вмикає автокидки
+	Hud.SetAction("Roll", function()
+		task.spawn(doRoll)
+	end)
+	Hud.SetAction("Auto", toggleAuto)
 	refreshInfo()
 	refreshButtons()
 	ClientState.OnDataChanged(function()
@@ -531,10 +559,11 @@ function RollUI.Init(gui)
 	ClientState.OnSettingChanged(function()
 		refreshButtons()
 	end)
-	-- Зілля удачі може закінчитись — оновлюємо шанси, поки вікно відкрите
+	-- Зілля удачі може закінчитись — оновлюємо шанси й удачу
 	task.spawn(function()
 		while true do
 			task.wait(2)
+			refreshButtons()
 			if ui.panel and ui.panel.Visible then
 				refreshInfo()
 			end

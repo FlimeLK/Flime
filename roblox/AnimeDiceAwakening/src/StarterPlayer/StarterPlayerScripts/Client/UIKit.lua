@@ -1,5 +1,6 @@
--- UIKit: кольори, шрифти й готові елементи інтерфейсу.
--- Увесь інтерфейс будується кодом, тож ScreenGui вручну створювати не потрібно.
+-- UIKit: стиль і готові елементи інтерфейсу.
+-- Стиль "аніме-симулятор": яскраві кнопки з градієнтом, товста темна обводка,
+-- білий текст з чорним контуром, великі емодзі-іконки (працюють без жодних картинок).
 --
 -- Адаптивність: усі розміри задані для екрана ~1100×650, а UIScale
 -- автоматично зменшує або збільшує їх під ПК, планшет чи телефон.
@@ -12,17 +13,19 @@ local player = Players.LocalPlayer
 local UIKit = {}
 
 UIKit.Colors = {
-	Background = Color3.fromRGB(26, 22, 46),
-	Panel = Color3.fromRGB(40, 33, 72),
-	PanelLight = Color3.fromRGB(58, 48, 100),
-	Accent = Color3.fromRGB(255, 110, 200),
-	Accent2 = Color3.fromRGB(110, 200, 255),
+	Background = Color3.fromRGB(24, 18, 44),
+	Panel = Color3.fromRGB(44, 32, 82),
+	PanelLight = Color3.fromRGB(72, 58, 128),
+	Outline = Color3.fromRGB(18, 10, 32),
+	Accent = Color3.fromRGB(255, 90, 200),
+	Accent2 = Color3.fromRGB(80, 190, 255),
 	Text = Color3.fromRGB(255, 255, 255),
-	SubText = Color3.fromRGB(200, 195, 235),
-	Success = Color3.fromRGB(90, 220, 130),
-	Danger = Color3.fromRGB(255, 90, 110),
-	Gold = Color3.fromRGB(255, 205, 70),
-	Disabled = Color3.fromRGB(90, 85, 110),
+	SubText = Color3.fromRGB(205, 198, 240),
+	Success = Color3.fromRGB(70, 210, 90),
+	Danger = Color3.fromRGB(255, 70, 90),
+	Gold = Color3.fromRGB(255, 205, 60),
+	Money = Color3.fromRGB(120, 255, 80),
+	Disabled = Color3.fromRGB(95, 88, 120),
 }
 
 UIKit.Font = Enum.Font.FredokaOne
@@ -67,11 +70,34 @@ function UIKit.Corner(parent, radius)
 	return UIKit.Create("UICorner", { CornerRadius = UDim.new(0, radius or 12), Parent = parent })
 end
 
+-- Обводка рамки елемента
 function UIKit.Stroke(parent, color, thickness)
 	return UIKit.Create("UIStroke", {
-		Color = color or Color3.new(0, 0, 0),
+		Color = color or UIKit.Colors.Outline,
 		Thickness = thickness or 2,
 		ApplyStrokeMode = Enum.ApplyStrokeMode.Border,
+		Parent = parent,
+	})
+end
+
+-- Чорний контур навколо тексту (як у популярних симуляторах)
+function UIKit.TextOutline(parent, thickness, color)
+	return UIKit.Create("UIStroke", {
+		Name = "TextOutline",
+		Color = color or UIKit.Colors.Outline,
+		Thickness = thickness or 2,
+		ApplyStrokeMode = Enum.ApplyStrokeMode.Contextual,
+		LineJoinMode = Enum.LineJoinMode.Round,
+		Parent = parent,
+	})
+end
+
+-- Вертикальний градієнт: зверху світліше, знизу темніше
+function UIKit.Shade(parent, amount)
+	local bottom = 1 - (amount or 0.18)
+	return UIKit.Create("UIGradient", {
+		Color = ColorSequence.new(Color3.new(1, 1, 1), Color3.new(bottom, bottom, bottom)),
+		Rotation = 90,
 		Parent = parent,
 	})
 end
@@ -86,7 +112,14 @@ function UIKit.AddScale(guiObject)
 	return scaleObject
 end
 
+function UIKit.GetScale()
+	return currentScale
+end
+
+-- Текст. Псевдовластивість Outline = товщина контуру (0 — без контуру).
+-- Для заголовкового шрифту контур додається автоматично.
 function UIKit.Label(props)
+	local outline = props.Outline
 	local defaults = {
 		BackgroundTransparency = 1,
 		Font = UIKit.BodyFont,
@@ -95,12 +128,21 @@ function UIKit.Label(props)
 		TextWrapped = true,
 	}
 	for key, value in props do
-		defaults[key] = value
+		if key ~= "Outline" then
+			defaults[key] = value
+		end
 	end
-	return UIKit.Create("TextLabel", defaults)
+	local label = UIKit.Create("TextLabel", defaults)
+	if outline == nil and defaults.Font == UIKit.Font then
+		outline = 2
+	end
+	if outline and outline > 0 then
+		UIKit.TextOutline(label, outline)
+	end
+	return label
 end
 
--- Кнопка з округленими кутами та ефектом натискання.
+-- Кнопка: градієнт, "блиск" зверху, товста обводка, текст з контуром, ефект натискання.
 function UIKit.Button(props, onClick)
 	local defaults = {
 		BackgroundColor3 = UIKit.Colors.Accent,
@@ -114,25 +156,144 @@ function UIKit.Button(props, onClick)
 		defaults[key] = value
 	end
 	local button = UIKit.Create("TextButton", defaults)
-	UIKit.Corner(button, 10)
-	UIKit.Stroke(button, Color3.fromRGB(20, 15, 35), 2)
+	UIKit.Corner(button, 12)
+	UIKit.TextOutline(button, 2)
+	UIKit.Shade(button, 0.2)
+
+	local shine = UIKit.Create("Frame", {
+		Name = "Shine",
+		Position = UDim2.fromOffset(4, 3),
+		Size = UDim2.new(1, -8, 0.42, 0),
+		BackgroundColor3 = Color3.new(1, 1, 1),
+		BackgroundTransparency = 0.82,
+		Parent = button,
+	})
+	UIKit.Corner(shine, 9)
+
+	local outline = UIKit.Create("Frame", {
+		Name = "Outline",
+		Size = UDim2.fromScale(1, 1),
+		BackgroundTransparency = 1,
+		Parent = button,
+	})
+	UIKit.Corner(outline, 12)
+	UIKit.Stroke(outline, UIKit.Colors.Outline, 3)
+
 	local pressScale = UIKit.Create("UIScale", { Parent = button })
 	button.MouseButton1Down:Connect(function()
-		TweenService:Create(pressScale, TweenInfo.new(0.06), { Scale = 0.94 }):Play()
+		TweenService:Create(pressScale, TweenInfo.new(0.06), { Scale = 0.92 }):Play()
 	end)
 	local function release()
-		TweenService:Create(pressScale, TweenInfo.new(0.1), { Scale = 1 }):Play()
+		TweenService:Create(pressScale, TweenInfo.new(0.12, Enum.EasingStyle.Back), { Scale = 1 }):Play()
 	end
 	button.MouseButton1Up:Connect(release)
 	button.MouseLeave:Connect(release)
+	button.MouseEnter:Connect(function()
+		TweenService:Create(pressScale, TweenInfo.new(0.1), { Scale = 1.05 }):Play()
+	end)
 	if onClick then
 		button.Activated:Connect(onClick)
 	end
 	return button
 end
 
--- Панель-вікно по центру екрана. Повертає panel, content.
-function UIKit.Panel(gui, name, title)
+-- Колір і товщина обводки кнопки (наприклад, щоб виділити вибраний кубик).
+function UIKit.SetOutline(button, color, thickness)
+	local outline = button:FindFirstChild("Outline")
+	local stroke = outline and outline:FindFirstChildOfClass("UIStroke")
+	if stroke then
+		stroke.Color = color
+		stroke.Thickness = thickness or 3
+	end
+end
+
+-- Велика квадратна кнопка з емодзі-іконкою та підписом (як Shop / Rebirth / ROLL).
+-- props: Name, Icon, Text, Sub (необов'язковий другий рядок), Color, Size, Position,
+--        AnchorPoint, LayoutOrder, Parent
+function UIKit.IconButton(props, onClick)
+	local button = UIKit.Button({
+		Name = props.Name,
+		Size = props.Size or UDim2.fromOffset(100, 100),
+		Position = props.Position,
+		AnchorPoint = props.AnchorPoint,
+		LayoutOrder = props.LayoutOrder,
+		BackgroundColor3 = props.Color or UIKit.Colors.Accent,
+		Text = "",
+		Parent = props.Parent,
+	}, onClick)
+	button.UICorner.CornerRadius = UDim.new(0, 18)
+	button.Outline.UICorner.CornerRadius = UDim.new(0, 18)
+	button.Outline.UIStroke.Thickness = 4
+
+	local hasSub = props.Sub ~= nil
+	local iconHeight = if hasSub then 0.5 else 0.6
+	UIKit.Label({
+		Name = "Icon",
+		AnchorPoint = Vector2.new(0.5, 0.5), -- щоб анімація масштабу йшла від центру
+		Position = UDim2.fromScale(0.5, 0.04 + iconHeight / 2),
+		Size = UDim2.fromScale(0.84, iconHeight),
+		Font = UIKit.Font,
+		TextScaled = true,
+		Text = props.Icon,
+		Outline = 0,
+		Parent = button,
+	})
+	UIKit.Label({
+		Name = "Caption",
+		Position = UDim2.fromScale(0.04, if hasSub then 0.54 else 0.64),
+		Size = UDim2.fromScale(0.92, if hasSub then 0.24 else 0.3),
+		Font = UIKit.Font,
+		TextScaled = true,
+		Text = props.Text,
+		Outline = 2.5,
+		Parent = button,
+	})
+	if hasSub then
+		UIKit.Label({
+			Name = "Sub",
+			Position = UDim2.fromScale(0.04, 0.78),
+			Size = UDim2.fromScale(0.92, 0.18),
+			Font = UIKit.Font,
+			TextScaled = true,
+			TextColor3 = UIKit.Colors.Gold,
+			Text = props.Sub,
+			Outline = 2,
+			Parent = button,
+		})
+	end
+	return button
+end
+
+-- Червоний кружечок з числом або "!" у куті кнопки. value: false/nil — сховати.
+function UIKit.SetBadge(button, value)
+	local badge = button:FindFirstChild("Badge")
+	if not badge then
+		badge = UIKit.Label({
+			Name = "Badge",
+			AnchorPoint = Vector2.new(0.5, 0.5),
+			Position = UDim2.new(1, -6, 0, 6),
+			Size = UDim2.fromOffset(32, 32),
+			BackgroundColor3 = UIKit.Colors.Danger,
+			BackgroundTransparency = 0,
+			Font = UIKit.Font,
+			TextSize = 20,
+			ZIndex = 5,
+			Parent = button,
+		})
+		UIKit.Corner(badge, 16)
+		UIKit.Stroke(badge, Color3.new(1, 1, 1), 2.5)
+	end
+	badge.Visible = value ~= nil and value ~= false and value ~= 0
+	if type(value) == "number" then
+		badge.Text = if value > 9 then "9+" else tostring(value)
+	else
+		badge.Text = "!"
+	end
+end
+
+-- Вікно по центру екрана з кольоровою шапкою. Повертає panel, content.
+function UIKit.Panel(gui, name, title, color)
+	color = color or UIKit.Colors.Accent
 	local panel = UIKit.Create("Frame", {
 		Name = name .. "Panel",
 		AnchorPoint = Vector2.new(0.5, 0.5),
@@ -140,47 +301,91 @@ function UIKit.Panel(gui, name, title)
 		Size = UDim2.fromOffset(780, 470),
 		BackgroundColor3 = UIKit.Colors.Panel,
 		Visible = false,
+		ZIndex = 10,
 		Parent = gui,
 	})
-	UIKit.Corner(panel, 18)
-	UIKit.Stroke(panel, UIKit.Colors.Accent, 3)
+	UIKit.Corner(panel, 22)
+	UIKit.Stroke(panel, UIKit.Colors.Outline, 5)
 	UIKit.AddScale(panel)
 	UIKit.Create("UIGradient", {
-		Color = ColorSequence.new(UIKit.Colors.PanelLight, UIKit.Colors.Panel),
+		Color = ColorSequence.new(UIKit.Colors.PanelLight, UIKit.Colors.Background),
 		Rotation = 90,
 		Parent = panel,
 	})
 
+	-- Кольорова шапка
+	local header = UIKit.Create("Frame", {
+		Name = "Header",
+		Size = UDim2.new(1, 0, 0, 60),
+		BackgroundColor3 = color,
+		Parent = panel,
+	})
+	UIKit.Corner(header, 22)
+	-- Нижні кути шапки прямі: прикриваємо їх смужкою того ж кольору
+	UIKit.Create("Frame", {
+		Position = UDim2.new(0, 0, 1, -22),
+		Size = UDim2.new(1, 0, 0, 22),
+		BackgroundColor3 = color,
+		BorderSizePixel = 0,
+		Parent = header,
+	})
+	local shine = UIKit.Create("Frame", {
+		Position = UDim2.fromOffset(10, 5),
+		Size = UDim2.new(1, -20, 0, 20),
+		BackgroundColor3 = Color3.new(1, 1, 1),
+		BackgroundTransparency = 0.8,
+		Parent = header,
+	})
+	UIKit.Corner(shine, 10)
+	UIKit.Create("Frame", {
+		Name = "Divider",
+		Position = UDim2.new(0, 0, 1, 0),
+		Size = UDim2.new(1, 0, 0, 4),
+		BackgroundColor3 = UIKit.Colors.Outline,
+		BorderSizePixel = 0,
+		Parent = header,
+	})
+
 	UIKit.Label({
 		Name = "Title",
-		Position = UDim2.fromOffset(20, 8),
-		Size = UDim2.new(1, -80, 0, 44),
+		Position = UDim2.fromOffset(22, 6),
+		Size = UDim2.new(1, -100, 0, 48),
 		Font = UIKit.Font,
-		TextSize = 30,
+		TextSize = 34,
 		TextXAlignment = Enum.TextXAlignment.Left,
 		Text = title,
-		Parent = panel,
+		Outline = 3,
+		Parent = header,
 	})
 
 	UIKit.Button({
 		Name = "Close",
-		AnchorPoint = Vector2.new(1, 0),
-		Position = UDim2.new(1, -10, 0, 10),
-		Size = UDim2.fromOffset(44, 44),
+		AnchorPoint = Vector2.new(1, 0.5),
+		Position = UDim2.new(1, -10, 0.5, 0),
+		Size = UDim2.fromOffset(46, 46),
 		BackgroundColor3 = UIKit.Colors.Danger,
-		Text = "X",
-		Parent = panel,
+		Text = "✕",
+		TextSize = 26,
+		Parent = header,
 	}, function()
 		panel.Visible = false
 	end)
 
 	local content = UIKit.Create("Frame", {
 		Name = "Content",
-		Position = UDim2.fromOffset(18, 62),
-		Size = UDim2.new(1, -36, 1, -78),
+		Position = UDim2.fromOffset(18, 76),
+		Size = UDim2.new(1, -36, 1, -90),
 		BackgroundTransparency = 1,
 		Parent = panel,
 	})
+
+	-- Поява вікна з легким "стрибком"
+	panel:GetPropertyChangedSignal("Visible"):Connect(function()
+		if panel.Visible then
+			panel.Position = UDim2.new(0.5, 0, 0.5, 24)
+			TweenService:Create(panel, TweenInfo.new(0.22, Enum.EasingStyle.Back, Enum.EasingDirection.Out), { Position = UDim2.fromScale(0.5, 0.5) }):Play()
+		end
+	end)
 	return panel, content
 end
 
@@ -188,23 +393,24 @@ end
 local toastContainer = nil
 
 function UIKit.Toast(text, kind, color)
-	if not toastContainer then
+	if not toastContainer or text == nil or text == "" then
 		return
 	end
 	local background = color
 		or (if kind == "error" then UIKit.Colors.Danger elseif kind == "success" then UIKit.Colors.Success else UIKit.Colors.PanelLight)
 	local toast = UIKit.Label({
-		Size = UDim2.fromOffset(460, 0),
+		Size = UDim2.fromOffset(480, 0),
 		AutomaticSize = Enum.AutomaticSize.Y,
 		BackgroundColor3 = background,
-		BackgroundTransparency = 0.05,
+		BackgroundTransparency = 0,
 		Font = UIKit.Font,
-		TextSize = 20,
-		TextStrokeTransparency = 0.6,
+		TextSize = 21,
 		Text = text,
 		Parent = toastContainer,
 	})
-	UIKit.Corner(toast, 10)
+	UIKit.Corner(toast, 12)
+	UIKit.Stroke(toast, UIKit.Colors.Outline, 3)
+	UIKit.Shade(toast, 0.25)
 	UIKit.Create("UIPadding", {
 		PaddingTop = UDim.new(0, 8),
 		PaddingBottom = UDim.new(0, 8),
@@ -228,6 +434,10 @@ function UIKit.Toast(text, kind, color)
 		if toast.Parent then
 			local tween = TweenService:Create(toast, TweenInfo.new(0.4), { BackgroundTransparency = 1, TextTransparency = 1 })
 			tween:Play()
+			local stroke = toast:FindFirstChild("TextOutline")
+			if stroke then
+				TweenService:Create(stroke, TweenInfo.new(0.4), { Transparency = 1 }):Play()
+			end
 			tween.Completed:Wait()
 			toast:Destroy()
 		end
@@ -245,8 +455,8 @@ function UIKit.CreateScreenGui()
 	toastContainer = UIKit.Create("Frame", {
 		Name = "Toasts",
 		AnchorPoint = Vector2.new(0.5, 0),
-		Position = UDim2.new(0.5, 0, 0, 80),
-		Size = UDim2.fromOffset(460, 300),
+		Position = UDim2.new(0.5, 0, 0, 84),
+		Size = UDim2.fromOffset(480, 300),
 		BackgroundTransparency = 1,
 		ZIndex = 50,
 		Parent = gui,

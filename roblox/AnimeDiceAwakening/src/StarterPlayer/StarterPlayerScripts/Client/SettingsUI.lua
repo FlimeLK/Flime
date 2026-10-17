@@ -25,7 +25,7 @@ local function refresh()
 end
 
 function SettingsUI.Init(gui)
-	local panel, content = UIKit.Panel(gui, "Settings", "⚙️ Settings")
+	local panel, content = UIKit.Panel(gui, "Settings", "⚙️ Settings", Color3.fromRGB(110, 110, 150))
 	Hud.RegisterPanel("Settings", panel)
 	UIKit.Create("UIListLayout", { Padding = UDim.new(0, 10), SortOrder = Enum.SortOrder.LayoutOrder, Parent = content })
 

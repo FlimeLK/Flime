@@ -132,7 +132,7 @@ local expected = 0
 for _, event in fx do
 	local hero = data.heroes[data.team[event[2]]]
 	local heroDef = HeroConfig.Heroes[hero.id]
-	expected += GameMath.GetHeroDamage(heroDef, hero.level)
+	expected += GameMath.GetHeroDamage(heroDef, hero.level, hero.awakened)
 end
 check(math.abs((genin.def.health - genin.health) - expected) < 1e-6, "damage matches formula")
 

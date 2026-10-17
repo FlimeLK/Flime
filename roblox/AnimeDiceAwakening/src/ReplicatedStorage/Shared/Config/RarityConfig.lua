@@ -5,6 +5,7 @@
 -- maxLevel      — максимальний рівень через злиття дублікатів
 -- autoLock      — герой одразу блокується від випадкового продажу
 -- aura / light  — візуальні ефекти героя на базі
+-- awakenCost    — ціна пробудження в Crystals (герой має бути максимального рівня)
 
 local RarityConfig = {}
 
@@ -17,6 +18,7 @@ RarityConfig.Info = {
 		luckAffected = false,
 		sellPrice = 5,
 		maxLevel = 10,
+		awakenCost = 5,
 		autoLock = false,
 		aura = false,
 		light = false,
@@ -27,6 +29,7 @@ RarityConfig.Info = {
 		luckAffected = true,
 		sellPrice = 20,
 		maxLevel = 15,
+		awakenCost = 10,
 		autoLock = false,
 		aura = false,
 		light = false,
@@ -37,6 +40,7 @@ RarityConfig.Info = {
 		luckAffected = true,
 		sellPrice = 75,
 		maxLevel = 20,
+		awakenCost = 25,
 		autoLock = false,
 		aura = true,
 		light = false,
@@ -47,6 +51,7 @@ RarityConfig.Info = {
 		luckAffected = true,
 		sellPrice = 300,
 		maxLevel = 25,
+		awakenCost = 60,
 		autoLock = true,
 		aura = true,
 		light = false,
@@ -57,6 +62,7 @@ RarityConfig.Info = {
 		luckAffected = true,
 		sellPrice = 1500,
 		maxLevel = 30,
+		awakenCost = 150,
 		autoLock = true,
 		aura = true,
 		light = true,
@@ -67,6 +73,7 @@ RarityConfig.Info = {
 		luckAffected = true,
 		sellPrice = 10000,
 		maxLevel = 40,
+		awakenCost = 400,
 		autoLock = true,
 		aura = true,
 		light = true,

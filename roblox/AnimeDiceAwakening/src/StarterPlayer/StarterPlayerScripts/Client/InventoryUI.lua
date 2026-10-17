@@ -51,7 +51,7 @@ local function getSortedHeroes(data)
 				hero = hero,
 				def = heroDef,
 				rank = RarityConfig.GetRank(heroDef.rarity),
-				income = GameMath.GetHeroIncome(heroDef, hero.level, data.incomeLevel),
+				income = GameMath.GetHeroIncome(heroDef, hero.level, data.incomeLevel, hero.awakened),
 				number = tonumber(string.sub(uid, 2)) or 0,
 			})
 		end
@@ -114,19 +114,18 @@ local function makeCard(entry, placed, order)
 		Text = "",
 		Parent = ui.grid,
 	})
-	UIKit.Corner(card, 10)
-	local stroke = UIKit.Stroke(card, color, if entry.uid == selectedUid then 4 else 2)
-	if entry.uid == selectedUid then
-		stroke.Color = Color3.new(1, 1, 1)
-	end
+	UIKit.Corner(card, 12)
+	UIKit.Shade(card, 0.3)
+	local selected = entry.uid == selectedUid
+	UIKit.Stroke(card, if selected then Color3.new(1, 1, 1) elseif entry.hero.awakened then UIKit.Colors.Gold else color, if selected then 4 else 3)
 
 	UIKit.Label({
 		Position = UDim2.fromOffset(4, 4),
 		Size = UDim2.new(1, -8, 0, 38),
 		Font = UIKit.Font,
 		TextSize = 15,
-		TextColor3 = color,
-		Text = entry.def.name,
+		TextColor3 = if entry.hero.awakened then UIKit.Colors.Gold else color,
+		Text = (if entry.hero.awakened then "✨" else "") .. GameMath.GetHeroName(entry.def, entry.hero.awakened),
 		Parent = card,
 	})
 	UIKit.Label({
@@ -166,17 +165,17 @@ local function refreshDetails(data, placed)
 	local rarityInfo = RarityConfig.Info[heroDef.rarity]
 	local isPlaced = placed[selectedUid] == true
 	ui.detailText.Text = ("<font color=\"#%s\"><b>%s</b> (%s)</font>\n%s %s • %s • Lv %d/%d\n⚔️ %s  ⏱ %.1f/s  🪙 +%s/s\n✦ %s: %s"):format(
-		rarityInfo.color:ToHex(),
-		heroDef.name,
+		(if hero.awakened then UIKit.Colors.Gold else rarityInfo.color):ToHex(),
+		(if hero.awakened then "✨ " else "") .. GameMath.GetHeroName(heroDef, hero.awakened),
 		heroDef.rarity,
 		HeroConfig.ElementIcons[heroDef.element] or "",
 		heroDef.element,
 		heroDef.archetype,
 		hero.level,
 		rarityInfo.maxLevel,
-		GameMath.FormatNumber(GameMath.GetHeroDamage(heroDef, hero.level)),
+		GameMath.FormatNumber(GameMath.GetHeroDamage(heroDef, hero.level, hero.awakened)),
 		heroDef.attackSpeed,
-		GameMath.FormatNumber(GameMath.GetHeroIncome(heroDef, hero.level, data.incomeLevel)),
+		GameMath.FormatNumber(GameMath.GetHeroIncome(heroDef, hero.level, data.incomeLevel, hero.awakened)),
 		heroDef.ability.name,
 		heroDef.ability.description
 	)
@@ -190,6 +189,15 @@ local function refreshDetails(data, placed)
 	local canSell = not hero.locked and not isPlaced and not GameMath.IsInTeam(data, selectedUid)
 	ui.sellButton.Text = "💰 Sell " .. GameMath.FormatNumber(GameMath.GetSellPrice(heroDef, hero.level))
 	ui.sellButton.BackgroundColor3 = if canSell then UIKit.Colors.Gold:Lerp(UIKit.Colors.Danger, 0.3) else UIKit.Colors.Disabled
+
+	local canAwaken, _, cost = GameMath.CanAwaken(heroDef, hero)
+	if hero.awakened then
+		ui.awakenButton.Text = "✨ Пробуджено"
+		ui.awakenButton.BackgroundColor3 = UIKit.Colors.Disabled
+	else
+		ui.awakenButton.Text = ("✨ Awaken %d💎"):format(cost)
+		ui.awakenButton.BackgroundColor3 = if canAwaken and ClientState.Crystals >= cost then UIKit.Colors.Gold else UIKit.Colors.Disabled
+	end
 end
 
 function refreshAll()
@@ -219,7 +227,7 @@ function refreshAll()
 end
 
 local function buildPanel(gui)
-	local panel, content = UIKit.Panel(gui, "Inventory", "🎒 Inventory")
+	local panel, content = UIKit.Panel(gui, "Inventory", "🎒 Backpack", Color3.fromRGB(135, 85, 255))
 	ui.panel = panel
 	Hud.RegisterPanel("Inventory", panel)
 	panel:GetPropertyChangedSignal("Visible"):Connect(function()
@@ -308,7 +316,7 @@ local function buildPanel(gui)
 	ui.details = UIKit.Create("Frame", { Size = UDim2.fromScale(1, 1), BackgroundTransparency = 1, Parent = bottom })
 	ui.detailText = UIKit.Label({
 		Position = UDim2.fromOffset(10, 4),
-		Size = UDim2.new(1, -310, 1, -8),
+		Size = UDim2.new(1, -456, 1, -8),
 		TextSize = 14,
 		RichText = true,
 		TextXAlignment = Enum.TextXAlignment.Left,
@@ -318,12 +326,12 @@ local function buildPanel(gui)
 	local actions = UIKit.Create("Frame", {
 		AnchorPoint = Vector2.new(1, 0.5),
 		Position = UDim2.new(1, -8, 0.5, 0),
-		Size = UDim2.fromOffset(290, 92),
+		Size = UDim2.fromOffset(440, 92),
 		BackgroundTransparency = 1,
 		Parent = ui.details,
 	})
 	UIKit.Create("UIGridLayout", {
-		CellSize = UDim2.fromOffset(141, 43),
+		CellSize = UDim2.fromOffset(140, 43),
 		CellPadding = UDim2.fromOffset(8, 6),
 		SortOrder = Enum.SortOrder.LayoutOrder,
 		Parent = actions,
@@ -352,6 +360,12 @@ local function buildPanel(gui)
 	ui.sellButton = actionButton(4, function()
 		if selectedUid then
 			request("Sell", selectedUid)
+		end
+	end)
+	-- Пробудження: герой максимального рівня + кристали
+	ui.awakenButton = actionButton(5, function()
+		if selectedUid then
+			request("Awaken", selectedUid)
 		end
 	end)
 end

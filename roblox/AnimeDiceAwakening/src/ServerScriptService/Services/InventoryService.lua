@@ -130,7 +130,7 @@ function heroActions.Merge(player, data, uid, hero, heroDef)
 	end
 	local fodderUid, fodderLevel = nil, math.huge
 	for otherUid, other in data.heroes do
-		if otherUid ~= uid and other.id == hero.id and not other.locked and not GameMath.IsInTeam(data, otherUid) and not findSlot(data, otherUid) then
+		if otherUid ~= uid and other.id == hero.id and not other.locked and not other.awakened and not GameMath.IsInTeam(data, otherUid) and not findSlot(data, otherUid) then
 			if other.level < fodderLevel then
 				fodderUid, fodderLevel = otherUid, other.level
 			end
@@ -145,12 +145,28 @@ function heroActions.Merge(player, data, uid, hero, heroDef)
 	return true, ("%s тепер рівня %d!"):format(heroDef.name, hero.level)
 end
 
+-- Пробудження: герой максимального рівня + Crystals -> пробуджена форма
+-- (нове ім'я, множник шкоди й доходу, особлива аура).
+function heroActions.Awaken(player, data, _uid, hero, heroDef)
+	local canAwaken, reason, cost = GameMath.CanAwaken(heroDef, hero)
+	if not canAwaken then
+		return false, reason
+	end
+	if not DataService.SpendCrystals(player, cost) then
+		return false, ("Потрібно %d 💎"):format(cost)
+	end
+	hero.awakened = true
+	hero.locked = true -- пробуджених героїв захищаємо від продажу
+	QuestService.Track(player, "awaken")
+	return true, ("✨ %s пробуджується! Сила ×%s"):format(heroDef.awakened.name, tostring(heroDef.awakened.multiplier))
+end
+
 local function equipBest(player, data)
 	local list = {}
 	for uid, hero in data.heroes do
 		local heroDef = HeroConfig.Heroes[hero.id]
 		if heroDef and not GameMath.IsInTeam(data, uid) then
-			table.insert(list, { uid = uid, income = GameMath.GetHeroIncome(heroDef, hero.level, data.incomeLevel) })
+			table.insert(list, { uid = uid, income = GameMath.GetHeroIncome(heroDef, hero.level, data.incomeLevel, hero.awakened) })
 		end
 	end
 	if #list == 0 then

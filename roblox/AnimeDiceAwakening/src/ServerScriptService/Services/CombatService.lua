@@ -143,7 +143,7 @@ local function stepPlayer(player, state, dt, fx)
 			state.cooldowns[slot] -= dt
 			if state.cooldowns[slot] <= 0 then
 				state.cooldowns[slot] = math.max(state.cooldowns[slot] + 1 / heroDef.attackSpeed, 0)
-				local damage = GameMath.GetHeroDamage(heroDef, hero.level)
+				local damage = GameMath.GetHeroDamage(heroDef, hero.level, hero.awakened)
 				local killed = EnemyService.ApplyDamage(enemy.id, player, damage)
 				table.insert(fx, { player.UserId, slot, enemy.id, math.floor(damage + 0.5) })
 				if killed then

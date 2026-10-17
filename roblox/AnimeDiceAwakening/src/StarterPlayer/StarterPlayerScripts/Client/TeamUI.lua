@@ -32,7 +32,7 @@ local function request(action, uid)
 end
 
 local function heroLine(heroDef, hero)
-	return ("Lv %d • ⚔️ %s/s"):format(hero.level, GameMath.FormatNumber(math.floor(GameMath.GetHeroDps(heroDef, hero.level))))
+	return ("Lv %d • ⚔️ %s/s"):format(hero.level, GameMath.FormatNumber(math.floor(GameMath.GetHeroDps(heroDef, hero.level, hero.awakened))))
 end
 
 local function refreshSlots(data)
@@ -69,7 +69,7 @@ local function refreshGrid(data)
 	for uid, hero in data.heroes do
 		local heroDef = HeroConfig.Heroes[hero.id]
 		if heroDef then
-			table.insert(list, { uid = uid, hero = hero, def = heroDef, dps = GameMath.GetHeroDps(heroDef, hero.level) })
+			table.insert(list, { uid = uid, hero = hero, def = heroDef, dps = GameMath.GetHeroDps(heroDef, hero.level, hero.awakened) })
 		end
 	end
 	table.sort(list, function(a, b)
@@ -135,7 +135,7 @@ local function refresh()
 end
 
 function TeamUI.Init(gui)
-	local panel, content = UIKit.Panel(gui, "Team", "⚔️ Team")
+	local panel, content = UIKit.Panel(gui, "Team", "⚔️ Team", Color3.fromRGB(255, 120, 60))
 	ui.panel = panel
 	Hud.RegisterPanel("Team", panel)
 	panel:GetPropertyChangedSignal("Visible"):Connect(function()

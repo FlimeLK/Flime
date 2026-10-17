@@ -20,6 +20,7 @@ local CombatService = require(Services.CombatService)
 local WorldService = require(Services.WorldService)
 local QuestService = require(Services.QuestService)
 local ShopService = require(Services.ShopService)
+local RebirthService = require(Services.RebirthService)
 
 DataService.Init()
 PlotService.Init()
@@ -33,6 +34,7 @@ CombatService.Init()
 WorldService.Init() -- після PlotService: підключає портали лобі
 QuestService.Init()
 ShopService.Init()
+RebirthService.Init()
 
 local function onPlayerAdded(player)
 	WorldService.SetupPlayer(player)

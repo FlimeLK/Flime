@@ -242,7 +242,7 @@ local function refresh()
 	if not data then
 		return
 	end
-	Hud.SetBadge("Quests", countClaimable(data) > 0)
+	Hud.SetBadge("Quests", countClaimable(data))
 	if not ui.panel.Visible then
 		return
 	end
@@ -373,7 +373,7 @@ local function buildCollectionBody(content)
 end
 
 function QuestsUI.Init(gui)
-	local panel, content = UIKit.Panel(gui, "Quests", "📜 Quests")
+	local panel, content = UIKit.Panel(gui, "Quests", "📜 Quests", Color3.fromRGB(255, 150, 40))
 	ui.panel = panel
 	Hud.RegisterPanel("Quests", panel)
 
@@ -396,6 +396,22 @@ function QuestsUI.Init(gui)
 	buildQuestsBody(content)
 	buildCollectionBody(content)
 	selectTab("Quests")
+
+	-- 📜 Quests і 📖 Index відкривають одне вікно на різних вкладках
+	local function openTab(tab)
+		if panel.Visible and activeTab == tab then
+			panel.Visible = false
+		else
+			Hud.OpenPanel("Quests")
+			selectTab(tab)
+		end
+	end
+	Hud.SetAction("Quests", function()
+		openTab("Quests")
+	end)
+	Hud.SetAction("Index", function()
+		openTab("Collection")
+	end)
 
 	panel:GetPropertyChangedSignal("Visible"):Connect(refresh)
 	ClientState.OnDataChanged(refresh)

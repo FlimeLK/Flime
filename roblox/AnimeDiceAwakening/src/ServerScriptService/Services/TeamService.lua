@@ -72,7 +72,7 @@ local function bestTeam(data)
 	for uid, hero in data.heroes do
 		local heroDef = HeroConfig.Heroes[hero.id]
 		if heroDef and not GameMath.IsOnBase(data, uid) then
-			table.insert(list, { uid = uid, dps = GameMath.GetHeroDps(heroDef, hero.level) })
+			table.insert(list, { uid = uid, dps = GameMath.GetHeroDps(heroDef, hero.level, hero.awakened) })
 		end
 	end
 	if #list == 0 then
@@ -97,13 +97,13 @@ local function clearTeam(data)
 	return true, "Команду розпущено"
 end
 
--- "riku_windstep:3;;seren_starblade:1"
+-- "riku_windstep:3;;seren_starblade:1:A" (":A" — пробуджений)
 function TeamService.Encode(data)
 	local parts = {}
 	for i = 1, CombatConfig.TeamSize do
 		local uid = data.team[i]
 		local hero = uid ~= "" and data.heroes[uid]
-		parts[i] = if hero then hero.id .. ":" .. hero.level else ""
+		parts[i] = if hero then hero.id .. ":" .. hero.level .. (if hero.awakened then ":A" else "") else ""
 	end
 	return table.concat(parts, ";")
 end

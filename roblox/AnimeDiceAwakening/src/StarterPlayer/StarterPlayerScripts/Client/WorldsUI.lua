@@ -105,7 +105,7 @@ local function addRow(content, order, worldId, title, subtitle, color, available
 end
 
 function WorldsUI.Init(gui)
-	local panel, content = UIKit.Panel(gui, "Worlds", "🌍 Worlds")
+	local panel, content = UIKit.Panel(gui, "Worlds", "🌍 Worlds", Color3.fromRGB(255, 185, 40))
 	Hud.RegisterPanel("Worlds", panel)
 	UIKit.Create("UIListLayout", { Padding = UDim.new(0, 6), SortOrder = Enum.SortOrder.LayoutOrder, Parent = content })
 

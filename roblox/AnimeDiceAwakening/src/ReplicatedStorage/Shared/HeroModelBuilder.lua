@@ -64,7 +64,34 @@ local ACCESSORIES = {
 	end,
 }
 
-local function addNameplate(model, head, heroDef, level, infoText)
+local AWAKEN_COLOR = Color3.fromRGB(255, 215, 90)
+
+-- Пробуджена форма: золотий німб над головою, сяйво й світло
+local function addAwakenedAura(model, torso, top, s)
+	addPart(model, "Halo", Vector3.new(0.25, 2.4, 2.4) * s, CFrame.new(0, top + 2.3 * s, 0) * CFrame.Angles(0, 0, math.rad(90)), AWAKEN_COLOR, Enum.Material.Neon, Enum.PartType.Cylinder)
+	local emitter = Instance.new("ParticleEmitter")
+	emitter.Name = "AwakenAura"
+	emitter.Color = ColorSequence.new(AWAKEN_COLOR, Color3.new(1, 1, 1))
+	emitter.LightEmission = 1
+	emitter.Size = NumberSequence.new({ NumberSequenceKeypoint.new(0, 1), NumberSequenceKeypoint.new(1, 0) })
+	emitter.Transparency = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0.1), NumberSequenceKeypoint.new(1, 1) })
+	emitter.Lifetime = NumberRange.new(0.8, 1.2)
+	emitter.Speed = NumberRange.new(2, 4)
+	emitter.SpreadAngle = Vector2.new(30, 30)
+	emitter.EmissionDirection = Enum.NormalId.Top
+	emitter.Rate = 40
+	emitter.Parent = torso
+	CollectionService:AddTag(emitter, HeroModelBuilder.AURA_TAG)
+	local light = Instance.new("PointLight")
+	light.Name = "AwakenLight"
+	light.Color = AWAKEN_COLOR
+	light.Range = 14
+	light.Brightness = 2.5
+	light.Parent = torso
+	CollectionService:AddTag(light, HeroModelBuilder.AURA_TAG)
+end
+
+local function addNameplate(model, head, heroDef, level, infoText, awakened)
 	local billboard = Instance.new("BillboardGui")
 	billboard.Name = "Nameplate"
 	billboard.Size = UDim2.fromOffset(220, 56)
@@ -78,8 +105,8 @@ local function addNameplate(model, head, heroDef, level, infoText)
 	nameLabel.BackgroundTransparency = 1
 	nameLabel.Font = Enum.Font.FredokaOne
 	nameLabel.TextScaled = true
-	nameLabel.Text = heroDef.name
-	nameLabel.TextColor3 = RarityConfig.GetColor(heroDef.rarity)
+	nameLabel.Text = if awakened then "✨ " .. heroDef.awakened.name else heroDef.name
+	nameLabel.TextColor3 = if awakened then AWAKEN_COLOR else RarityConfig.GetColor(heroDef.rarity)
 	nameLabel.TextStrokeTransparency = 0.3
 	nameLabel.Parent = billboard
 
@@ -124,7 +151,8 @@ local function addAura(model, torso, rarity)
 end
 
 -- infoText — другий рядок над героєм, напр. "+5/s" на базі або "⚔️ 40" у бою.
-function HeroModelBuilder.Build(heroDef, level, infoText)
+-- awakened — пробуджена форма (німб, золоте сяйво, нове ім'я).
+function HeroModelBuilder.Build(heroDef, level, infoText, awakened)
 	local model = Instance.new("Model")
 	model.Name = heroDef.id
 
@@ -148,8 +176,11 @@ function HeroModelBuilder.Build(heroDef, level, infoText)
 		accessory(model, s, accent, shoulder)
 	end
 
-	addNameplate(model, head, heroDef, level, infoText)
+	addNameplate(model, head, heroDef, level, infoText, awakened)
 	addAura(model, torso, heroDef.rarity)
+	if awakened then
+		addAwakenedAura(model, torso, shoulder, s)
+	end
 
 	model.PrimaryPart = torso
 	model.WorldPivot = CFrame.new() -- точка опори = ноги

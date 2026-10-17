@@ -74,6 +74,7 @@ local function makeTemplate()
 		inventoryBonus = 0, -- додаткові місця в інвентарі
 		worldKills = {}, -- [worldId] = перемог у цьому світі (для зон)
 		bossKills = {}, -- [enemyId боса] = скільки разів переможено (відкриває світи й кубики)
+		rebirths = 0,
 		lastSeen = 0,
 	}
 end
@@ -107,6 +108,7 @@ local function sanitize(data)
 	data.slotCount = math.clamp(math.floor(data.slotCount), EconomyConfig.StartSlots, EconomyConfig.MaxSlots)
 	data.coins = math.max(0, math.floor(data.coins))
 	data.crystals = math.max(0, math.floor(data.crystals))
+	data.rebirths = math.max(0, math.floor(data.rebirths))
 	data.quests.main = math.clamp(math.floor(data.quests.main), 1, #QuestConfig.Main + 1)
 	-- Міграція з етапу 3: тоді всі перемоги були в Ninja Village, а єдиним босом був Oni.
 	if data.worldKills.NinjaVillage == nil then
@@ -118,6 +120,7 @@ local function sanitize(data)
 	for _, hero in data.heroes do
 		hero.level = math.max(1, math.floor(tonumber(hero.level) or 1))
 		hero.locked = hero.locked == true
+		hero.awakened = hero.awakened == true
 	end
 	local seen = {}
 	for i = 1, EconomyConfig.MaxSlots do

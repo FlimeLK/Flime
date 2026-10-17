@@ -18,6 +18,7 @@ local DEFINITIONS = {
 	Travel = "RemoteFunction", -- (worldId) -> { ok, message }
 	QuestAction = "RemoteFunction", -- (action, arg) -> { ok, message }
 	BuyShopItem = "RemoteFunction", -- (itemId) -> { ok, message }
+	Rebirth = "RemoteFunction", -- () -> { ok, message }
 	-- Сервер -> клієнт
 	DataSync = "RemoteEvent", -- повні дані гравця
 	Notify = "RemoteEvent", -- (text, kind) спливаюче повідомлення

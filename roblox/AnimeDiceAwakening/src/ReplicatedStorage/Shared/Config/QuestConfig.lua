@@ -25,6 +25,8 @@ QuestConfig.Main = {
 	{ id = "collector2", title = "Колекціонер II", description = "Відкрий 15 різних героїв", metric = "discovered", target = 15, reward = { crystals = 20 } },
 	{ id = "dock", title = "Причал капітана", description = "60 перемог на острові — відкриється Captain's Dock", metric = "kills:PirateIsland", target = 60, reward = { crystals = 15 } },
 	{ id = "sea_terror", title = "Гроза морів", description = "Переможи Captain Blackwake — відкриється Tidal Dice", metric = "boss:captain_blackwake", target = 1, reward = { crystals = 60 } },
+	{ id = "awakening", title = "Пробудження", description = "Пробуди героя: максимальний рівень + 💎 (Backpack → Awaken)", metric = "awakenedHeroes", target = 1, reward = { crystals = 30 } },
+	{ id = "rebirth", title = "Новий початок", description = "Зроби перший ♻️ Rebirth", metric = "rebirths", target = 1, reward = { crystals = 50 } },
 }
 
 QuestConfig.DailyPool = {

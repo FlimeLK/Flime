@@ -123,7 +123,7 @@ local function update()
 	ui.target.frame.Visible = showTarget
 	-- Смуги стоять під верхньою панеллю валют (з урахуванням масштабу екрана)
 	local scale = ui.boss.scale.Scale
-	local top = 8 + 60 * scale
+	local top = 8 + 78 * scale -- під верхніми кнопками Worlds / Home / Shop
 	ui.boss.frame.Position = UDim2.new(0.5, 0, 0, top)
 	ui.target.frame.Position = UDim2.new(0.5, 0, 0, if bossVisible then top + 56 * scale else top)
 	if showTarget then
