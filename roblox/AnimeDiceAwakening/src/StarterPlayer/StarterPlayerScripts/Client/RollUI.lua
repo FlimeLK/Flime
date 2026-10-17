@@ -12,6 +12,7 @@ local HeroConfig = require(Config:WaitForChild("HeroConfig"))
 local RarityConfig = require(Config:WaitForChild("RarityConfig"))
 local GameMath = require(Shared:WaitForChild("GameMath"))
 local HeroModelBuilder = require(Shared:WaitForChild("HeroModelBuilder"))
+local AssetConfig = require(Config:WaitForChild("AssetConfig"))
 
 local Client = script.Parent
 local UIKit = require(Client:WaitForChild("UIKit"))
@@ -147,6 +148,14 @@ local function buildOverlay(gui)
 		LightDirection = Vector3.new(-0.4, -1, 0.6),
 		Parent = holder,
 	})
+	local portrait = UIKit.Create("ImageLabel", {
+		Name = "Portrait",
+		Size = UDim2.fromScale(1, 1),
+		BackgroundTransparency = 1,
+		ScaleType = Enum.ScaleType.Fit,
+		Visible = false,
+		Parent = holder,
+	})
 	local camera = Instance.new("Camera")
 	camera.FieldOfView = 40
 	camera.Parent = viewport
@@ -266,6 +275,7 @@ local function buildOverlay(gui)
 		holder = holder,
 		pop = pop,
 		viewport = viewport,
+		portrait = portrait,
 		camera = camera,
 		model = nil,
 		glints = glints,
@@ -300,6 +310,14 @@ local function showHero(heroDef, awakened)
 	if o.model then
 		o.model:Destroy()
 		o.model = nil
+	end
+	-- Якщо для героя підключено портрет — показуємо його замість 3D-моделі
+	local portrait = AssetConfig.GetPortrait(heroDef.id)
+	o.portrait.Visible = portrait ~= nil
+	o.viewport.Visible = portrait == nil
+	if portrait then
+		o.portrait.Image = portrait
+		return
 	end
 	local model = HeroModelBuilder.Build(heroDef, 1, "", awakened)
 	local nameplate = model:FindFirstChild("Nameplate")

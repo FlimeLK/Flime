@@ -90,6 +90,7 @@ local function refreshGrid(data)
 			Parent = ui.grid,
 		})
 		UIKit.Corner(card, 10)
+		UIKit.HeroPortrait(card, entry.def.id)
 		UIKit.Stroke(card, if inTeam then Color3.new(1, 1, 1) else color, if inTeam then 3 else 2)
 		UIKit.Label({
 			Position = UDim2.fromOffset(4, 4),

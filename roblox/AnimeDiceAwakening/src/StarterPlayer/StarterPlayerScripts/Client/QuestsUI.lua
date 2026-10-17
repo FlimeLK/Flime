@@ -214,6 +214,11 @@ local function refreshCollection(data)
 			Parent = ui.collectionGrid,
 		})
 		UIKit.Corner(cell, 10)
+		-- Невідомий герой — темний силует портрета
+		local portrait = UIKit.HeroPortrait(cell, heroDef.id, if known then 0.35 else 0.85)
+		if portrait and not known then
+			portrait.ImageColor3 = Color3.new(0, 0, 0)
+		end
 		UIKit.Stroke(cell, if known then color else UIKit.Colors.Disabled, 2)
 		UIKit.Label({
 			Position = UDim2.fromOffset(4, 4),

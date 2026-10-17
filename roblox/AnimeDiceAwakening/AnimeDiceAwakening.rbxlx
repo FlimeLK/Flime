@@ -83,6 +83,39 @@ AssetConfig.Fallback = {
 	BigBag = "🎒",
 }
 
+-- Портрети героїв (картинка, яка показується під час кидка, у Backpack, Team та Index).
+-- Використовуй лише картинки, на які маєш права: власний арт, куплений арт-пак
+-- або безкоштовний пак, що дозволяє використання в іграх. Порожньо — показується 3D-модель.
+AssetConfig.HeroPortraits = {
+	riku_windstep = "", -- Riku Windstep (Common)
+	tomo_deckhand = "", -- Tomo the Deckhand (Common)
+	hana_emberling = "", -- Hana Emberling (Common)
+	zen_cadet = "", -- Zen Star Cadet (Common)
+	shiro_quickblade = "", -- Shiro Quickblade (Rare)
+	kaito_saltfang = "", -- Kaito Saltfang (Rare)
+	mira_cinderveil = "", -- Mira Cinderveil (Rare)
+	yoru_lantern = "", -- Yoru Lanternbearer (Rare)
+	akane_crimsonfan = "", -- Akane Crimson Fan (Epic)
+	raizo_thunderstep = "", -- Raizo Thunderstep (Epic)
+	nox_hollowhunter = "", -- Nox Hollowhunter (Epic)
+	coral_vex = "", -- Captain Coral Vex (Epic)
+	seren_starblade = "", -- Seren Starblade (Legendary)
+	kuro_moonreaper = "", -- Kuro Moonreaper (Legendary)
+	homura_ashcrown = "", -- Homura Ashcrown (Legendary)
+	ryo_skybolt = "", -- Ryo Skybolt (Legendary)
+	marisol_tidecaller = "", -- Marisol Tidecaller (Legendary)
+	rin_hellbane = "", -- Rin Hellbane (Legendary)
+	astra_novaempress = "", -- Astra, Nova Empress (Mythic)
+	gekko_voidshinobi = "", -- Gekko the Void Shinobi (Mythic)
+	volta_stormcaptain = "", -- Storm Captain Volta (Mythic)
+	ifra_phoenixsaint = "", -- Ifra, Phoenix Saint (Mythic)
+	kaizen_deepcrown = "", -- Admiral Kaizen Deepcrown (Mythic)
+	kagura_duskblade = "", -- Kagura Duskblade (Mythic)
+	solenne_eclipse = "", -- Solenne, Eclipse Sovereign (Secret)
+	mugen_dicegod = "", -- Mugen, the Dice God (Secret)
+	vael_abyssal = "", -- Vael, Abyssal Emperor (Secret)
+}
+
 AssetConfig.Sounds = {
 	Click = "", -- натискання кнопки
 	RollTick = "", -- кожна зміна героя під час прокрутки
@@ -116,6 +149,10 @@ end
 -- Повна адреса картинки або nil, якщо її ще не підключено.
 function AssetConfig.GetImage(key)
 	return normalize(AssetConfig.Icons[key])
+end
+
+function AssetConfig.GetPortrait(heroId)
+	return normalize(AssetConfig.HeroPortraits[heroId])
 end
 
 function AssetConfig.GetSound(key)
@@ -6458,6 +6495,7 @@ local function makeCard(entry, placed, order)
 	})
 	UIKit.Corner(card, 12)
 	UIKit.Shade(card, 0.3)
+	UIKit.HeroPortrait(card, entry.def.id)
 	local selected = entry.uid == selectedUid
 	UIKit.Stroke(card, if selected then Color3.new(1, 1, 1) elseif entry.hero.awakened then UIKit.Colors.Gold else color, if selected then 4 else 3)
 
@@ -6942,6 +6980,11 @@ local function refreshCollection(data)
 			Parent = ui.collectionGrid,
 		})
 		UIKit.Corner(cell, 10)
+		-- Невідомий герой — темний силует портрета
+		local portrait = UIKit.HeroPortrait(cell, heroDef.id, if known then 0.35 else 0.85)
+		if portrait and not known then
+			portrait.ImageColor3 = Color3.new(0, 0, 0)
+		end
 		UIKit.Stroke(cell, if known then color else UIKit.Colors.Disabled, 2)
 		UIKit.Label({
 			Position = UDim2.fromOffset(4, 4),
@@ -7339,6 +7382,7 @@ local HeroConfig = require(Config:WaitForChild("HeroConfig"))
 local RarityConfig = require(Config:WaitForChild("RarityConfig"))
 local GameMath = require(Shared:WaitForChild("GameMath"))
 local HeroModelBuilder = require(Shared:WaitForChild("HeroModelBuilder"))
+local AssetConfig = require(Config:WaitForChild("AssetConfig"))
 
 local Client = script.Parent
 local UIKit = require(Client:WaitForChild("UIKit"))
@@ -7474,6 +7518,14 @@ local function buildOverlay(gui)
 		LightDirection = Vector3.new(-0.4, -1, 0.6),
 		Parent = holder,
 	})
+	local portrait = UIKit.Create("ImageLabel", {
+		Name = "Portrait",
+		Size = UDim2.fromScale(1, 1),
+		BackgroundTransparency = 1,
+		ScaleType = Enum.ScaleType.Fit,
+		Visible = false,
+		Parent = holder,
+	})
 	local camera = Instance.new("Camera")
 	camera.FieldOfView = 40
 	camera.Parent = viewport
@@ -7593,6 +7645,7 @@ local function buildOverlay(gui)
 		holder = holder,
 		pop = pop,
 		viewport = viewport,
+		portrait = portrait,
 		camera = camera,
 		model = nil,
 		glints = glints,
@@ -7627,6 +7680,14 @@ local function showHero(heroDef, awakened)
 	if o.model then
 		o.model:Destroy()
 		o.model = nil
+	end
+	-- Якщо для героя підключено портрет — показуємо його замість 3D-моделі
+	local portrait = AssetConfig.GetPortrait(heroDef.id)
+	o.portrait.Visible = portrait ~= nil
+	o.viewport.Visible = portrait == nil
+	if portrait then
+		o.portrait.Image = portrait
+		return
 	end
 	local model = HeroModelBuilder.Build(heroDef, 1, "", awakened)
 	local nameplate = model:FindFirstChild("Nameplate")
@@ -8299,6 +8360,7 @@ local function refreshGrid(data)
 			Parent = ui.grid,
 		})
 		UIKit.Corner(card, 10)
+		UIKit.HeroPortrait(card, entry.def.id)
 		UIKit.Stroke(card, if inTeam then Color3.new(1, 1, 1) else color, if inTeam then 3 else 2)
 		UIKit.Label({
 			Position = UDim2.fromOffset(4, 4),
@@ -8645,6 +8707,27 @@ function UIKit.Icon(props)
 	end
 	icon.Parent = props.Parent
 	return icon
+end
+
+-- Портрет героя як фон картки (якщо підключено в AssetConfig.HeroPortraits).
+-- Повертає ImageLabel або nil.
+function UIKit.HeroPortrait(parent, heroId, transparency)
+	local image = AssetConfig.GetPortrait(heroId)
+	if not image then
+		return nil
+	end
+	local portrait = UIKit.Create("ImageLabel", {
+		Name = "Portrait",
+		Size = UDim2.fromScale(1, 1),
+		BackgroundTransparency = 1,
+		Image = image,
+		ImageTransparency = transparency or 0.35,
+		ScaleType = Enum.ScaleType.Crop,
+		ZIndex = 0,
+		Parent = parent,
+	})
+	UIKit.Corner(portrait, 12)
+	return portrait
 end
 
 -- Змінити іконку вже створеного елемента (наприклад, значок кубика на ROLL).

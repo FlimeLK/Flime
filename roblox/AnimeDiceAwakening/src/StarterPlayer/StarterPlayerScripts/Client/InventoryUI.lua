@@ -116,6 +116,7 @@ local function makeCard(entry, placed, order)
 	})
 	UIKit.Corner(card, 12)
 	UIKit.Shade(card, 0.3)
+	UIKit.HeroPortrait(card, entry.def.id)
 	local selected = entry.uid == selectedUid
 	UIKit.Stroke(card, if selected then Color3.new(1, 1, 1) elseif entry.hero.awakened then UIKit.Colors.Gold else color, if selected then 4 else 3)
 

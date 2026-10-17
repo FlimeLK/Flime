@@ -176,6 +176,27 @@ function UIKit.Icon(props)
 	return icon
 end
 
+-- Портрет героя як фон картки (якщо підключено в AssetConfig.HeroPortraits).
+-- Повертає ImageLabel або nil.
+function UIKit.HeroPortrait(parent, heroId, transparency)
+	local image = AssetConfig.GetPortrait(heroId)
+	if not image then
+		return nil
+	end
+	local portrait = UIKit.Create("ImageLabel", {
+		Name = "Portrait",
+		Size = UDim2.fromScale(1, 1),
+		BackgroundTransparency = 1,
+		Image = image,
+		ImageTransparency = transparency or 0.35,
+		ScaleType = Enum.ScaleType.Crop,
+		ZIndex = 0,
+		Parent = parent,
+	})
+	UIKit.Corner(portrait, 12)
+	return portrait
+end
+
 -- Змінити іконку вже створеного елемента (наприклад, значок кубика на ROLL).
 -- Якщо підключена картинка — лишаємо її, емодзі міняємо.
 function UIKit.SetIconEmoji(icon, emoji)

@@ -96,6 +96,16 @@ end
 check(data.worldKills.DemonCity == before + 1, "city kill counted for DemonCity")
 check(GameMath.GetMetric(data, "kills:DemonCity") == before + 1, "city kill metric")
 
+-- Portrait slots exist for every hero and only for real heroes
+local AssetConfig = R(Shared.Config.AssetConfig)
+for _, heroDef in HeroConfig.List do
+	check(AssetConfig.HeroPortraits[heroDef.id] ~= nil, "portrait slot for " .. heroDef.id)
+end
+for heroId in AssetConfig.HeroPortraits do
+	check(HeroConfig.Heroes[heroId] ~= nil, "portrait slot matches hero " .. heroId)
+end
+check(AssetConfig.GetPortrait("riku_windstep") == nil, "empty portrait -> 3D model")
+
 print(("demon city passed=%d failed=%d"):format(passed, failed))
 if failed > 0 then
 	error("tests failed")

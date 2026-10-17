@@ -61,6 +61,39 @@ AssetConfig.Fallback = {
 	BigBag = "🎒",
 }
 
+-- Портрети героїв (картинка, яка показується під час кидка, у Backpack, Team та Index).
+-- Використовуй лише картинки, на які маєш права: власний арт, куплений арт-пак
+-- або безкоштовний пак, що дозволяє використання в іграх. Порожньо — показується 3D-модель.
+AssetConfig.HeroPortraits = {
+	riku_windstep = "", -- Riku Windstep (Common)
+	tomo_deckhand = "", -- Tomo the Deckhand (Common)
+	hana_emberling = "", -- Hana Emberling (Common)
+	zen_cadet = "", -- Zen Star Cadet (Common)
+	shiro_quickblade = "", -- Shiro Quickblade (Rare)
+	kaito_saltfang = "", -- Kaito Saltfang (Rare)
+	mira_cinderveil = "", -- Mira Cinderveil (Rare)
+	yoru_lantern = "", -- Yoru Lanternbearer (Rare)
+	akane_crimsonfan = "", -- Akane Crimson Fan (Epic)
+	raizo_thunderstep = "", -- Raizo Thunderstep (Epic)
+	nox_hollowhunter = "", -- Nox Hollowhunter (Epic)
+	coral_vex = "", -- Captain Coral Vex (Epic)
+	seren_starblade = "", -- Seren Starblade (Legendary)
+	kuro_moonreaper = "", -- Kuro Moonreaper (Legendary)
+	homura_ashcrown = "", -- Homura Ashcrown (Legendary)
+	ryo_skybolt = "", -- Ryo Skybolt (Legendary)
+	marisol_tidecaller = "", -- Marisol Tidecaller (Legendary)
+	rin_hellbane = "", -- Rin Hellbane (Legendary)
+	astra_novaempress = "", -- Astra, Nova Empress (Mythic)
+	gekko_voidshinobi = "", -- Gekko the Void Shinobi (Mythic)
+	volta_stormcaptain = "", -- Storm Captain Volta (Mythic)
+	ifra_phoenixsaint = "", -- Ifra, Phoenix Saint (Mythic)
+	kaizen_deepcrown = "", -- Admiral Kaizen Deepcrown (Mythic)
+	kagura_duskblade = "", -- Kagura Duskblade (Mythic)
+	solenne_eclipse = "", -- Solenne, Eclipse Sovereign (Secret)
+	mugen_dicegod = "", -- Mugen, the Dice God (Secret)
+	vael_abyssal = "", -- Vael, Abyssal Emperor (Secret)
+}
+
 AssetConfig.Sounds = {
 	Click = "", -- натискання кнопки
 	RollTick = "", -- кожна зміна героя під час прокрутки
@@ -94,6 +127,10 @@ end
 -- Повна адреса картинки або nil, якщо її ще не підключено.
 function AssetConfig.GetImage(key)
 	return normalize(AssetConfig.Icons[key])
+end
+
+function AssetConfig.GetPortrait(heroId)
+	return normalize(AssetConfig.HeroPortraits[heroId])
 end
 
 function AssetConfig.GetSound(key)
