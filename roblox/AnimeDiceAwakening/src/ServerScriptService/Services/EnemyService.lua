@@ -110,16 +110,25 @@ local function bossLoop(state)
 		local targets = playersNear(state, 90)
 		if #targets > 0 then
 			local ground = state.spawnCFrame.Position
-			if rng:NextNumber() < 0.5 then
-				local attack = def.attacks.GroundSlam
-				state.model:SetAttribute("Attack", attack.displayName)
+			local attack = def.attacks[rng:NextInteger(1, #def.attacks)]
+			state.model:SetAttribute("Attack", attack.displayName)
+			if attack.pattern == "self" then
 				telegraphAttack(state, ground, attack)
 			else
-				local attack = def.attacks.ShurikenRain
-				state.model:SetAttribute("Attack", attack.displayName)
-				for _, target in targets do
-					local position = Vector3.new(target.root.Position.X, ground.Y, target.root.Position.Z)
-					task.spawn(telegraphAttack, state, position, attack)
+				local points = {}
+				if attack.pattern == "targets" then
+					for _, target in targets do
+						table.insert(points, Vector3.new(target.root.Position.X, ground.Y, target.root.Position.Z))
+					end
+				else -- "random": кола у випадкових місцях арени
+					for _ = 1, attack.count or 5 do
+						local angle = rng:NextNumber() * math.pi * 2
+						local distance = rng:NextNumber() * (attack.spread or 20)
+						table.insert(points, ground + Vector3.new(math.cos(angle) * distance, 0, math.sin(angle) * distance))
+					end
+				end
+				for _, point in points do
+					task.spawn(telegraphAttack, state, point, attack)
 				end
 				task.wait(attack.telegraph + 0.1)
 			end
@@ -171,9 +180,9 @@ local function rewardContributors(state)
 		if player.Parent and damage >= minimum then
 			DataService.AddCoins(player, def.coins)
 			DataService.AddCrystals(player, def.crystals)
-			QuestService.Track(player, "kill")
+			QuestService.Track(player, "kill", 1, { world = state.world })
 			if def.isBoss then
-				QuestService.Track(player, "boss")
+				QuestService.Track(player, "boss", 1, { enemy = state.defId })
 			end
 			local text = ("Переможено %s! +%s 🪙"):format(def.name, GameMath.FormatNumber(def.coins))
 			if def.crystals > 0 then
@@ -219,6 +228,7 @@ function EnemyService.SpawnWorldEnemies(worldId, worldCFrame, parent)
 		local state = {
 			id = "e" .. nextId,
 			def = def,
+			defId = spawnInfo.enemy,
 			world = worldId,
 			zone = spawnInfo.zone or 1,
 			-- Ворог дивиться в бік входу у світ (-Z)

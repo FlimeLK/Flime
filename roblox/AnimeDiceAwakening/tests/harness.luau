@@ -319,7 +319,18 @@ env.task = task
 G.clockOffset = 0
 local realOs = os
 env.os = setmetatable({ clock = function() return realOs.clock() + G.clockOffset end }, { __index = realOs })
-env.Random = { new = function() return { NextNumber = function() return math.random() end } end }
+env.Random = {
+	new = function()
+		return {
+			NextNumber = function()
+				return math.random()
+			end,
+			NextInteger = function(_, low, high)
+				return math.random(low, high)
+			end,
+		}
+	end,
+}
 env.typeof = function(v)
 	return type(v)
 end

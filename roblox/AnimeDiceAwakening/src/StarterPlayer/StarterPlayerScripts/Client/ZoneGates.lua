@@ -31,7 +31,8 @@ local function apply(gate)
 		if unlocked then
 			label.Text = "✅ " .. name
 		else
-			label.Text = ("🔒 %s — перемоги: %d / %d"):format(name, data.stats.enemiesDefeated, gate:GetAttribute("RequiredKills") or 0)
+			local kills = GameMath.GetWorldKills(data, gate:GetAttribute("World"))
+			label.Text = ("🔒 %s — перемоги тут: %d / %d"):format(name, kills, gate:GetAttribute("RequiredKills") or 0)
 		end
 	end
 end

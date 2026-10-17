@@ -318,7 +318,7 @@ end
 ---------------------------------------------------------------------
 
 local function isDiceUnlocked(data, dice)
-	return data ~= nil and data.totalRolls >= dice.requiredRolls
+	return data ~= nil and (GameMath.IsDiceUnlocked(data, dice))
 end
 
 local function refreshInfo()
@@ -350,8 +350,8 @@ function refreshButtons()
 		if unlocked then
 			button.Text = ("%s %s\n🪙 %s"):format(dice.icon, dice.displayName, GameMath.FormatNumber(dice.price))
 		else
-			local rolls = if data then data.totalRolls else 0
-			button.Text = ("🔒 %s\n%d / %d кидків"):format(dice.displayName, rolls, dice.requiredRolls)
+			local requirement = if data then select(2, GameMath.IsDiceUnlocked(data, dice)) else "..."
+			button.Text = ("🔒 %s\n%s"):format(dice.displayName, requirement)
 		end
 		button.BackgroundColor3 = if unlocked then dice.color:Lerp(UIKit.Colors.Panel, 0.45) else UIKit.Colors.Disabled
 		local stroke = button:FindFirstChildOfClass("UIStroke")
@@ -400,7 +400,7 @@ local function buildPanel(gui)
 	for index, diceId in DiceConfig.Order do
 		ui.diceButtons[diceId] = UIKit.Button({
 			LayoutOrder = index,
-			Size = UDim2.new(1, 0, 0, 62),
+			Size = UDim2.new(1, 0, 0, 56),
 			TextSize = 18,
 			Parent = list,
 		}, function()

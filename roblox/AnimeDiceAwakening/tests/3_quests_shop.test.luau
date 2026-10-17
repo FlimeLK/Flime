@@ -192,7 +192,7 @@ for id, enemy in EnemyService.GetAll() do
 end
 check(ronin ~= nil and ronin.zone == 2, "ronin is in zone 2")
 
-data.stats.enemiesDefeated = 0
+data.worldKills.NinjaVillage = 0
 data.team[1] = data.slots[1]
 data.slots[1] = ""
 p:SetAttribute("World", "NinjaVillage")
@@ -203,8 +203,8 @@ check(not ok, "locked zone enemy cannot be targeted: " .. tostring(message))
 
 -- Crossing the threshold announces the zone
 G.fired = {}
-data.stats.enemiesDefeated = 14
-QuestService.Track(p, "kill")
+data.worldKills.NinjaVillage = 14
+QuestService.Track(p, "kill", 1, { world = "NinjaVillage" })
 local announced = false
 for _, f in G.fired do
 	if f.remote == "Notify" and f.player == p and string.find(f.args[1], "Dojo", 1, true) then

@@ -8,6 +8,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Shared = ReplicatedStorage:WaitForChild("Shared")
 local QuestConfig = require(Shared.Config.QuestConfig)
+local DiceConfig = require(Shared.Config.DiceConfig)
 local WorldConfig = require(Shared.Config.WorldConfig)
 local GameMath = require(Shared.GameMath)
 local Remotes = require(Shared.Remotes)
@@ -41,19 +42,34 @@ local function grant(player, reward)
 	DataService.AddCrystals(player, reward.crystals or 0)
 end
 
--- Повідомляє про відкриті зони, якщо кількість перемог перетнула поріг.
-local function announceZones(player, killsBefore, killsAfter)
-	for _, worldId in WorldConfig.Order do
-		local world = WorldConfig.Worlds[worldId]
-		for _, zone in world.zones or {} do
-			if zone.requiredKills > 0 and killsBefore < zone.requiredKills and killsAfter >= zone.requiredKills then
-				Remotes.Notify(player, ("🔓 Відкрито зону %s у %s!"):format(zone.name, world.displayName), "success")
-			end
+-- Повідомляє про відкриті зони світу, якщо кількість перемог у ньому перетнула поріг.
+local function announceZones(player, worldId, killsBefore, killsAfter)
+	local world = WorldConfig.Worlds[worldId]
+	for _, zone in (world and world.zones) or {} do
+		if zone.requiredKills > 0 and killsBefore < zone.requiredKills and killsAfter >= zone.requiredKills then
+			Remotes.Notify(player, ("🔓 Відкрито зону %s у %s!"):format(zone.name, world.displayName), "success")
 		end
 	end
 end
 
-function QuestService.Track(player, event, amount)
+-- Перша перемога над босом відкриває світи й кубики.
+local function announceBossUnlocks(player, enemyId)
+	for _, worldId in WorldConfig.Order do
+		local world = WorldConfig.Worlds[worldId]
+		if world.available and world.unlock and world.unlock.boss == enemyId then
+			Remotes.Notify(player, ("🌍 Відкрито світ %s! Шукай його в Worlds"):format(world.displayName), "success")
+		end
+	end
+	for _, diceId in DiceConfig.Order do
+		local dice = DiceConfig.Dice[diceId]
+		if dice.requiredBoss == enemyId then
+			Remotes.Notify(player, ("%s Відкрито %s!"):format(dice.icon, dice.displayName), "success")
+		end
+	end
+end
+
+-- info: { world = worldId } для "kill", { enemy = enemyId } для "boss"
+function QuestService.Track(player, event, amount, info)
 	local data = DataService.Get(player)
 	if not data then
 		return
@@ -61,10 +77,17 @@ function QuestService.Track(player, event, amount)
 	amount = amount or 1
 	local stat = LIFETIME_STATS[event]
 	if stat then
-		local before = data.stats[stat]
 		data.stats[stat] += amount
-		if event == "kill" then
-			announceZones(player, before, data.stats[stat])
+	end
+	if event == "kill" and info and info.world then
+		local before = data.worldKills[info.world] or 0
+		data.worldKills[info.world] = before + amount
+		announceZones(player, info.world, before, before + amount)
+	elseif event == "boss" and info and info.enemy then
+		local before = data.bossKills[info.enemy] or 0
+		data.bossKills[info.enemy] = before + amount
+		if before == 0 then
+			announceBossUnlocks(player, info.enemy)
 		end
 	end
 	ensureDaily(data)

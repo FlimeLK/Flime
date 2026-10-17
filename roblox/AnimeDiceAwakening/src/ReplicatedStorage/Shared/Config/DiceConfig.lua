@@ -2,6 +2,7 @@
 -- price         — ціна одного кидка в Coins
 -- luck          — множник удачі (діє на рідкості з luckAffected = true)
 -- requiredRolls — скільки всього кидків треба зробити, щоб відкрити кубик
+-- requiredBoss  — (необов'язково) id боса, якого треба перемогти хоча б раз
 -- element       — стихія, герої якої випадають частіше
 -- elementBonus  — у скільки разів частіше випадають герої цієї стихії
 -- weights       — базові ваги рідкостей (не обов'язково в сумі 100)
@@ -11,7 +12,7 @@ local DiceConfig = {}
 -- Кубик, яким робиться перший безкоштовний навчальний кидок.
 DiceConfig.TutorialDice = "Basic"
 
-DiceConfig.Order = { "Basic", "Fire", "Lightning", "Shadow", "Celestial" }
+DiceConfig.Order = { "Basic", "Fire", "Lightning", "Shadow", "Tidal", "Celestial" }
 
 DiceConfig.Dice = {
 	Basic = {
@@ -61,6 +62,19 @@ DiceConfig.Dice = {
 		element = "Shadow",
 		elementBonus = 3,
 		weights = { Common = 380, Rare = 340, Epic = 180, Legendary = 70, Mythic = 25, Secret = 5 },
+	},
+	Tidal = {
+		displayName = "Tidal Dice",
+		description = "Нагорода за Captain Blackwake. Водні герої втричі частіше.",
+		icon = "🌊",
+		color = Color3.fromRGB(40, 170, 255),
+		price = 5000,
+		luck = 2,
+		requiredRolls = 0,
+		requiredBoss = "captain_blackwake",
+		element = "Water",
+		elementBonus = 3,
+		weights = { Common = 300, Rare = 340, Epic = 210, Legendary = 100, Mythic = 40, Secret = 10 },
 	},
 	Celestial = {
 		displayName = "Celestial Dice",

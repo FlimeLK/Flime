@@ -9,6 +9,7 @@ local HeroConfig = require(Config:WaitForChild("HeroConfig"))
 local CombatConfig = require(Config:WaitForChild("CombatConfig"))
 local ShopConfig = require(Config:WaitForChild("ShopConfig"))
 local WorldConfig = require(Config:WaitForChild("WorldConfig"))
+local EnemyConfig = require(Config:WaitForChild("EnemyConfig"))
 
 local GameMath = {}
 
@@ -125,6 +126,20 @@ function GameMath.GetBagPrice(data)
 	return item.basePrice + item.priceStep * purchases
 end
 
+-- Скільки ворогів гравець переміг саме в цьому світі.
+function GameMath.GetWorldKills(data, worldId)
+	return data.worldKills[worldId] or 0
+end
+
+function GameMath.GetBossKills(data, enemyId)
+	return data.bossKills[enemyId] or 0
+end
+
+function GameMath.GetEnemyName(enemyId)
+	local def = EnemyConfig.Enemies[enemyId]
+	return if def then def.name else tostring(enemyId)
+end
+
 -- Чи відкрита зона zoneIndex світу worldId (зони без вимог відкриті завжди).
 function GameMath.IsZoneUnlocked(data, worldId, zoneIndex)
 	local world = WorldConfig.Worlds[worldId]
@@ -132,7 +147,31 @@ function GameMath.IsZoneUnlocked(data, worldId, zoneIndex)
 	if not zone then
 		return true
 	end
-	return data.stats.enemiesDefeated >= zone.requiredKills
+	return GameMath.GetWorldKills(data, worldId) >= zone.requiredKills
+end
+
+-- Чи можна потрапити у світ. Повертає ok, текст вимоги.
+function GameMath.IsWorldUnlocked(data, worldId)
+	local world = WorldConfig.Worlds[worldId]
+	if not world or not world.available then
+		return false, "Скоро"
+	end
+	local unlock = world.unlock
+	if unlock and unlock.boss and GameMath.GetBossKills(data, unlock.boss) < 1 then
+		return false, "Переможи " .. GameMath.GetEnemyName(unlock.boss)
+	end
+	return true, nil
+end
+
+-- Чи відкритий кубик. Повертає ok, текст вимоги.
+function GameMath.IsDiceUnlocked(data, dice)
+	if data.totalRolls < dice.requiredRolls then
+		return false, ("%d / %d кидків"):format(data.totalRolls, dice.requiredRolls)
+	end
+	if dice.requiredBoss and GameMath.GetBossKills(data, dice.requiredBoss) < 1 then
+		return false, "Переможи " .. GameMath.GetEnemyName(dice.requiredBoss)
+	end
+	return true, nil
 end
 
 -- Значення для сюжетних завдань (QuestConfig.Main[].metric).
@@ -165,6 +204,10 @@ function GameMath.GetMetric(data, metric)
 			best = math.max(best, hero.level)
 		end
 		return best
+	elseif string.sub(metric, 1, 6) == "kills:" then
+		return GameMath.GetWorldKills(data, string.sub(metric, 7))
+	elseif string.sub(metric, 1, 5) == "boss:" then
+		return GameMath.GetBossKills(data, string.sub(metric, 6))
 	elseif data.stats[metric] ~= nil then
 		return data.stats[metric]
 	end

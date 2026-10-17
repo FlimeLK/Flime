@@ -5,6 +5,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Shared = ReplicatedStorage:WaitForChild("Shared")
 local WorldConfig = require(Shared:WaitForChild("Config"):WaitForChild("WorldConfig"))
+local GameMath = require(Shared:WaitForChild("GameMath"))
 
 local Client = script.Parent
 local UIKit = require(Client:WaitForChild("UIKit"))
@@ -27,13 +28,26 @@ end
 
 local function refresh()
 	local current = player:GetAttribute("World") or "Lobby"
+	local data = ClientState.Data
 	for worldId, row in rows do
 		local here = worldId == current
 		row.stroke.Color = if here then Color3.new(1, 1, 1) else row.color
 		row.stroke.Thickness = if here then 3 else 2
 		if row.available then
-			row.button.Text = if here then "📍 Ти тут" else "▶ Travel"
-			row.button.BackgroundColor3 = if here then UIKit.Colors.Disabled else UIKit.Colors.Success
+			local unlocked, requirement = true, nil
+			if worldId ~= "Lobby" and data then
+				unlocked, requirement = GameMath.IsWorldUnlocked(data, worldId)
+			end
+			row.locked = not unlocked
+			if not unlocked then
+				row.button.Text = "🔒 Закрито"
+				row.button.BackgroundColor3 = UIKit.Colors.Disabled
+				row.subtitle.Text = "Щоб відкрити: " .. requirement
+			else
+				row.button.Text = if here then "📍 Ти тут" else "▶ Travel"
+				row.button.BackgroundColor3 = if here then UIKit.Colors.Disabled else UIKit.Colors.Success
+				row.subtitle.Text = row.description
+			end
 		end
 	end
 end
@@ -57,7 +71,7 @@ local function addRow(content, order, worldId, title, subtitle, color, available
 		Text = title,
 		Parent = frame,
 	})
-	UIKit.Label({
+	local subtitleLabel = UIKit.Label({
 		Position = UDim2.fromOffset(14, 31),
 		Size = UDim2.new(1, -200, 0, 22),
 		TextSize = 14,
@@ -67,6 +81,7 @@ local function addRow(content, order, worldId, title, subtitle, color, available
 		Text = subtitle,
 		Parent = frame,
 	})
+	local row = { stroke = nil, button = nil, color = color, available = available, subtitle = subtitleLabel, description = subtitle, locked = false }
 	local button = UIKit.Button({
 		AnchorPoint = Vector2.new(1, 0.5),
 		Position = UDim2.new(1, -10, 0.5, 0),
@@ -76,13 +91,17 @@ local function addRow(content, order, worldId, title, subtitle, color, available
 		TextSize = 19,
 		Parent = frame,
 	}, function()
-		if available then
-			travel(worldId, panel)
-		else
+		if not available then
 			UIKit.Toast("Цей світ відкриється в наступних оновленнях", "info")
+		elseif row.locked then
+			UIKit.Toast(row.subtitle.Text, "error")
+		else
+			travel(worldId, panel)
 		end
 	end)
-	rows[worldId] = { stroke = stroke, button = button, color = color, available = available }
+	row.stroke = stroke
+	row.button = button
+	rows[worldId] = row
 end
 
 function WorldsUI.Init(gui)
@@ -98,6 +117,7 @@ function WorldsUI.Init(gui)
 
 	refresh()
 	player:GetAttributeChangedSignal("World"):Connect(refresh)
+	ClientState.OnDataChanged(refresh)
 end
 
 return WorldsUI

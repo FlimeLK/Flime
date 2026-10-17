@@ -48,6 +48,37 @@ local STYLES = {
 		light.Brightness = 2
 		light.Parent = model:FindFirstChild("Torso")
 	end,
+	Brawler = function(model, s, def, top)
+		addPart(model, "Bandana", Vector3.new(1.95, 0.5, 1.95) * s, CFrame.new(0, top + 1.3 * s, 0), def.accent)
+		addPart(model, "Stripes", Vector3.new(2.5, 0.4, 1.4) * s, CFrame.new(0, top - 0.8 * s, 0), Color3.fromRGB(240, 240, 240))
+		addPart(model, "FistL", Vector3.new(0.9, 0.9, 0.9) * s, CFrame.new(-1.6 * s, top - 1.6 * s, -0.4 * s), Color3.fromRGB(240, 200, 170), Enum.Material.SmoothPlastic, Enum.PartType.Ball)
+		addPart(model, "FistR", Vector3.new(0.9, 0.9, 0.9) * s, CFrame.new(1.6 * s, top - 1.6 * s, -0.4 * s), Color3.fromRGB(240, 200, 170), Enum.Material.SmoothPlastic, Enum.PartType.Ball)
+	end,
+	Crab = function(model, s, def, top)
+		-- Широкий панцир поверх тулуба, клешні та гармата на спині
+		addPart(model, "Shell", Vector3.new(4.2, 1.6, 3) * s, CFrame.new(0, top - 0.6 * s, 0), def.body, Enum.Material.SmoothPlastic, Enum.PartType.Ball)
+		addPart(model, "ClawL", Vector3.new(1.4, 0.8, 1.6) * s, CFrame.new(-2.4 * s, top - 1.4 * s, -1.2 * s), def.body:Lerp(Color3.new(1, 1, 1), 0.2))
+		addPart(model, "ClawR", Vector3.new(1.4, 0.8, 1.6) * s, CFrame.new(2.4 * s, top - 1.4 * s, -1.2 * s), def.body:Lerp(Color3.new(1, 1, 1), 0.2))
+		addPart(model, "Cannon", Vector3.new(2.4, 0.9, 0.9) * s, CFrame.new(0, top + 0.4 * s, 0.6 * s) * CFrame.Angles(0, math.rad(90), math.rad(-20)), def.accent, Enum.Material.Metal, Enum.PartType.Cylinder)
+	end,
+	Corsair = function(model, s, def, top)
+		addPart(model, "Hat", Vector3.new(2.6, 0.5, 2) * s, CFrame.new(0, top + 1.9 * s, 0), Color3.fromRGB(20, 25, 30))
+		addPart(model, "Aura", Vector3.new(2.8, 4.6, 1.8) * s, CFrame.new(0, top - 1 * s, 0), def.accent, Enum.Material.ForceField)
+		addPart(model, "Saber", Vector3.new(0.18, 3.4, 0.45) * s, CFrame.new(1.5 * s, top - 0.6 * s, -0.4 * s) * CFrame.Angles(0, 0, -0.25), def.accent, Enum.Material.Neon)
+	end,
+	Captain = function(model, s, def, top)
+		addPart(model, "Coat", Vector3.new(2.6, 3.6, 1.5) * s, CFrame.new(0, top - 1.6 * s, 0.05 * s), Color3.fromRGB(120, 20, 30))
+		addPart(model, "HatBrim", Vector3.new(3.2, 0.25, 2.6) * s, CFrame.new(0, top + 1.8 * s, 0), Color3.fromRGB(20, 20, 25))
+		addPart(model, "HatTop", Vector3.new(2, 0.9, 1.7) * s, CFrame.new(0, top + 2.3 * s, 0), Color3.fromRGB(20, 20, 25))
+		addPart(model, "Feather", Vector3.new(0.2, 1.4, 0.5) * s, CFrame.new(0.8 * s, top + 2.6 * s, 0.3 * s) * CFrame.Angles(0, 0, -0.4), def.accent, Enum.Material.Neon)
+		addPart(model, "Hook", Vector3.new(0.4, 1, 0.4) * s, CFrame.new(-1.6 * s, top - 2 * s, -0.4 * s), Color3.fromRGB(200, 200, 210), Enum.Material.Metal)
+		addPart(model, "Anchor", Vector3.new(0.6, 5, 0.6) * s, CFrame.new(1.8 * s, top - 0.8 * s, -0.4 * s) * CFrame.Angles(0, 0, -0.2), Color3.fromRGB(80, 80, 90), Enum.Material.Metal)
+		local light = Instance.new("PointLight")
+		light.Color = def.accent
+		light.Range = 22
+		light.Brightness = 2
+		light.Parent = model:FindFirstChild("Torso")
+	end,
 }
 
 local function addHealthBar(model, adornee, def, height)

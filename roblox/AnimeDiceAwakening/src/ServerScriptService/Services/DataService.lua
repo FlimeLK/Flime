@@ -72,6 +72,8 @@ local function makeTemplate()
 		collectionClaimed = {}, -- ["m1"] = true — забрані нагороди колекції
 		boosts = { luck = 0, income = 0 }, -- час (os.time), до якого діє буст
 		inventoryBonus = 0, -- додаткові місця в інвентарі
+		worldKills = {}, -- [worldId] = перемог у цьому світі (для зон)
+		bossKills = {}, -- [enemyId боса] = скільки разів переможено (відкриває світи й кубики)
 		lastSeen = 0,
 	}
 end
@@ -106,6 +108,13 @@ local function sanitize(data)
 	data.coins = math.max(0, math.floor(data.coins))
 	data.crystals = math.max(0, math.floor(data.crystals))
 	data.quests.main = math.clamp(math.floor(data.quests.main), 1, #QuestConfig.Main + 1)
+	-- Міграція з етапу 3: тоді всі перемоги були в Ninja Village, а єдиним босом був Oni.
+	if data.worldKills.NinjaVillage == nil then
+		data.worldKills.NinjaVillage = data.stats.enemiesDefeated
+	end
+	if data.bossKills.oni_kurogane == nil and data.stats.bossesDefeated > 0 then
+		data.bossKills.oni_kurogane = data.stats.bossesDefeated
+	end
 	for _, hero in data.heroes do
 		hero.level = math.max(1, math.floor(tonumber(hero.level) or 1))
 		hero.locked = hero.locked == true

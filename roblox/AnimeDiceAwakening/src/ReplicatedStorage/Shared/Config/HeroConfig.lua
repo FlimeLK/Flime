@@ -248,6 +248,20 @@ HeroConfig.List = {
 		look = { body = Color3.fromRGB(30, 50, 90), hair = Color3.fromRGB(255, 240, 120), skin = SKIN, height = 1.15 },
 	},
 
+	{
+		id = "marisol_tidecaller",
+		name = "Marisol Tidecaller",
+		rarity = "Legendary",
+		archetype = "Mage",
+		element = "Water",
+		damage = 118,
+		attackSpeed = 1,
+		income = 26,
+		ability = { name = "Riptide Spiral", description = "Вир затягує ворогів до цілі й сповільнює їх." },
+		awakened = { name = "Marisol, Ocean's Voice", multiplier = 3 },
+		look = { body = Color3.fromRGB(30, 120, 170), hair = Color3.fromRGB(120, 230, 255), skin = SKIN, height = 1.1 },
+	},
+
 	-- ===== Mythic =====
 	{
 		id = "astra_novaempress",
@@ -300,6 +314,20 @@ HeroConfig.List = {
 		ability = { name = "Rebirth Flame", description = "Раз за бій воскрешає союзника з повним здоров'ям." },
 		awakened = { name = "Ifra, Eternal Phoenix", multiplier = 3.3 },
 		look = { body = Color3.fromRGB(255, 150, 40), hair = Color3.fromRGB(255, 60, 20), skin = SKIN, height = 1.15 },
+	},
+
+	{
+		id = "kaizen_deepcrown",
+		name = "Admiral Kaizen Deepcrown",
+		rarity = "Mythic",
+		archetype = "Pirate",
+		element = "Water",
+		damage = 345,
+		attackSpeed = 1.1,
+		income = 84,
+		ability = { name = "Leviathan Call", description = "Кличе морського змія, що б'є всіх ворогів на арені." },
+		awakened = { name = "Kaizen, Abyss Sovereign", multiplier = 3.3 },
+		look = { body = Color3.fromRGB(20, 40, 80), hair = Color3.fromRGB(240, 240, 255), skin = SKIN, height = 1.2 },
 	},
 
 	-- ===== Secret =====

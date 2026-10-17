@@ -122,8 +122,9 @@ local function onRoll(player, diceId)
 	if not data then
 		return fail("Дані ще завантажуються")
 	end
-	if data.totalRolls < dice.requiredRolls then
-		return fail(("Кубик відкриється після %d кидків"):format(dice.requiredRolls))
+	local unlocked, requirement = GameMath.IsDiceUnlocked(data, dice)
+	if not unlocked then
+		return fail("Кубик закритий: " .. requirement)
 	end
 	if InventoryService.CountHeroes(data) >= GameMath.GetMaxInventory(data) then
 		return fail("Інвентар заповнений! Продай або злий зайвих героїв.")

@@ -4,6 +4,11 @@
 -- crystals — нагорода в Crystals (лише боси)
 -- respawn  — через скільки секунд ворог з'явиться знову
 -- style    — зовнішній вигляд простої моделі з Part
+--
+-- Атаки боса (attacks) — список; бос щоразу вибирає випадкову. pattern:
+--   "self"    — коло навколо боса
+--   "targets" — коло під кожним гравцем поруч
+--   "random"  — count кіл у випадкових місцях арени (spread — радіус розкиду)
 
 local EnemyConfig = {}
 
@@ -55,9 +60,62 @@ EnemyConfig.Enemies = {
 		attackInterval = 5, -- секунд між атаками
 		attacks = {
 			-- Удар по землі навколо боса: червоне коло, потім шкода всім усередині
-			GroundSlam = { displayName = "Ground Slam", telegraph = 1.6, radius = 20, damage = 35 },
+			{ displayName = "Ground Slam", pattern = "self", telegraph = 1.6, radius = 20, damage = 35 },
 			-- Дощ сюрикенів: кола під кожним гравцем поруч, треба відбігти
-			ShurikenRain = { displayName = "Shuriken Rain", telegraph = 1.3, radius = 9, damage = 25 },
+			{ displayName = "Shuriken Rain", pattern = "targets", telegraph = 1.3, radius = 9, damage = 25 },
+		},
+	},
+
+	-- ===== Pirate Island =====
+	deckhand_brawler = {
+		name = "Deckhand Brawler",
+		health = 900,
+		coins = 70,
+		crystals = 0,
+		respawn = 8,
+		scale = 1.15,
+		style = "Brawler",
+		body = Color3.fromRGB(150, 110, 80),
+		accent = Color3.fromRGB(220, 40, 40),
+	},
+	cannon_crab = {
+		name = "Cannon Crab",
+		health = 2200,
+		coins = 160,
+		crystals = 0,
+		respawn = 10,
+		scale = 1.3,
+		style = "Crab",
+		body = Color3.fromRGB(230, 90, 60),
+		accent = Color3.fromRGB(60, 60, 70),
+	},
+	cursed_corsair = {
+		name = "Cursed Corsair",
+		health = 5000,
+		coins = 350,
+		crystals = 0,
+		respawn = 14,
+		scale = 1.35,
+		style = "Corsair",
+		body = Color3.fromRGB(40, 70, 80),
+		accent = Color3.fromRGB(80, 255, 200),
+	},
+	captain_blackwake = {
+		name = "Captain Blackwake",
+		health = 45000,
+		coins = 12000,
+		crystals = 60,
+		respawn = 120,
+		scale = 2.8,
+		style = "Captain",
+		body = Color3.fromRGB(30, 30, 45),
+		accent = Color3.fromRGB(255, 200, 60),
+		isBoss = true,
+		attackInterval = 4.5,
+		attacks = {
+			{ displayName = "Cannon Barrage", pattern = "random", count = 7, spread = 26, telegraph = 1.5, radius = 8, damage = 40 },
+			{ displayName = "Anchor Sweep", pattern = "self", telegraph = 1.8, radius = 24, damage = 50 },
+			{ displayName = "Kraken Grab", pattern = "targets", telegraph = 1.4, radius = 10, damage = 45 },
 		},
 	},
 }
@@ -73,6 +131,15 @@ EnemyConfig.WorldSpawns = {
 		{ enemy = "rogue_ronin", offset = Vector3.new(-32, 0, 35), zone = 2 },
 		{ enemy = "rogue_ronin", offset = Vector3.new(32, 0, 35), zone = 2 },
 		{ enemy = "oni_kurogane", offset = Vector3.new(0, 0, 92), zone = 3 },
+	},
+	PirateIsland = {
+		{ enemy = "deckhand_brawler", offset = Vector3.new(-24, 0, -65), zone = 1 },
+		{ enemy = "deckhand_brawler", offset = Vector3.new(24, 0, -65), zone = 1 },
+		{ enemy = "cannon_crab", offset = Vector3.new(-40, 0, -15), zone = 1 },
+		{ enemy = "cannon_crab", offset = Vector3.new(40, 0, -15), zone = 1 },
+		{ enemy = "cursed_corsair", offset = Vector3.new(-30, 0, 36), zone = 2 },
+		{ enemy = "cursed_corsair", offset = Vector3.new(30, 0, 36), zone = 2 },
+		{ enemy = "captain_blackwake", offset = Vector3.new(0, 0, 92), zone = 3 },
 	},
 }
 

@@ -19,7 +19,12 @@ QuestConfig.Main = {
 	{ id = "dojo", title = "Ворота Dojo", description = "Переможи 15 ворогів — відкриється зона Dojo", metric = "enemiesDefeated", target = 15, reward = { coins = 1000 } },
 	{ id = "merge_master", title = "Майстер злиття", description = "Підніми будь-якого героя до 5 рівня (Merge)", metric = "maxHeroLevel", target = 5, reward = { crystals = 10 } },
 	{ id = "shrine", title = "Святилище Оні", description = "Переможи 40 ворогів — відкриється арена боса", metric = "enemiesDefeated", target = 40, reward = { crystals = 10 } },
-	{ id = "oni_slayer", title = "Переможець Оні", description = "Переможи Oni Warlord Kurogane", metric = "bossesDefeated", target = 1, reward = { crystals = 25 } },
+	{ id = "oni_slayer", title = "Переможець Оні", description = "Переможи Oni Warlord Kurogane — відкриється Pirate Island", metric = "boss:oni_kurogane", target = 1, reward = { crystals = 25 } },
+	{ id = "landfall", title = "Висадка", description = "Переможи 10 ворогів на Pirate Island", metric = "kills:PirateIsland", target = 10, reward = { crystals = 10 } },
+	{ id = "cove", title = "Бухта контрабандистів", description = "20 перемог на острові — відкриється Smugglers' Cove", metric = "kills:PirateIsland", target = 20, reward = { coins = 5000 } },
+	{ id = "collector2", title = "Колекціонер II", description = "Відкрий 15 різних героїв", metric = "discovered", target = 15, reward = { crystals = 20 } },
+	{ id = "dock", title = "Причал капітана", description = "60 перемог на острові — відкриється Captain's Dock", metric = "kills:PirateIsland", target = 60, reward = { crystals = 15 } },
+	{ id = "sea_terror", title = "Гроза морів", description = "Переможи Captain Blackwake — відкриється Tidal Dice", metric = "boss:captain_blackwake", target = 1, reward = { crystals = 60 } },
 }
 
 QuestConfig.DailyPool = {
@@ -29,6 +34,7 @@ QuestConfig.DailyPool = {
 	{ id = "d_roll_big", title = "Азартний день", description = "Зроби 60 кидків", event = "roll", target = 60, reward = { coins = 800, crystals = 1 } },
 	{ id = "d_kill_big", title = "Зачистка села", description = "Переможи 40 ворогів", event = "kill", target = 40, reward = { crystals = 3 } },
 	{ id = "d_upgrade", title = "Будівництво", description = "Купи 2 покращення в ⬆️ Upgrades", event = "upgrade", target = 2, reward = { coins = 500 } },
+	{ id = "d_boss", title = "Мисливець на босів", description = "Переможи будь-якого боса", event = "boss", target = 1, reward = { crystals = 5 } },
 }
 
 QuestConfig.DailyCount = 3
@@ -48,7 +54,8 @@ QuestConfig.CollectionMilestones = {
 	{ count = 5, crystals = 5 },
 	{ count = 10, crystals = 10 },
 	{ count = 15, crystals = 20 },
-	{ count = 22, crystals = 50 },
+	{ count = 20, crystals = 40 },
+	{ count = 24, crystals = 80 },
 }
 
 return QuestConfig

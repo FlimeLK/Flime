@@ -7,10 +7,12 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Shared = ReplicatedStorage:WaitForChild("Shared")
 local WorldConfig = require(Shared.Config.WorldConfig)
+local GameMath = require(Shared.GameMath)
 local Remotes = require(Shared.Remotes)
 
 local BuildUtil = require(script.Parent.BuildUtil)
 local CombatService = require(script.Parent.CombatService)
+local DataService = require(script.Parent.DataService)
 local EnemyService = require(script.Parent.EnemyService)
 local PlotService = require(script.Parent.PlotService)
 local RateLimiter = require(script.Parent.RateLimiter)
@@ -74,12 +76,12 @@ local function lantern(parent, position)
 	pointLight.Parent = light
 end
 
--- "Село ніндзя": вхід (torii) на півдні, будинки, сакури, арена боса на півночі.
--- center — центр світу на рівні землі; вхід у бік -Z, бос у бік +Z.
-local function buildNinjaVillage(folder, center)
+-- Спільна основа кожного світу: земля, невидимі стіни по краях, ворота зон
+-- і портал додому. Вхід — з боку -Z, бос — з боку +Z.
+-- center — центр світу на рівні землі. Повертає точку появи гравця.
+local function buildWorldBase(folder, center, worldId, groundColor, groundMaterial)
 	local half = WORLD_SIZE / 2
-	BuildUtil.Part({ Name = "Ground", Size = Vector3.new(WORLD_SIZE, 4, WORLD_SIZE), CFrame = center * CFrame.new(0, -2, 0), Color = Color3.fromRGB(105, 175, 95), Material = Enum.Material.Grass }, folder)
-	BuildUtil.Part({ Name = "Road", Size = Vector3.new(12, 0.2, WORLD_SIZE - 20), CFrame = center * CFrame.new(0, 0.1, 0), Color = Color3.fromRGB(205, 185, 150), Material = Enum.Material.Sand }, folder)
+	BuildUtil.Part({ Name = "Ground", Size = Vector3.new(WORLD_SIZE, 4, WORLD_SIZE), CFrame = center * CFrame.new(0, -2, 0), Color = groundColor, Material = groundMaterial }, folder)
 
 	-- Невидимі стіни, щоб не впасти зі світу
 	for _, wall in {
@@ -90,6 +92,52 @@ local function buildNinjaVillage(folder, center)
 	} do
 		BuildUtil.Part({ Name = "Wall", Size = wall[1], CFrame = center * CFrame.new(wall[2]), Transparency = 1 }, folder)
 	end
+
+	-- Ворота зон: світна стіна через увесь світ. Сервер робить її твердою для всіх,
+	-- а клієнт гравця, який уже відкрив зону, робить її прохідною лише для себе.
+	-- Навіть якщо хтось обійде стіну, атакувати ворогів закритої зони сервер не дасть.
+	for zoneIndex, zone in WorldConfig.Worlds[worldId].zones or {} do
+		if zone.gateZ then
+			local gate = BuildUtil.Part({
+				Name = "Gate_" .. zone.id,
+				Size = Vector3.new(WORLD_SIZE, 30, 1),
+				CFrame = center * CFrame.new(0, 15, zone.gateZ),
+				Color = Color3.fromRGB(255, 80, 120),
+				Material = Enum.Material.ForceField,
+				Transparency = 0.3,
+				CanQuery = false,
+			}, folder)
+			gate:SetAttribute("World", worldId)
+			gate:SetAttribute("ZoneIndex", zoneIndex)
+			gate:SetAttribute("ZoneName", zone.name)
+			gate:SetAttribute("RequiredKills", zone.requiredKills)
+			-- Напис на воротах (клієнт оновлює його своїм прогресом)
+			local sign = BuildUtil.Part({
+				Name = "Sign",
+				Size = Vector3.new(30, 6, 0.2),
+				CFrame = center * CFrame.new(0, 8, zone.gateZ - 0.7),
+				Transparency = 1,
+				CanCollide = false,
+				CanQuery = false,
+			}, gate)
+			BuildUtil.SurfaceText(sign, Enum.NormalId.Front, ("🔒 %s — переможи %d ворогів"):format(zone.name, zone.requiredKills))
+			CollectionService:AddTag(gate, GATE_TAG)
+		end
+	end
+
+	-- Портал назад у лобі біля входу, повернутий написом углиб світу
+	local portalCFrame = center * CFrame.new(0, 0, -118) * CFrame.Angles(0, math.pi, 0)
+	local _, field = BuildUtil.Portal(folder, portalCFrame, "Lobby", "◀ Додому", Color3.fromRGB(255, 120, 200))
+	field:SetAttribute("WorldId", LOBBY)
+
+	-- Гравець з'являється біля входу й дивиться вглиб світу (+Z)
+	return center * CFrame.new(0, 4, -105) * CFrame.Angles(0, math.pi, 0)
+end
+
+-- "Село ніндзя": torii на вході, будинки, сакури, кам'яна арена боса.
+local function buildNinjaVillage(folder, center)
+	local spawnPoint = buildWorldBase(folder, center, "NinjaVillage", Color3.fromRGB(105, 175, 95), Enum.Material.Grass)
+	BuildUtil.Part({ Name = "Road", Size = Vector3.new(12, 0.2, WORLD_SIZE - 20), CFrame = center * CFrame.new(0, 0.1, 0), Color = Color3.fromRGB(205, 185, 150), Material = Enum.Material.Sand }, folder)
 
 	torii(folder, center * CFrame.new(0, 0, -95))
 	for _, offset in { Vector3.new(-62, 0, -70), Vector3.new(62, 0, -70), Vector3.new(-70, 0, -25), Vector3.new(70, 0, -25), Vector3.new(-60, 0, 40), Vector3.new(60, 0, 40) } do
@@ -108,51 +156,115 @@ local function buildNinjaVillage(folder, center)
 		local angle = math.rad(45 + i * 90)
 		lantern(folder, (center * CFrame.new(math.cos(angle) * 30, 0, 92 + math.sin(angle) * 30)).Position)
 	end
+	return spawnPoint
+end
 
-	-- Ворота зон: світна стіна через усе село. Сервер робить її твердою для всіх,
-	-- а клієнт гравця, який уже відкрив зону, робить її прохідною лише для себе.
-	-- Навіть якщо хтось обійде стіну, атакувати ворогів закритої зони сервер не дасть.
-	for zoneIndex, zone in WorldConfig.Worlds.NinjaVillage.zones do
-		if zone.gateZ then
-			local gate = BuildUtil.Part({
-				Name = "Gate_" .. zone.id,
-				Size = Vector3.new(WORLD_SIZE, 30, 1),
-				CFrame = center * CFrame.new(0, 15, zone.gateZ),
-				Color = Color3.fromRGB(255, 80, 120),
-				Material = Enum.Material.ForceField,
-				Transparency = 0.3,
-				CanQuery = false,
-			}, folder)
-			gate:SetAttribute("World", "NinjaVillage")
-			gate:SetAttribute("ZoneIndex", zoneIndex)
-			gate:SetAttribute("ZoneName", zone.name)
-			gate:SetAttribute("RequiredKills", zone.requiredKills)
-			-- Напис на воротах (клієнт оновлює його своїм прогресом)
-			local sign = BuildUtil.Part({
-				Name = "Sign",
-				Size = Vector3.new(30, 6, 0.2),
-				CFrame = center * CFrame.new(0, 8, zone.gateZ - 0.7),
-				Transparency = 1,
-				CanCollide = false,
-				CanQuery = false,
-			}, gate)
-			BuildUtil.SurfaceText(sign, Enum.NormalId.Front, ("🔒 %s — переможи %d ворогів"):format(zone.name, zone.requiredKills))
-			CollectionService:AddTag(gate, GATE_TAG)
-		end
+local function palm(parent, position)
+	local model = Instance.new("Model")
+	model.Name = "Palm"
+	-- Злегка вигнутий стовбур з трьох частин
+	for i = 0, 2 do
+		BuildUtil.Part({
+			Name = "Trunk" .. i,
+			Size = Vector3.new(1.4, 4, 1.4),
+			CFrame = CFrame.new(position + Vector3.new(i * 0.6, 2 + i * 3.8, 0)) * CFrame.Angles(0, 0, math.rad(-8)),
+			Color = Color3.fromRGB(150, 110, 70),
+			Material = Enum.Material.Wood,
+		}, model)
+	end
+	local top = position + Vector3.new(1.8, 12, 0)
+	for i = 0, 4 do
+		local angle = math.rad(i * 72)
+		local direction = Vector3.new(math.cos(angle), 0, math.sin(angle))
+		BuildUtil.Part({
+			Name = "Leaf" .. i,
+			Size = Vector3.new(1.6, 0.3, 7),
+			CFrame = CFrame.lookAt(top + direction * 3, top + direction * 6 + Vector3.new(0, -1.5, 0)),
+			Color = Color3.fromRGB(60, 170, 70),
+			Material = Enum.Material.Grass,
+			CanCollide = false,
+		}, model)
+	end
+	model.Parent = parent
+end
+
+local function shack(parent, cframe)
+	local model = Instance.new("Model")
+	model.Name = "Shack"
+	BuildUtil.Part({ Name = "Floor", Size = Vector3.new(16, 1.5, 12), CFrame = cframe * CFrame.new(0, 0.75, 0), Color = Color3.fromRGB(120, 85, 55), Material = Enum.Material.WoodPlanks }, model)
+	BuildUtil.Part({ Name = "Walls", Size = Vector3.new(14, 8, 10), CFrame = cframe * CFrame.new(0, 5.5, 0), Color = Color3.fromRGB(170, 125, 80), Material = Enum.Material.WoodPlanks }, model)
+	BuildUtil.Part({ Name = "Roof", Size = Vector3.new(18, 1.2, 14), CFrame = cframe * CFrame.new(0, 10.1, 0), Color = Color3.fromRGB(210, 190, 120), Material = Enum.Material.Fabric }, model)
+	BuildUtil.Part({ Name = "Door", Size = Vector3.new(3.5, 6, 0.4), CFrame = cframe * CFrame.new(0, 4.5, -5.1), Color = Color3.fromRGB(70, 45, 30), Material = Enum.Material.Wood }, model)
+	model.Parent = parent
+end
+
+local function chest(parent, position)
+	BuildUtil.Part({ Name = "Chest", Size = Vector3.new(3, 2, 2), CFrame = CFrame.new(position + Vector3.new(0, 1, 0)), Color = Color3.fromRGB(120, 70, 30), Material = Enum.Material.Wood }, parent)
+	BuildUtil.Part({ Name = "Gold", Size = Vector3.new(2.6, 0.6, 1.6), CFrame = CFrame.new(position + Vector3.new(0, 2.2, 0)), Color = Color3.fromRGB(255, 200, 50), Material = Enum.Material.Neon }, parent)
+end
+
+local function ship(parent, cframe)
+	local model = Instance.new("Model")
+	model.Name = "PirateShip"
+	local wood = Color3.fromRGB(70, 45, 30)
+	BuildUtil.Part({ Name = "Hull", Size = Vector3.new(56, 9, 16), CFrame = cframe * CFrame.new(0, 3.5, 0), Color = wood, Material = Enum.Material.WoodPlanks }, model)
+	BuildUtil.Part({ Name = "Deck", Size = Vector3.new(54, 1, 14), CFrame = cframe * CFrame.new(0, 8.5, 0), Color = Color3.fromRGB(150, 110, 70), Material = Enum.Material.WoodPlanks }, model)
+	BuildUtil.Part({ Name = "Stern", Size = Vector3.new(12, 6, 16), CFrame = cframe * CFrame.new(-22, 12, 0), Color = wood, Material = Enum.Material.WoodPlanks }, model)
+	for i, x in { -6, 12 } do
+		BuildUtil.Part({ Name = "Mast" .. i, Size = Vector3.new(1.5, 30, 1.5), CFrame = cframe * CFrame.new(x, 24, 0), Color = wood, Material = Enum.Material.Wood }, model)
+		BuildUtil.Part({ Name = "Sail" .. i, Size = Vector3.new(0.3, 14, 16), CFrame = cframe * CFrame.new(x + 0.8, 26, 0), Color = Color3.fromRGB(30, 30, 35), Material = Enum.Material.Fabric, CanCollide = false }, model)
+	end
+	BuildUtil.Part({ Name = "Flag", Size = Vector3.new(5, 3, 0.2), CFrame = cframe * CFrame.new(12, 40, 0) * CFrame.Angles(0, math.rad(90), 0), Color = Color3.fromRGB(15, 15, 15), Material = Enum.Material.Fabric, CanCollide = false }, model)
+	model.Parent = parent
+end
+
+-- "Острів піратів": пісок, море навколо, пальми, хатинки, скрині, дерев'яний причал боса й корабель.
+local function buildPirateIsland(folder, center)
+	local spawnPoint = buildWorldBase(folder, center, "PirateIsland", Color3.fromRGB(235, 215, 150), Enum.Material.Sand)
+
+	-- Море навколо острова (нижче за пісок і ширше за нього)
+	BuildUtil.Part({
+		Name = "Sea",
+		Size = Vector3.new(WORLD_SIZE + 240, 2, WORLD_SIZE + 240),
+		CFrame = center * CFrame.new(0, -3, 0),
+		Color = Color3.fromRGB(40, 140, 220),
+		Material = Enum.Material.Glass,
+		Transparency = 0.15,
+		CanCollide = false,
+	}, folder)
+	BuildUtil.Part({ Name = "Boardwalk", Size = Vector3.new(12, 0.4, WORLD_SIZE - 20), CFrame = center * CFrame.new(0, 0.2, 0), Color = Color3.fromRGB(160, 115, 75), Material = Enum.Material.WoodPlanks }, folder)
+
+	-- Арка на вході
+	BuildUtil.Part({ Name = "ArchL", Size = Vector3.new(2, 14, 2), CFrame = center * CFrame.new(-8, 7, -95), Color = Color3.fromRGB(110, 75, 45), Material = Enum.Material.Wood }, folder)
+	BuildUtil.Part({ Name = "ArchR", Size = Vector3.new(2, 14, 2), CFrame = center * CFrame.new(8, 7, -95), Color = Color3.fromRGB(110, 75, 45), Material = Enum.Material.Wood }, folder)
+	local archSign = BuildUtil.Part({ Name = "ArchSign", Size = Vector3.new(20, 4, 1), CFrame = center * CFrame.new(0, 14, -95) * CFrame.Angles(0, math.pi, 0), Color = Color3.fromRGB(80, 50, 30), Material = Enum.Material.WoodPlanks }, folder)
+	BuildUtil.SurfaceText(archSign, Enum.NormalId.Back, "☠ PIRATE ISLAND ☠", Color3.fromRGB(255, 220, 120))
+
+	for _, offset in { Vector3.new(-62, 0, -70), Vector3.new(62, 0, -70), Vector3.new(-70, 0, -25), Vector3.new(70, 0, -25), Vector3.new(-62, 0, 40), Vector3.new(62, 0, 40) } do
+		local position = (center * CFrame.new(offset)).Position
+		local roadPoint = (center * CFrame.new(0, 0, offset.Z)).Position
+		shack(folder, CFrame.lookAt(position, roadPoint))
+	end
+	for _, offset in { Vector3.new(-30, 0, -105), Vector3.new(30, 0, -105), Vector3.new(-100, 0, -60), Vector3.new(100, 0, -60), Vector3.new(-105, 0, 5), Vector3.new(105, 0, 5), Vector3.new(-100, 0, 70), Vector3.new(100, 0, 70) } do
+		palm(folder, (center * CFrame.new(offset)).Position)
+	end
+	for _, offset in { Vector3.new(-20, 0, 50), Vector3.new(20, 0, 50), Vector3.new(-50, 0, 20), Vector3.new(50, 0, 20) } do
+		chest(folder, (center * CFrame.new(offset)).Position)
 	end
 
-	-- Портал назад у лобі біля входу
-	-- Повернутий написом до села
-	local portalCFrame = center * CFrame.new(0, 0, -118) * CFrame.Angles(0, math.pi, 0)
-	local _, field = BuildUtil.Portal(folder, portalCFrame, "Lobby", "◀ Додому", Color3.fromRGB(255, 120, 200))
-	field:SetAttribute("WorldId", LOBBY)
-
-	-- Гравець з'являється біля torii й дивиться вглиб села (+Z)
-	return center * CFrame.new(0, 4, -105) * CFrame.Angles(0, math.pi, 0)
+	-- Причал капітана (арена боса) і корабель за ним
+	BuildUtil.Part({ Name = "BossDock", Size = Vector3.new(60, 1, 44), CFrame = center * CFrame.new(0, 0.5, 92), Color = Color3.fromRGB(140, 100, 65), Material = Enum.Material.WoodPlanks }, folder)
+	for i = 0, 3 do
+		local angle = math.rad(45 + i * 90)
+		lantern(folder, (center * CFrame.new(math.cos(angle) * 30, 0, 92 + math.sin(angle) * 22)).Position)
+	end
+	ship(folder, center * CFrame.new(0, 0, 122))
+	return spawnPoint
 end
 
 local BUILDERS = {
 	NinjaVillage = buildNinjaVillage,
+	PirateIsland = buildPirateIsland,
 }
 
 -- Переносить гравця у світ (або "Lobby" — на його базу).
@@ -171,6 +283,14 @@ function WorldService.Travel(player, worldId)
 	local spawnPoint = spawnPoints[worldId]
 	if not world or not world.available or not spawnPoint then
 		return false, "Цей світ ще закритий"
+	end
+	local data = DataService.Get(player)
+	if not data then
+		return false, "Дані ще завантажуються"
+	end
+	local unlocked, requirement = GameMath.IsWorldUnlocked(data, worldId)
+	if not unlocked then
+		return false, ("🔒 %s: %s"):format(world.displayName, requirement)
 	end
 	CombatService.ClearTarget(player)
 	player:SetAttribute("World", worldId)
