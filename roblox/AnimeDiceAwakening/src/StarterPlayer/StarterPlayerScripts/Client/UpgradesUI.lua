@@ -13,6 +13,7 @@ local Client = script.Parent
 local UIKit = require(Client:WaitForChild("UIKit"))
 local ClientState = require(Client:WaitForChild("ClientState"))
 local Hud = require(Client:WaitForChild("Hud"))
+local SoundController = require(Client:WaitForChild("SoundController"))
 
 local UpgradesUI = {}
 
@@ -121,13 +122,12 @@ local function buildCard(grid, order, entry)
 	local card = UIKit.Card({ LayoutOrder = order, Parent = grid }, color)
 
 	local icon, name = string.match(entry.title, "^(%S+)%s+(.+)$")
-	local iconLabel = UIKit.Label({
+	local iconLabel = UIKit.Icon({
+		Key = entry.id, -- Slots, Income, LuckPotion, CoinPotion, BigBag
+		Emoji = icon,
 		AnchorPoint = Vector2.new(0.5, 0),
 		Position = UDim2.new(0.5, 0, 0, 8),
 		Size = UDim2.fromOffset(100, 84),
-		TextScaled = true,
-		Text = icon or "⭐",
-		Outline = 0,
 		Parent = card,
 	})
 	-- Іконка м'яко "плаває"
@@ -164,7 +164,10 @@ local function buildCard(grid, order, entry)
 		Parent = card,
 	}, function()
 		local result = ClientState.Request(entry.remote, entry.id)
-		UIKit.Toast(result.message or "", if result.ok then "success" else "error")
+		if result.ok then
+			SoundController.Play("Purchase")
+		end
+		UIKit.Toast(result.message or "", if result.ok then "info" else "error")
 	end)
 	button.TextOutline.Thickness = 3
 	rows[entry.id] = { description = description, button = button }

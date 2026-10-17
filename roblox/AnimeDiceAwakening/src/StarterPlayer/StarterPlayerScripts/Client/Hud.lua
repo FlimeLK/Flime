@@ -153,21 +153,36 @@ local function buildTopNav(gui)
 		SortOrder = Enum.SortOrder.LayoutOrder,
 		Parent = bar,
 	})
-	for index, entry in { { "Worlds", "🌍 Worlds" }, { "Home", "🏠 Home" }, { "Shop", "💎 Shop" } } do
-		local name = entry[1]
+	for index, name in { "Worlds", "Home", "Shop" } do
 		local button = UIKit.Button({
 			Name = name,
 			LayoutOrder = index,
 			Size = UDim2.fromOffset(205, 62),
 			BackgroundColor3 = COLORS[name],
-			Text = entry[2],
-			TextSize = 32,
+			Text = "",
 			Parent = bar,
 		}, function()
 			press(name)
 		end)
-		button.TextOutline.Thickness = 3
 		button.Outline.UIStroke.Thickness = 4
+		-- Іконка ліворуч, що трохи виходить за межі кнопки (як у симуляторах)
+		UIKit.Icon({
+			Key = name,
+			AnchorPoint = Vector2.new(0, 0.5),
+			Position = UDim2.new(0, 2, 0.5, -2),
+			Size = UDim2.fromOffset(62, 62),
+			Parent = button,
+		})
+		UIKit.Label({
+			Name = "Caption",
+			Position = UDim2.fromOffset(66, 4),
+			Size = UDim2.new(1, -74, 1, -8),
+			Font = UIKit.Font,
+			TextScaled = true,
+			Text = name,
+			Outline = 3,
+			Parent = button,
+		})
 		elements[name] = button
 	end
 end
@@ -191,6 +206,7 @@ local function buildLeftColumn(gui)
 		local name = entry[1]
 		elements[name] = UIKit.IconButton({
 			Name = name,
+			IconKey = name,
 			Icon = entry[2],
 			Text = entry[3],
 			Color = COLORS[name],
@@ -235,6 +251,7 @@ local function buildBottomBar(gui)
 		local name = item[1]
 		elements[name] = UIKit.IconButton({
 			Name = name,
+			IconKey = name,
 			Icon = item[2],
 			Text = item[3],
 			Sub = item[5],
@@ -282,27 +299,30 @@ local function buildMoney(gui)
 		Parent = gui,
 	})
 	UIKit.AddScale(frame)
+	UIKit.Icon({ Key = "Coin", Position = UDim2.fromOffset(0, 2), Size = UDim2.fromOffset(58, 58), Parent = frame })
+	UIKit.Icon({ Key = "Crystal", Position = UDim2.fromOffset(0, 66), Size = UDim2.fromOffset(34, 34), Parent = frame })
 	local coins = UIKit.Label({
 		Name = "Coins",
-		Size = UDim2.new(1, 0, 0, 62),
+		Position = UDim2.fromOffset(64, 0),
+		Size = UDim2.new(1, -64, 0, 62),
 		Font = UIKit.Font,
 		TextScaled = true,
 		TextColor3 = UIKit.Colors.Money,
 		TextXAlignment = Enum.TextXAlignment.Left,
-		Text = "🪙 ...",
+		Text = "...",
 		Outline = 4,
 		Parent = frame,
 	})
 	UIKit.Shade(coins, 0.25)
 	local crystals = UIKit.Label({
 		Name = "Crystals",
-		Position = UDim2.fromOffset(0, 64),
-		Size = UDim2.fromOffset(120, 36),
+		Position = UDim2.fromOffset(38, 64),
+		Size = UDim2.fromOffset(84, 36),
 		Font = UIKit.Font,
 		TextScaled = true,
 		TextColor3 = UIKit.Colors.Accent2,
 		TextXAlignment = Enum.TextXAlignment.Left,
-		Text = "💎 0",
+		Text = "0",
 		Outline = 3,
 		Parent = frame,
 	})
@@ -322,12 +342,12 @@ local function buildMoney(gui)
 
 	local lastCoins = nil
 	ClientState.OnCurrencyChanged(function(coinsValue, crystalsValue)
-		coins.Text = "🪙 " .. GameMath.FormatNumber(coinsValue)
-		crystals.Text = "💎 " .. GameMath.FormatNumber(crystalsValue)
+		coins.Text = GameMath.FormatNumber(coinsValue)
+		crystals.Text = GameMath.FormatNumber(crystalsValue)
 		-- Маленький "стрибок" при отриманні монет
 		if lastCoins and coinsValue > lastCoins then
-			coins.Size = UDim2.new(1, 0, 0, 68)
-			TweenService:Create(coins, TweenInfo.new(0.2), { Size = UDim2.new(1, 0, 0, 62) }):Play()
+			coins.Size = UDim2.new(1, -64, 0, 68)
+			TweenService:Create(coins, TweenInfo.new(0.2), { Size = UDim2.new(1, -64, 0, 62) }):Play()
 		end
 		lastCoins = coinsValue
 	end)
@@ -372,13 +392,11 @@ local function buildLuck(gui)
 	}, function()
 		press("Auto")
 	end)
-	UIKit.Label({
+	UIKit.Icon({
 		Name = "Clover",
-		Position = UDim2.fromOffset(30, 52),
-		Size = UDim2.fromOffset(100, 66),
-		TextScaled = true,
-		Text = "🍀",
-		Outline = 0,
+		Key = "Luck",
+		Position = UDim2.fromOffset(40, 52),
+		Size = UDim2.fromOffset(80, 66),
 		Parent = frame,
 	})
 	elements.Luck = UIKit.Label({
@@ -404,12 +422,12 @@ local function buildTopRight(gui)
 		Position = UDim2.new(1, -12, 0, 8),
 		Size = UDim2.fromOffset(58, 58),
 		BackgroundColor3 = COLORS.Settings,
-		Text = "⚙️",
-		TextSize = 32,
+		Text = "",
 		Parent = gui,
 	}, function()
 		press("Settings")
 	end)
+	UIKit.Icon({ Key = "Settings", Position = UDim2.fromScale(0.1, 0.1), Size = UDim2.fromScale(0.8, 0.8), Parent = settings })
 	UIKit.AddScale(settings)
 	elements.Settings = settings
 

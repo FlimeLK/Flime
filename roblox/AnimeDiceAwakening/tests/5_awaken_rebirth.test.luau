@@ -130,6 +130,23 @@ check(GameMath.GetHeroChance(DiceConfig.Dice.Tidal, "marisol_tidecaller", 1) > G
 check(GameMath.FormatOdds(1 / 52000) == "1 in 52K", "odds format: " .. GameMath.FormatOdds(1 / 52000))
 check(GameMath.FormatOdds(0) == "1 in ∞", "zero odds")
 
+-- AssetConfig: every icon has an emoji fallback; IDs are normalised
+local AssetConfig = R(Shared.Config.AssetConfig)
+for key in AssetConfig.Icons do
+	check(AssetConfig.Fallback[key] ~= nil, "icon fallback for " .. key)
+end
+for key in AssetConfig.Sounds do
+	check(AssetConfig.SoundVolume[key] ~= nil, "sound volume for " .. key)
+end
+local savedIcon = AssetConfig.Icons.Roll
+AssetConfig.Icons.Roll = ""
+check(AssetConfig.GetImage("Roll") == nil, "empty icon -> fallback")
+AssetConfig.Icons.Roll = "123456"
+check(AssetConfig.GetImage("Roll") == "rbxassetid://123456", "numeric id normalised")
+AssetConfig.Icons.Roll = "rbxassetid://987"
+check(AssetConfig.GetImage("Roll") == "rbxassetid://987", "full id kept")
+AssetConfig.Icons.Roll = savedIcon
+
 print(("awaken/rebirth passed=%d failed=%d"):format(passed, failed))
 if failed > 0 then
 	error("tests failed")

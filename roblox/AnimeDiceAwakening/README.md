@@ -52,6 +52,31 @@
 
 Усі кнопки — з градієнтом, «блиском», товстою темною обводкою й білим текстом з контуром; іконки — емодзі, тож не потрібні жодні завантажені картинки. Вікна мають кольорову шапку під колір кнопки й «вистрибують» при відкритті.
 
+## Ассети: іконки та звуки
+
+![Набір іконок](docs/icon-pack.png)
+
+У грі є **власний набір із 21 іконки** в стилі симуляторів: `assets/icons/*.png` (512×512, прозорий фон). Іконки намальовані для цієї гри, тож ти можеш вільно використовувати їх у своїй грі. Вихідні SVG лежать у `assets/icons-src/`, а генератор — `tools/make_icons.py`.
+
+![Головний екран з іконками](docs/hud-icons-mockup.png)
+
+**Як підключити (≈5 хвилин):**
+
+1. Studio → **View → Asset Manager** → вкладка **Images** → кнопка **Bulk Import** (іконка зі стрілкою вгору) → вибери всі файли з `assets/icons/` → **Open**. (Місце має бути опубліковане — File → Publish to Roblox.)
+2. Для кожної картинки: ПКМ → **Copy ID to Clipboard**.
+3. Встав ID у `ReplicatedStorage/Shared/Config/AssetConfig` у рядок з тією самою назвою, наприклад:
+   ```lua
+   Roll = "rbxassetid://1234567890",
+   ```
+   (можна й просто `"1234567890"`).
+4. **Play** — усі кнопки, гроші, кристали, удача, AUTO й картки магазину покажуть картинки замість емодзі.
+
+Поки поле порожнє, гра показує емодзі, тож підключати можна поступово.
+
+**Звуки** (`AssetConfig.Sounds`): Click, RollTick (прокрутка героїв), Reveal, RareReveal (Legendary+), Purchase, Reward, Error. Візьми будь-які безкоштовні звуки з **Toolbox → Audio** (найкраще ті, що опубліковані акаунтом Roblox) → ПКМ → **Copy Asset ID** → встав у відповідний рядок. Звуки поважають налаштування ⚙️ «Звук».
+
+Також можна вставляти ID будь-яких інших картинок з Toolbox (вкладка Images) — механізм той самий.
+
 ## 2. Структура Explorer
 
 ```
@@ -66,6 +91,7 @@ ReplicatedStorage
    │  ├─ WorldConfig            (ModuleScript)  світи
    │  ├─ CombatConfig           (ModuleScript)  команда, дальність атаки
    │  ├─ EnemyConfig            (ModuleScript)  вороги, бос, точки появи, зони
+   │  ├─ AssetConfig            (ModuleScript)  🖼 ID іконок і звуків
    │  ├─ QuestConfig            (ModuleScript)  ⭐ завдання, нагороди колекції
    │  └─ ShopConfig             (ModuleScript)  ⭐ зілля, сумка, бусти
    ├─ GameMath                  (ModuleScript)  формули для сервера й клієнта
@@ -110,10 +136,11 @@ StarterPlayer
       ├─ WorldsUI               (ModuleScript)  🆕 вікно Worlds
       ├─ QuestsUI               (ModuleScript)  ⭐ вікно Quests (завдання + колекція)
       ├─ RebirthUI              (ModuleScript)  🔥 вікно Rebirth
+      ├─ SoundController        (ModuleScript)  🖼 звуки інтерфейсу
       └─ ZoneGates              (ModuleScript)  ⭐ ворота зон на екрані гравця
 ```
 
-🆕 — з'явилось на етапі 2, ⭐ — на етапі 3, 🔥 — на етапі 5, 🔁 — перенесено.
+🆕 — з'явилось на етапі 2, ⭐ — на етапі 3, 🔥 — на етапі 5, 🖼 — ассети, 🔁 — перенесено.
 
 Папку `ReplicatedStorage.Remotes` створювати **не потрібно** — сервер створює її сам.
 
@@ -153,14 +180,14 @@ StarterPlayer
 
 1. **ReplicatedStorage**
    - Folder `Shared`
-     - Folder `Config` → 9 ModuleScript з `src/ReplicatedStorage/Shared/Config/*.lua`
+     - Folder `Config` → 10 ModuleScript з `src/ReplicatedStorage/Shared/Config/*.lua`
      - ModuleScript `GameMath`, `HeroModelBuilder`, `Remotes` ← `src/ReplicatedStorage/Shared/*.lua`
 2. **ServerScriptService**
    - Script `Main` ← `src/ServerScriptService/Main.server.lua`
    - Folder `Services` → 17 ModuleScript з `src/ServerScriptService/Services/*.lua`
 3. **StarterPlayer → StarterPlayerScripts**
    - LocalScript `ClientMain` ← `src/StarterPlayer/StarterPlayerScripts/ClientMain.client.lua`
-   - Folder `Client` → 16 ModuleScript з `src/StarterPlayer/StarterPlayerScripts/Client/*.lua`
+   - Folder `Client` → 17 ModuleScript з `src/StarterPlayer/StarterPlayerScripts/Client/*.lua`
 
 Звір свій Explorer зі схемою з розділу 2 — кожна назва має збігатися літера в літеру.
 

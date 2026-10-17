@@ -6,7 +6,11 @@
 -- автоматично зменшує або збільшує їх під ПК, планшет чи телефон.
 
 local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local TweenService = game:GetService("TweenService")
+
+local AssetConfig = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("Config"):WaitForChild("AssetConfig"))
+local SoundController = require(script.Parent:WaitForChild("SoundController"))
 
 local player = Players.LocalPlayer
 
@@ -142,6 +146,44 @@ function UIKit.Label(props)
 	return label
 end
 
+-- Іконка: картинка з AssetConfig, а якщо її ще не підключено — емодзі.
+-- props: Key (назва з AssetConfig.Icons), Emoji (свій запасний варіант) + звичайні
+-- властивості розміщення (Name, Size, Position, AnchorPoint, LayoutOrder, ZIndex, Parent).
+function UIKit.Icon(props)
+	local image = AssetConfig.GetImage(props.Key)
+	local base = {
+		Name = props.Name or "Icon",
+		Size = props.Size,
+		Position = props.Position,
+		AnchorPoint = props.AnchorPoint,
+		LayoutOrder = props.LayoutOrder,
+		ZIndex = props.ZIndex,
+		BackgroundTransparency = 1,
+	}
+	local icon
+	if image then
+		base.Image = image
+		base.ScaleType = Enum.ScaleType.Fit
+		icon = UIKit.Create("ImageLabel", base)
+	else
+		base.Font = UIKit.Font
+		base.TextScaled = true
+		base.TextColor3 = Color3.new(1, 1, 1)
+		base.Text = props.Emoji or AssetConfig.Fallback[props.Key] or "⭐"
+		icon = UIKit.Create("TextLabel", base)
+	end
+	icon.Parent = props.Parent
+	return icon
+end
+
+-- Змінити іконку вже створеного елемента (наприклад, значок кубика на ROLL).
+-- Якщо підключена картинка — лишаємо її, емодзі міняємо.
+function UIKit.SetIconEmoji(icon, emoji)
+	if icon and icon:IsA("TextLabel") then
+		icon.Text = emoji
+	end
+end
+
 -- Кнопка: градієнт, "блиск" зверху, товста обводка, текст з контуром, ефект натискання.
 function UIKit.Button(props, onClick)
 	local defaults = {
@@ -191,6 +233,9 @@ function UIKit.Button(props, onClick)
 	button.MouseEnter:Connect(function()
 		TweenService:Create(pressScale, TweenInfo.new(0.1), { Scale = 1.05 }):Play()
 	end)
+	button.Activated:Connect(function()
+		SoundController.Play("Click")
+	end)
 	if onClick then
 		button.Activated:Connect(onClick)
 	end
@@ -207,8 +252,8 @@ function UIKit.SetOutline(button, color, thickness)
 	end
 end
 
--- Велика квадратна кнопка з емодзі-іконкою та підписом (як Shop / Rebirth / ROLL).
--- props: Name, Icon, Text, Sub (необов'язковий другий рядок), Color, Size, Position,
+-- Велика квадратна кнопка з іконкою та підписом (як Shop / Rebirth / ROLL).
+-- props: Name, IconKey (з AssetConfig), Icon (емодзі-запаска), Text, Sub (необов'язковий другий рядок), Color, Size, Position,
 --        AnchorPoint, LayoutOrder, Parent
 function UIKit.IconButton(props, onClick)
 	local button = UIKit.Button({
@@ -227,15 +272,13 @@ function UIKit.IconButton(props, onClick)
 
 	local hasSub = props.Sub ~= nil
 	local iconHeight = if hasSub then 0.5 else 0.6
-	UIKit.Label({
+	UIKit.Icon({
 		Name = "Icon",
+		Key = props.IconKey,
+		Emoji = props.Icon,
 		AnchorPoint = Vector2.new(0.5, 0.5), -- щоб анімація масштабу йшла від центру
 		Position = UDim2.fromScale(0.5, 0.04 + iconHeight / 2),
 		Size = UDim2.fromScale(0.84, iconHeight),
-		Font = UIKit.Font,
-		TextScaled = true,
-		Text = props.Icon,
-		Outline = 0,
 		Parent = button,
 	})
 	UIKit.Label({
@@ -511,6 +554,11 @@ function UIKit.Toast(text, kind, color)
 	end
 	local background = color
 		or (if kind == "error" then UIKit.Colors.Danger elseif kind == "success" then UIKit.Colors.Success else UIKit.Colors.PanelLight)
+	if kind == "error" then
+		SoundController.Play("Error")
+	elseif kind == "success" then
+		SoundController.Play("Reward")
+	end
 	local toast = UIKit.Label({
 		Size = UDim2.fromOffset(480, 0),
 		AutomaticSize = Enum.AutomaticSize.Y,

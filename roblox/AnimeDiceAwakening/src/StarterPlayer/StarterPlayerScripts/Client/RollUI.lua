@@ -17,6 +17,7 @@ local Client = script.Parent
 local UIKit = require(Client:WaitForChild("UIKit"))
 local ClientState = require(Client:WaitForChild("ClientState"))
 local Hud = require(Client:WaitForChild("Hud"))
+local SoundController = require(Client:WaitForChild("SoundController"))
 
 local RollUI = {}
 
@@ -220,9 +221,19 @@ local function buildOverlay(gui)
 		Font = UIKit.Font,
 		TextSize = 26,
 		TextColor3 = Color3.new(1, 1, 1),
-		Text = "🔄\nAUTO",
+		Text = "AUTO",
+		TextYAlignment = Enum.TextYAlignment.Bottom,
 		ZIndex = 6,
 		Parent = overlay,
+	})
+	UIKit.Create("UIPadding", { PaddingBottom = UDim.new(0, 12), Parent = auto })
+	UIKit.Icon({
+		Key = "Auto",
+		AnchorPoint = Vector2.new(0.5, 0),
+		Position = UDim2.new(0.5, 0, 0, 10),
+		Size = UDim2.fromScale(0.56, 0.56),
+		ZIndex = 7,
+		Parent = auto,
 	})
 	UIKit.Create("UICorner", { CornerRadius = UDim.new(1, 0), Parent = auto })
 	UIKit.Stroke(auto, Color3.fromRGB(70, 110, 220), 4)
@@ -378,6 +389,7 @@ local function playReveal(result)
 		end
 		local candidate = randomHero(dice, luck)
 		setDisplay(candidate, GameMath.GetHeroChance(dice, candidate.id, luck))
+		SoundController.Play("RollTick", 0.9 + rng:NextNumber() * 0.3)
 		o.pop.Scale = 1.08
 		TweenService:Create(o.pop, TweenInfo.new(0.08), { Scale = 1 }):Play()
 		task.wait(delay)
@@ -387,6 +399,7 @@ local function playReveal(result)
 
 	-- 2. Справжній результат
 	setDisplay(heroDef, GameMath.GetHeroChance(dice, heroDef.id, luck))
+	SoundController.Play(if rare then "RareReveal" else "Reveal")
 	o.pop.Scale = 0.45
 	TweenService:Create(o.pop, TweenInfo.new(0.4, Enum.EasingStyle.Back, Enum.EasingDirection.Out), { Scale = 1.1 }):Play()
 
@@ -534,7 +547,7 @@ function refreshButtons()
 	if bigRoll then
 		bigRoll.Sub.Text = priceText
 		bigRoll.Sub.TextColor3 = if canAfford then UIKit.Colors.Gold else UIKit.Colors.Danger
-		bigRoll.Icon.Text = dice.icon
+		UIKit.SetIconEmoji(bigRoll.Icon, dice.icon)
 	end
 	local dicePill = Hud.Get("Dice")
 	if dicePill then

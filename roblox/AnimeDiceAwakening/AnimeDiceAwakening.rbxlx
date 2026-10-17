@@ -19,6 +19,115 @@
         </Properties>
         <Item class="ModuleScript" referent="4">
           <Properties>
+            <string name="Name">AssetConfig</string>
+            <string name="Source"><![CDATA[-- AssetConfig: картинки (іконки) і звуки гри.
+--
+-- Іконки лежать у репозиторії: assets/icons/*.png (власний набір гри, можна вільно
+-- використовувати). Завантаж їх у Roblox (Asset Manager → Bulk Import),
+-- скопіюй ID кожної та встав сюди: "rbxassetid://1234567890" або просто "1234567890".
+--
+-- Поки поле порожнє (""), гра показує емодзі — нічого не ламається.
+-- Звуки так само: Toolbox → Audio → права кнопка → Copy Asset ID.
+
+local AssetConfig = {}
+
+AssetConfig.Icons = {
+	-- Головний екран
+	Roll = "",
+	Backpack = "",
+	Team = "",
+	Upgrades = "",
+	Quests = "",
+	Rebirth = "",
+	Index = "",
+	Worlds = "",
+	Home = "",
+	Shop = "",
+	Settings = "",
+	Auto = "",
+	Lock = "",
+	-- Валюти й удача
+	Coin = "",
+	Crystal = "",
+	Luck = "",
+	-- Магазин і покращення
+	Slots = "",
+	Income = "",
+	LuckPotion = "",
+	CoinPotion = "",
+	BigBag = "",
+}
+
+-- Емодзі, які показуються, поки картинку не підключено
+AssetConfig.Fallback = {
+	Roll = "🎲",
+	Backpack = "🎒",
+	Team = "⚔️",
+	Upgrades = "⬆️",
+	Quests = "📜",
+	Rebirth = "♻️",
+	Index = "📖",
+	Worlds = "🌍",
+	Home = "🏠",
+	Shop = "🛒",
+	Settings = "⚙️",
+	Auto = "🔄",
+	Lock = "🔒",
+	Coin = "🪙",
+	Crystal = "💎",
+	Luck = "🍀",
+	Slots = "🧱",
+	Income = "💰",
+	LuckPotion = "🍀",
+	CoinPotion = "💰",
+	BigBag = "🎒",
+}
+
+AssetConfig.Sounds = {
+	Click = "", -- натискання кнопки
+	RollTick = "", -- кожна зміна героя під час прокрутки
+	Reveal = "", -- випав герой
+	RareReveal = "", -- випав Legendary і рідкісніший
+	Purchase = "", -- успішна покупка
+	Reward = "", -- нагорода (завдання, бос)
+	Error = "", -- помилка / не вистачає монет
+}
+
+AssetConfig.SoundVolume = {
+	Click = 0.4,
+	RollTick = 0.3,
+	Reveal = 0.7,
+	RareReveal = 0.9,
+	Purchase = 0.6,
+	Reward = 0.7,
+	Error = 0.5,
+}
+
+local function normalize(id)
+	if type(id) ~= "string" or id == "" then
+		return nil
+	end
+	if string.match(id, "^%d+$") then
+		return "rbxassetid://" .. id
+	end
+	return id
+end
+
+-- Повна адреса картинки або nil, якщо її ще не підключено.
+function AssetConfig.GetImage(key)
+	return normalize(AssetConfig.Icons[key])
+end
+
+function AssetConfig.GetSound(key)
+	return normalize(AssetConfig.Sounds[key])
+end
+
+return AssetConfig
+]]></string>
+          </Properties>
+        </Item>
+        <Item class="ModuleScript" referent="5">
+          <Properties>
             <string name="Name">CombatConfig</string>
             <string name="Source"><![CDATA[-- CombatConfig: налаштування бою та бойової команди.
 
@@ -46,7 +155,7 @@ return CombatConfig
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="5">
+        <Item class="ModuleScript" referent="6">
           <Properties>
             <string name="Name">DiceConfig</string>
             <string name="Source"><![CDATA[-- DiceConfig: усі кубики гри.
@@ -145,7 +254,7 @@ return DiceConfig
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="6">
+        <Item class="ModuleScript" referent="7">
           <Properties>
             <string name="Name">EconomyConfig</string>
             <string name="Source"><![CDATA[-- EconomyConfig: ціни, бонуси та ліміти. Усі числа балансу — тут.
@@ -207,7 +316,7 @@ return EconomyConfig
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="7">
+        <Item class="ModuleScript" referent="8">
           <Properties>
             <string name="Name">EnemyConfig</string>
             <string name="Source"><![CDATA[-- EnemyConfig: вороги, боси та де вони з'являються у кожному світі.
@@ -359,7 +468,7 @@ return EnemyConfig
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="8">
+        <Item class="ModuleScript" referent="9">
           <Properties>
             <string name="Name">HeroConfig</string>
             <string name="Source"><![CDATA[-- HeroConfig: усі герої гри (оригінальні персонажі).
@@ -738,7 +847,7 @@ return HeroConfig
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="9">
+        <Item class="ModuleScript" referent="10">
           <Properties>
             <string name="Name">QuestConfig</string>
             <string name="Source"><![CDATA[-- QuestConfig: завдання та нагороди.
@@ -807,7 +916,7 @@ return QuestConfig
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="10">
+        <Item class="ModuleScript" referent="11">
           <Properties>
             <string name="Name">RarityConfig</string>
             <string name="Source"><![CDATA[-- RarityConfig: рідкості героїв.
@@ -906,7 +1015,7 @@ return RarityConfig
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="11">
+        <Item class="ModuleScript" referent="12">
           <Properties>
             <string name="Name">ShopConfig</string>
             <string name="Source"><![CDATA[-- ShopConfig: покупки за Crystals.
@@ -956,7 +1065,7 @@ return ShopConfig
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="12">
+        <Item class="ModuleScript" referent="13">
           <Properties>
             <string name="Name">WorldConfig</string>
             <string name="Source"><![CDATA[-- WorldConfig: світи гри.
@@ -1026,7 +1135,7 @@ return WorldConfig
           </Properties>
         </Item>
       </Item>
-      <Item class="ModuleScript" referent="13">
+      <Item class="ModuleScript" referent="14">
         <Properties>
           <string name="Name">GameMath</string>
           <string name="Source"><![CDATA[-- GameMath: формули балансу, спільні для сервера й клієнта.
@@ -1445,7 +1554,7 @@ return GameMath
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="14">
+      <Item class="ModuleScript" referent="15">
         <Properties>
           <string name="Name">HeroModelBuilder</string>
           <string name="Source"><![CDATA[-- HeroModelBuilder: будує просту модель героя з Part (без платних моделей).
@@ -1641,7 +1750,7 @@ return HeroModelBuilder
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="15">
+      <Item class="ModuleScript" referent="16">
         <Properties>
           <string name="Name">Remotes</string>
           <string name="Source"><![CDATA[-- Remotes: єдиний список усіх RemoteEvent / RemoteFunction гри.
@@ -1722,11 +1831,11 @@ return Remotes
       </Item>
     </Item>
   </Item>
-  <Item class="ServerScriptService" referent="16">
+  <Item class="ServerScriptService" referent="17">
     <Properties>
       <string name="Name">ServerScriptService</string>
     </Properties>
-    <Item class="Script" referent="17">
+    <Item class="Script" referent="18">
       <Properties>
         <string name="Name">Main</string>
         <token name="RunContext">0</token>
@@ -1809,11 +1918,11 @@ print("[Main] Anime Dice: Awakening — сервер запущено")
 ]]></string>
       </Properties>
     </Item>
-    <Item class="Folder" referent="18">
+    <Item class="Folder" referent="19">
       <Properties>
         <string name="Name">Services</string>
       </Properties>
-      <Item class="ModuleScript" referent="19">
+      <Item class="ModuleScript" referent="20">
         <Properties>
           <string name="Name">BuildUtil</string>
           <string name="Source"><![CDATA[-- BuildUtil: спільні функції для будівництва карти з простих Part.
@@ -1883,7 +1992,7 @@ return BuildUtil
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="20">
+      <Item class="ModuleScript" referent="21">
         <Properties>
           <string name="Name">CombatService</string>
           <string name="Source"><![CDATA[-- CombatService: вибір цілі та автоатака бойової команди.
@@ -2106,7 +2215,7 @@ return CombatService
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="21">
+      <Item class="ModuleScript" referent="22">
         <Properties>
           <string name="Name">DataService</string>
           <string name="Source"><![CDATA[-- DataService: завантаження, зберігання та синхронізація даних гравців.
@@ -2570,7 +2679,7 @@ return DataService
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="22">
+      <Item class="ModuleScript" referent="23">
         <Properties>
           <string name="Name">EnemyModelBuilder</string>
           <string name="Source"><![CDATA[-- EnemyModelBuilder: прості моделі ворогів з Part + смуга здоров'я над головою.
@@ -2740,7 +2849,7 @@ return EnemyModelBuilder
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="23">
+      <Item class="ModuleScript" referent="24">
         <Properties>
           <string name="Name">EnemyService</string>
           <string name="Source"><![CDATA[-- EnemyService: вороги та боси — поява, здоров'я, нагороди, атаки боса.
@@ -3030,7 +3139,7 @@ return EnemyService
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="24">
+      <Item class="ModuleScript" referent="25">
         <Properties>
           <string name="Name">IncomeService</string>
           <string name="Source"><![CDATA[-- IncomeService: нарахування монет від героїв на базі та офлайн-дохід.
@@ -3092,7 +3201,7 @@ return IncomeService
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="25">
+      <Item class="ModuleScript" referent="26">
         <Properties>
           <string name="Name">InventoryService</string>
           <string name="Source"><![CDATA[-- InventoryService: герої гравця — видача, розміщення на базі, блокування,
@@ -3335,7 +3444,7 @@ return InventoryService
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="26">
+      <Item class="ModuleScript" referent="27">
         <Properties>
           <string name="Name">PlotService</string>
           <string name="Source"><![CDATA[-- PlotService: будує лобі й ділянки, видає кожному гравцеві власну базу,
@@ -3622,7 +3731,7 @@ return PlotService
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="27">
+      <Item class="ModuleScript" referent="28">
         <Properties>
           <string name="Name">QuestService</string>
           <string name="Source"><![CDATA[-- QuestService: сюжетні та щоденні завдання, нагороди колекції, відкриття зон.
@@ -3816,7 +3925,7 @@ return QuestService
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="28">
+      <Item class="ModuleScript" referent="29">
         <Properties>
           <string name="Name">RateLimiter</string>
           <string name="Source"><![CDATA[-- RateLimiter: обмеження частоти запитів (алгоритм "відро з жетонами").
@@ -3855,7 +3964,7 @@ return RateLimiter
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="29">
+      <Item class="ModuleScript" referent="30">
         <Properties>
           <string name="Name">RebirthService</string>
           <string name="Source"><![CDATA[-- RebirthService: Rebirth — віддаєш монети, слоти бази й рівень доходу,
@@ -3926,7 +4035,7 @@ return RebirthService
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="30">
+      <Item class="ModuleScript" referent="31">
         <Properties>
           <string name="Name">RollService</string>
           <string name="Source"><![CDATA[-- RollService: кидки кубиків. Результат визначає ТІЛЬКИ сервер;
@@ -4101,7 +4210,7 @@ return RollService
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="31">
+      <Item class="ModuleScript" referent="32">
         <Properties>
           <string name="Name">SettingsService</string>
           <string name="Source"><![CDATA[-- SettingsService: збереження налаштувань гравця (звук, ефекти, пропуск анімацій).
@@ -4147,7 +4256,7 @@ return SettingsService
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="32">
+      <Item class="ModuleScript" referent="33">
         <Properties>
           <string name="Name">ShopService</string>
           <string name="Source"><![CDATA[-- ShopService: покупки за Crystals — зілля (тимчасові бусти) і більша сумка.
@@ -4226,7 +4335,7 @@ return ShopService
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="33">
+      <Item class="ModuleScript" referent="34">
         <Properties>
           <string name="Name">TeamService</string>
           <string name="Source"><![CDATA[-- TeamService: бойова команда з 3 героїв.
@@ -4393,7 +4502,7 @@ return TeamService
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="34">
+      <Item class="ModuleScript" referent="35">
         <Properties>
           <string name="Name">UpgradeService</string>
           <string name="Source"><![CDATA[-- UpgradeService: покупка покращень бази (слоти та дохід).
@@ -4469,7 +4578,7 @@ return UpgradeService
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="35">
+      <Item class="ModuleScript" referent="36">
         <Properties>
           <string name="Name">WorldService</string>
           <string name="Source"><![CDATA[-- WorldService: будує світи, переносить гравців через портали та кнопку Worlds.
@@ -4854,19 +4963,19 @@ return WorldService
       </Item>
     </Item>
   </Item>
-  <Item class="StarterPlayer" referent="36">
+  <Item class="StarterPlayer" referent="37">
     <Properties>
       <string name="Name">StarterPlayer</string>
     </Properties>
-    <Item class="StarterPlayerScripts" referent="37">
+    <Item class="StarterPlayerScripts" referent="38">
       <Properties>
         <string name="Name">StarterPlayerScripts</string>
       </Properties>
-      <Item class="Folder" referent="38">
+      <Item class="Folder" referent="39">
         <Properties>
           <string name="Name">Client</string>
         </Properties>
-        <Item class="ModuleScript" referent="39">
+        <Item class="ModuleScript" referent="40">
           <Properties>
             <string name="Name">ClientState</string>
             <string name="Source"><![CDATA[-- ClientState: копія даних гравця на клієнті + запити до сервера.
@@ -4970,7 +5079,7 @@ return ClientState
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="40">
+        <Item class="ModuleScript" referent="41">
           <Properties>
             <string name="Name">CombatUI</string>
             <string name="Source"><![CDATA[-- CombatUI: інтерфейс бою — поточна ціль, смуга здоров'я боса з попередженням
@@ -5218,7 +5327,7 @@ return CombatUI
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="41">
+        <Item class="ModuleScript" referent="42">
           <Properties>
             <string name="Name">EnemyRegistry</string>
             <string name="Source"><![CDATA[-- EnemyRegistry: швидкий пошук моделі ворога за EnemyId на клієнті.
@@ -5270,7 +5379,7 @@ return EnemyRegistry
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="42">
+        <Item class="ModuleScript" referent="43">
           <Properties>
             <string name="Name">FollowerController</string>
             <string name="Source"><![CDATA[-- FollowerController: герої бойової команди йдуть за своїм гравцем.
@@ -5410,7 +5519,7 @@ return FollowerController
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="43">
+        <Item class="ModuleScript" referent="44">
           <Properties>
             <string name="Name">Hud</string>
             <string name="Source"><![CDATA[-- Hud: головний екран у стилі аніме-симуляторів.
@@ -5568,21 +5677,36 @@ local function buildTopNav(gui)
 		SortOrder = Enum.SortOrder.LayoutOrder,
 		Parent = bar,
 	})
-	for index, entry in { { "Worlds", "🌍 Worlds" }, { "Home", "🏠 Home" }, { "Shop", "💎 Shop" } } do
-		local name = entry[1]
+	for index, name in { "Worlds", "Home", "Shop" } do
 		local button = UIKit.Button({
 			Name = name,
 			LayoutOrder = index,
 			Size = UDim2.fromOffset(205, 62),
 			BackgroundColor3 = COLORS[name],
-			Text = entry[2],
-			TextSize = 32,
+			Text = "",
 			Parent = bar,
 		}, function()
 			press(name)
 		end)
-		button.TextOutline.Thickness = 3
 		button.Outline.UIStroke.Thickness = 4
+		-- Іконка ліворуч, що трохи виходить за межі кнопки (як у симуляторах)
+		UIKit.Icon({
+			Key = name,
+			AnchorPoint = Vector2.new(0, 0.5),
+			Position = UDim2.new(0, 2, 0.5, -2),
+			Size = UDim2.fromOffset(62, 62),
+			Parent = button,
+		})
+		UIKit.Label({
+			Name = "Caption",
+			Position = UDim2.fromOffset(66, 4),
+			Size = UDim2.new(1, -74, 1, -8),
+			Font = UIKit.Font,
+			TextScaled = true,
+			Text = name,
+			Outline = 3,
+			Parent = button,
+		})
 		elements[name] = button
 	end
 end
@@ -5606,6 +5730,7 @@ local function buildLeftColumn(gui)
 		local name = entry[1]
 		elements[name] = UIKit.IconButton({
 			Name = name,
+			IconKey = name,
 			Icon = entry[2],
 			Text = entry[3],
 			Color = COLORS[name],
@@ -5650,6 +5775,7 @@ local function buildBottomBar(gui)
 		local name = item[1]
 		elements[name] = UIKit.IconButton({
 			Name = name,
+			IconKey = name,
 			Icon = item[2],
 			Text = item[3],
 			Sub = item[5],
@@ -5697,27 +5823,30 @@ local function buildMoney(gui)
 		Parent = gui,
 	})
 	UIKit.AddScale(frame)
+	UIKit.Icon({ Key = "Coin", Position = UDim2.fromOffset(0, 2), Size = UDim2.fromOffset(58, 58), Parent = frame })
+	UIKit.Icon({ Key = "Crystal", Position = UDim2.fromOffset(0, 66), Size = UDim2.fromOffset(34, 34), Parent = frame })
 	local coins = UIKit.Label({
 		Name = "Coins",
-		Size = UDim2.new(1, 0, 0, 62),
+		Position = UDim2.fromOffset(64, 0),
+		Size = UDim2.new(1, -64, 0, 62),
 		Font = UIKit.Font,
 		TextScaled = true,
 		TextColor3 = UIKit.Colors.Money,
 		TextXAlignment = Enum.TextXAlignment.Left,
-		Text = "🪙 ...",
+		Text = "...",
 		Outline = 4,
 		Parent = frame,
 	})
 	UIKit.Shade(coins, 0.25)
 	local crystals = UIKit.Label({
 		Name = "Crystals",
-		Position = UDim2.fromOffset(0, 64),
-		Size = UDim2.fromOffset(120, 36),
+		Position = UDim2.fromOffset(38, 64),
+		Size = UDim2.fromOffset(84, 36),
 		Font = UIKit.Font,
 		TextScaled = true,
 		TextColor3 = UIKit.Colors.Accent2,
 		TextXAlignment = Enum.TextXAlignment.Left,
-		Text = "💎 0",
+		Text = "0",
 		Outline = 3,
 		Parent = frame,
 	})
@@ -5737,12 +5866,12 @@ local function buildMoney(gui)
 
 	local lastCoins = nil
 	ClientState.OnCurrencyChanged(function(coinsValue, crystalsValue)
-		coins.Text = "🪙 " .. GameMath.FormatNumber(coinsValue)
-		crystals.Text = "💎 " .. GameMath.FormatNumber(crystalsValue)
+		coins.Text = GameMath.FormatNumber(coinsValue)
+		crystals.Text = GameMath.FormatNumber(crystalsValue)
 		-- Маленький "стрибок" при отриманні монет
 		if lastCoins and coinsValue > lastCoins then
-			coins.Size = UDim2.new(1, 0, 0, 68)
-			TweenService:Create(coins, TweenInfo.new(0.2), { Size = UDim2.new(1, 0, 0, 62) }):Play()
+			coins.Size = UDim2.new(1, -64, 0, 68)
+			TweenService:Create(coins, TweenInfo.new(0.2), { Size = UDim2.new(1, -64, 0, 62) }):Play()
 		end
 		lastCoins = coinsValue
 	end)
@@ -5787,13 +5916,11 @@ local function buildLuck(gui)
 	}, function()
 		press("Auto")
 	end)
-	UIKit.Label({
+	UIKit.Icon({
 		Name = "Clover",
-		Position = UDim2.fromOffset(30, 52),
-		Size = UDim2.fromOffset(100, 66),
-		TextScaled = true,
-		Text = "🍀",
-		Outline = 0,
+		Key = "Luck",
+		Position = UDim2.fromOffset(40, 52),
+		Size = UDim2.fromOffset(80, 66),
 		Parent = frame,
 	})
 	elements.Luck = UIKit.Label({
@@ -5819,12 +5946,12 @@ local function buildTopRight(gui)
 		Position = UDim2.new(1, -12, 0, 8),
 		Size = UDim2.fromOffset(58, 58),
 		BackgroundColor3 = COLORS.Settings,
-		Text = "⚙️",
-		TextSize = 32,
+		Text = "",
 		Parent = gui,
 	}, function()
 		press("Settings")
 	end)
+	UIKit.Icon({ Key = "Settings", Position = UDim2.fromScale(0.1, 0.1), Size = UDim2.fromScale(0.8, 0.8), Parent = settings })
 	UIKit.AddScale(settings)
 	elements.Settings = settings
 
@@ -5952,7 +6079,7 @@ return Hud
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="44">
+        <Item class="ModuleScript" referent="45">
           <Properties>
             <string name="Name">InventoryUI</string>
             <string name="Source"><![CDATA[-- InventoryUI: сітка героїв, сортування, Equip Best і дії з вибраним героєм
@@ -6338,7 +6465,7 @@ return InventoryUI
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="45">
+        <Item class="ModuleScript" referent="46">
           <Properties>
             <string name="Name">QuestsUI</string>
             <string name="Source"><![CDATA[-- QuestsUI: вікно Quests з вкладками "Завдання" (сюжет + щоденні) і "Колекція"
@@ -6779,7 +6906,7 @@ return QuestsUI
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="46">
+        <Item class="ModuleScript" referent="47">
           <Properties>
             <string name="Name">RebirthUI</string>
             <string name="Source"><![CDATA[-- RebirthUI: вікно Rebirth — прогрес до наступного Rebirth, що отримаєш і що скинеться.
@@ -6937,7 +7064,7 @@ return RebirthUI
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="47">
+        <Item class="ModuleScript" referent="48">
           <Properties>
             <string name="Name">RollUI</string>
             <string name="Source"><![CDATA[-- RollUI: вікно кубиків (вибір кубика, шанси, гарантія), кнопки Roll / Auto / Skip
@@ -6959,6 +7086,7 @@ local Client = script.Parent
 local UIKit = require(Client:WaitForChild("UIKit"))
 local ClientState = require(Client:WaitForChild("ClientState"))
 local Hud = require(Client:WaitForChild("Hud"))
+local SoundController = require(Client:WaitForChild("SoundController"))
 
 local RollUI = {}
 
@@ -7162,9 +7290,19 @@ local function buildOverlay(gui)
 		Font = UIKit.Font,
 		TextSize = 26,
 		TextColor3 = Color3.new(1, 1, 1),
-		Text = "🔄\nAUTO",
+		Text = "AUTO",
+		TextYAlignment = Enum.TextYAlignment.Bottom,
 		ZIndex = 6,
 		Parent = overlay,
+	})
+	UIKit.Create("UIPadding", { PaddingBottom = UDim.new(0, 12), Parent = auto })
+	UIKit.Icon({
+		Key = "Auto",
+		AnchorPoint = Vector2.new(0.5, 0),
+		Position = UDim2.new(0.5, 0, 0, 10),
+		Size = UDim2.fromScale(0.56, 0.56),
+		ZIndex = 7,
+		Parent = auto,
 	})
 	UIKit.Create("UICorner", { CornerRadius = UDim.new(1, 0), Parent = auto })
 	UIKit.Stroke(auto, Color3.fromRGB(70, 110, 220), 4)
@@ -7320,6 +7458,7 @@ local function playReveal(result)
 		end
 		local candidate = randomHero(dice, luck)
 		setDisplay(candidate, GameMath.GetHeroChance(dice, candidate.id, luck))
+		SoundController.Play("RollTick", 0.9 + rng:NextNumber() * 0.3)
 		o.pop.Scale = 1.08
 		TweenService:Create(o.pop, TweenInfo.new(0.08), { Scale = 1 }):Play()
 		task.wait(delay)
@@ -7329,6 +7468,7 @@ local function playReveal(result)
 
 	-- 2. Справжній результат
 	setDisplay(heroDef, GameMath.GetHeroChance(dice, heroDef.id, luck))
+	SoundController.Play(if rare then "RareReveal" else "Reveal")
 	o.pop.Scale = 0.45
 	TweenService:Create(o.pop, TweenInfo.new(0.4, Enum.EasingStyle.Back, Enum.EasingDirection.Out), { Scale = 1.1 }):Play()
 
@@ -7476,7 +7616,7 @@ function refreshButtons()
 	if bigRoll then
 		bigRoll.Sub.Text = priceText
 		bigRoll.Sub.TextColor3 = if canAfford then UIKit.Colors.Gold else UIKit.Colors.Danger
-		bigRoll.Icon.Text = dice.icon
+		UIKit.SetIconEmoji(bigRoll.Icon, dice.icon)
 	end
 	local dicePill = Hud.Get("Dice")
 	if dicePill then
@@ -7681,7 +7821,7 @@ return RollUI
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="48">
+        <Item class="ModuleScript" referent="49">
           <Properties>
             <string name="Name">SettingsUI</string>
             <string name="Source"><![CDATA[-- SettingsUI: перемикачі звуку, ефектів і пропуску анімацій.
@@ -7762,7 +7902,51 @@ return SettingsUI
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="49">
+        <Item class="ModuleScript" referent="50">
+          <Properties>
+            <string name="Name">SoundController</string>
+            <string name="Source"><![CDATA[-- SoundController: звуки інтерфейсу. ID звуків — у Config/AssetConfig.
+-- Звук грає лише якщо його ID заповнено і в налаштуваннях увімкнено "Звук".
+
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local SoundService = game:GetService("SoundService")
+
+local AssetConfig = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("Config"):WaitForChild("AssetConfig"))
+
+local Client = script.Parent
+local ClientState = require(Client:WaitForChild("ClientState"))
+
+local SoundController = {}
+
+local sounds = {} -- [key] = Sound
+
+function SoundController.Play(key, pitch)
+	local soundId = AssetConfig.GetSound(key)
+	if not soundId then
+		return
+	end
+	-- Поки дані не прийшли, звук дозволено; далі — за налаштуванням
+	if ClientState.Data and not ClientState.GetSetting("sound") then
+		return
+	end
+	local sound = sounds[key]
+	if not sound then
+		sound = Instance.new("Sound")
+		sound.Name = "UI_" .. key
+		sound.SoundId = soundId
+		sound.Volume = AssetConfig.SoundVolume[key] or 0.5
+		sound.Parent = SoundService
+		sounds[key] = sound
+	end
+	sound.PlaybackSpeed = pitch or 1
+	SoundService:PlayLocalSound(sound)
+end
+
+return SoundController
+]]></string>
+          </Properties>
+        </Item>
+        <Item class="ModuleScript" referent="51">
           <Properties>
             <string name="Name">TeamUI</string>
             <string name="Source"><![CDATA[-- TeamUI: вікно бойової команди. Зверху 3 слоти, нижче — усі герої за шкодою.
@@ -8024,7 +8208,7 @@ return TeamUI
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="50">
+        <Item class="ModuleScript" referent="52">
           <Properties>
             <string name="Name">UIKit</string>
             <string name="Source"><![CDATA[-- UIKit: стиль і готові елементи інтерфейсу.
@@ -8035,7 +8219,11 @@ return TeamUI
 -- автоматично зменшує або збільшує їх під ПК, планшет чи телефон.
 
 local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local TweenService = game:GetService("TweenService")
+
+local AssetConfig = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("Config"):WaitForChild("AssetConfig"))
+local SoundController = require(script.Parent:WaitForChild("SoundController"))
 
 local player = Players.LocalPlayer
 
@@ -8171,6 +8359,44 @@ function UIKit.Label(props)
 	return label
 end
 
+-- Іконка: картинка з AssetConfig, а якщо її ще не підключено — емодзі.
+-- props: Key (назва з AssetConfig.Icons), Emoji (свій запасний варіант) + звичайні
+-- властивості розміщення (Name, Size, Position, AnchorPoint, LayoutOrder, ZIndex, Parent).
+function UIKit.Icon(props)
+	local image = AssetConfig.GetImage(props.Key)
+	local base = {
+		Name = props.Name or "Icon",
+		Size = props.Size,
+		Position = props.Position,
+		AnchorPoint = props.AnchorPoint,
+		LayoutOrder = props.LayoutOrder,
+		ZIndex = props.ZIndex,
+		BackgroundTransparency = 1,
+	}
+	local icon
+	if image then
+		base.Image = image
+		base.ScaleType = Enum.ScaleType.Fit
+		icon = UIKit.Create("ImageLabel", base)
+	else
+		base.Font = UIKit.Font
+		base.TextScaled = true
+		base.TextColor3 = Color3.new(1, 1, 1)
+		base.Text = props.Emoji or AssetConfig.Fallback[props.Key] or "⭐"
+		icon = UIKit.Create("TextLabel", base)
+	end
+	icon.Parent = props.Parent
+	return icon
+end
+
+-- Змінити іконку вже створеного елемента (наприклад, значок кубика на ROLL).
+-- Якщо підключена картинка — лишаємо її, емодзі міняємо.
+function UIKit.SetIconEmoji(icon, emoji)
+	if icon and icon:IsA("TextLabel") then
+		icon.Text = emoji
+	end
+end
+
 -- Кнопка: градієнт, "блиск" зверху, товста обводка, текст з контуром, ефект натискання.
 function UIKit.Button(props, onClick)
 	local defaults = {
@@ -8220,6 +8446,9 @@ function UIKit.Button(props, onClick)
 	button.MouseEnter:Connect(function()
 		TweenService:Create(pressScale, TweenInfo.new(0.1), { Scale = 1.05 }):Play()
 	end)
+	button.Activated:Connect(function()
+		SoundController.Play("Click")
+	end)
 	if onClick then
 		button.Activated:Connect(onClick)
 	end
@@ -8236,8 +8465,8 @@ function UIKit.SetOutline(button, color, thickness)
 	end
 end
 
--- Велика квадратна кнопка з емодзі-іконкою та підписом (як Shop / Rebirth / ROLL).
--- props: Name, Icon, Text, Sub (необов'язковий другий рядок), Color, Size, Position,
+-- Велика квадратна кнопка з іконкою та підписом (як Shop / Rebirth / ROLL).
+-- props: Name, IconKey (з AssetConfig), Icon (емодзі-запаска), Text, Sub (необов'язковий другий рядок), Color, Size, Position,
 --        AnchorPoint, LayoutOrder, Parent
 function UIKit.IconButton(props, onClick)
 	local button = UIKit.Button({
@@ -8256,15 +8485,13 @@ function UIKit.IconButton(props, onClick)
 
 	local hasSub = props.Sub ~= nil
 	local iconHeight = if hasSub then 0.5 else 0.6
-	UIKit.Label({
+	UIKit.Icon({
 		Name = "Icon",
+		Key = props.IconKey,
+		Emoji = props.Icon,
 		AnchorPoint = Vector2.new(0.5, 0.5), -- щоб анімація масштабу йшла від центру
 		Position = UDim2.fromScale(0.5, 0.04 + iconHeight / 2),
 		Size = UDim2.fromScale(0.84, iconHeight),
-		Font = UIKit.Font,
-		TextScaled = true,
-		Text = props.Icon,
-		Outline = 0,
 		Parent = button,
 	})
 	UIKit.Label({
@@ -8540,6 +8767,11 @@ function UIKit.Toast(text, kind, color)
 	end
 	local background = color
 		or (if kind == "error" then UIKit.Colors.Danger elseif kind == "success" then UIKit.Colors.Success else UIKit.Colors.PanelLight)
+	if kind == "error" then
+		SoundController.Play("Error")
+	elseif kind == "success" then
+		SoundController.Play("Reward")
+	end
 	local toast = UIKit.Label({
 		Size = UDim2.fromOffset(480, 0),
 		AutomaticSize = Enum.AutomaticSize.Y,
@@ -8629,7 +8861,7 @@ return UIKit
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="51">
+        <Item class="ModuleScript" referent="53">
           <Properties>
             <string name="Name">UpgradesUI</string>
             <string name="Source"><![CDATA[-- UpgradesUI: покращення бази за Coins і магазин за Crystals (зілля, більша сумка).
@@ -8647,6 +8879,7 @@ local Client = script.Parent
 local UIKit = require(Client:WaitForChild("UIKit"))
 local ClientState = require(Client:WaitForChild("ClientState"))
 local Hud = require(Client:WaitForChild("Hud"))
+local SoundController = require(Client:WaitForChild("SoundController"))
 
 local UpgradesUI = {}
 
@@ -8755,13 +8988,12 @@ local function buildCard(grid, order, entry)
 	local card = UIKit.Card({ LayoutOrder = order, Parent = grid }, color)
 
 	local icon, name = string.match(entry.title, "^(%S+)%s+(.+)$")
-	local iconLabel = UIKit.Label({
+	local iconLabel = UIKit.Icon({
+		Key = entry.id, -- Slots, Income, LuckPotion, CoinPotion, BigBag
+		Emoji = icon,
 		AnchorPoint = Vector2.new(0.5, 0),
 		Position = UDim2.new(0.5, 0, 0, 8),
 		Size = UDim2.fromOffset(100, 84),
-		TextScaled = true,
-		Text = icon or "⭐",
-		Outline = 0,
 		Parent = card,
 	})
 	-- Іконка м'яко "плаває"
@@ -8798,7 +9030,10 @@ local function buildCard(grid, order, entry)
 		Parent = card,
 	}, function()
 		local result = ClientState.Request(entry.remote, entry.id)
-		UIKit.Toast(result.message or "", if result.ok then "success" else "error")
+		if result.ok then
+			SoundController.Play("Purchase")
+		end
+		UIKit.Toast(result.message or "", if result.ok then "info" else "error")
 	end)
 	button.TextOutline.Thickness = 3
 	rows[entry.id] = { description = description, button = button }
@@ -8877,7 +9112,7 @@ return UpgradesUI
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="52">
+        <Item class="ModuleScript" referent="54">
           <Properties>
             <string name="Name">WorldEffects</string>
             <string name="Source"><![CDATA[-- WorldEffects: локально вмикає/вимикає аури героїв за налаштуванням "Ефекти".
@@ -8923,7 +9158,7 @@ return WorldEffects
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="53">
+        <Item class="ModuleScript" referent="55">
           <Properties>
             <string name="Name">WorldsUI</string>
             <string name="Source"><![CDATA[-- WorldsUI: список світів і кнопки подорожі. Переносить гравця сервер.
@@ -9052,7 +9287,7 @@ return WorldsUI
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="54">
+        <Item class="ModuleScript" referent="56">
           <Properties>
             <string name="Name">ZoneGates</string>
             <string name="Source"><![CDATA[-- ZoneGates: ворота зон на екрані цього гравця.
@@ -9111,7 +9346,7 @@ return ZoneGates
           </Properties>
         </Item>
       </Item>
-      <Item class="LocalScript" referent="55">
+      <Item class="LocalScript" referent="57">
         <Properties>
           <string name="Name">ClientMain</string>
           <string name="Source"><![CDATA[-- ClientMain: точка входу клієнта. Будує інтерфейс і підключає модулі.

@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256"><defs><linearGradient id="s" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ffffff"/><stop offset="1" stop-color="#a9bde0"/></linearGradient><linearGradient id="h" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ffd75a"/><stop offset="1" stop-color="#e89a1c"/></linearGradient></defs>
+<g stroke="#1b1030" stroke-width="8" stroke-linejoin="round">
+<g transform="rotate(-45 128 128)">
+<path d="M112 30 L128 10 L144 30 L144 160 L112 160 Z" fill="url(#s)"/>
+<rect x="88" y="158" width="80" height="18" rx="8" fill="url(#h)"/>
+<rect x="117" y="176" width="22" height="44" rx="6" fill="#7a4a2a"/>
+<circle cx="128" cy="232" r="13" fill="url(#h)"/></g>
+<g transform="rotate(45 128 128)">
+<path d="M112 30 L128 10 L144 30 L144 160 L112 160 Z" fill="url(#s)"/>
+<rect x="88" y="158" width="80" height="18" rx="8" fill="url(#h)"/>
+<rect x="117" y="176" width="22" height="44" rx="6" fill="#7a4a2a"/>
+<circle cx="128" cy="232" r="13" fill="url(#h)"/></g></g>
+<path d="M120 36 L120 150" stroke="#fff" stroke-width="5" opacity=".7" transform="rotate(45 128 128)"/></svg>

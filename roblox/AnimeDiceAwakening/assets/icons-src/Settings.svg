@@ -1,0 +1,3 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256"><defs><linearGradient id="g" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#e6e9f5"/><stop offset="1" stop-color="#8c93ad"/></linearGradient></defs>
+<path d="M112 22 H144 L150 52 L172 61 L197 43 L220 66 L202 91 L211 113 L240 119 V151 L211 157 L202 179 L220 204 L197 227 L172 209 L150 218 L144 248 H112 L106 218 L84 209 L59 227 L36 204 L54 179 L45 157 L16 151 V119 L45 113 L54 91 L36 66 L59 43 L84 61 L106 52 Z" transform="translate(0 -7)" fill="url(#g)" stroke="#1b1030" stroke-width="10" stroke-linejoin="round"/>
+<circle cx="128" cy="128" r="34" fill="#4b4f66" stroke="#1b1030" stroke-width="10"/></svg>
