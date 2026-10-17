@@ -29,7 +29,7 @@ WorldConfig.Worlds = {
 		description = "Матроси, гарматні краби, прокляті корсари й Captain Blackwake.",
 		color = Color3.fromRGB(40, 150, 255),
 		available = true,
-		center = Vector3.new(1500, 200, 500),
+		center = Vector3.new(1500, 200, 1200),
 		unlock = { boss = "oni_kurogane" },
 		zones = {
 			{ id = "Beach", name = "Beach", requiredKills = 0 },
@@ -43,7 +43,7 @@ WorldConfig.Worlds = {
 		description = "Вічна ніч, неон, біси, примари та Demon Queen Noctyra.",
 		color = Color3.fromRGB(150, 60, 220),
 		available = true,
-		center = Vector3.new(1500, 200, 1000),
+		center = Vector3.new(1500, 200, 2400),
 		unlock = { boss = "captain_blackwake" },
 		night = true, -- клієнт вмикає нічне освітлення, поки гравець тут
 		zones = {

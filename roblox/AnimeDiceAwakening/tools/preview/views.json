@@ -1,0 +1,21 @@
+[
+  { "name": "lobby", "pos": [95, 70, -95], "target": [0, 4, 0], "fov": 55, "shadowRadius": 200 },
+  { "name": "lobby_ground", "pos": [52, 8, 0], "target": [0, 11, 0], "fov": 70, "shadowRadius": 120 },
+  { "name": "map", "pos": [0, 330, -260], "target": [0, 0, 0], "fov": 55, "shadowRadius": 260 },
+  { "name": "plot", "pos": [55, 45, -10], "target": [125, 4, 0], "fov": 60, "shadowRadius": 120 },
+  { "name": "plot_ground", "pos": [93, 9, 0], "target": [130, 5, 0], "fov": 70, "shadowRadius": 90 },
+  { "name": "ninja", "pos": [1500, 285, -175], "target": [1500, 200, -20], "fov": 60, "shadowRadius": 200,
+    "sky": ["#ffb780", "#ffe2c4"], "sunDir": [-0.6, 0.45, 0.4], "sunColor": "#ffd2a0", "ambient": ["#ffe0c8", "#6d7a5a", 0.7] },
+  { "name": "ninja_ground", "pos": [1500, 207, -112], "target": [1500, 205, -40], "fov": 70, "shadowRadius": 120,
+    "sky": ["#ffb780", "#ffe2c4"], "sunDir": [-0.6, 0.45, 0.4], "sunColor": "#ffd2a0", "ambient": ["#ffe0c8", "#6d7a5a", 0.7] },
+  { "name": "pirate", "pos": [1500, 285, 1025], "target": [1500, 200, 1180], "fov": 60, "shadowRadius": 200,
+    "sky": ["#3fa6ff", "#c9f1ff"], "sunDir": [0.3, 1, -0.2], "ambient": ["#d8f4ff", "#c8b890", 0.75] },
+  { "name": "pirate_ground", "pos": [1500, 207, 1088], "target": [1500, 205, 1160], "fov": 70, "shadowRadius": 120,
+    "sky": ["#3fa6ff", "#c9f1ff"], "sunDir": [0.3, 1, -0.2], "ambient": ["#d8f4ff", "#c8b890", 0.75] },
+  { "name": "demon", "pos": [1500, 285, 2225], "target": [1500, 200, 2380], "fov": 60, "shadowRadius": 200, "night": true,
+    "sky": ["#0b0418", "#3a1250"], "fog": ["#28103c", 150, 700], "sunDir": [0.2, 1, 0.4], "sunColor": "#8a70ff", "sunIntensity": 0.4,
+    "ambient": ["#6a40b0", "#20102a", 0.9], "bloom": 0.45, "exposure": 0.8 },
+  { "name": "demon_ground", "pos": [1500, 207, 2288], "target": [1500, 205, 2360], "fov": 70, "shadowRadius": 120, "night": true,
+    "sky": ["#0b0418", "#3a1250"], "fog": ["#28103c", 120, 600], "sunDir": [0.2, 1, 0.4], "sunColor": "#8a70ff", "sunIntensity": 0.4,
+    "ambient": ["#6a40b0", "#20102a", 0.9], "bloom": 0.45, "exposure": 0.8 }
+]
