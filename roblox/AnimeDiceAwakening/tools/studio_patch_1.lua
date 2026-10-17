@@ -1,5 +1,5 @@
 -- Згенеровано tools/make_studio_patch.py — НЕ редагуй вручну.
--- Частина 1 з 1. Запускай усі частини по черзі (порядок не важливий).
+-- Частина 1 з 7. Запускай усі частини по черзі: від 1 до 7.
 -- Studio → зупини гру (Stop) → View → Command Bar → встав увесь текст → ▶ Run.
 -- Замінює код скриптів нижче на нову версію. Ctrl+Z скасовує зміни.
 local ChangeHistoryService = game:GetService("ChangeHistoryService")
@@ -39,958 +39,1452 @@ local function setSource(path, className, source)
 	print("✅ оновлено " .. target:GetFullName())
 end
 
-setSource({ "StarterPlayer", "StarterPlayerScripts", "Client", "AdminUI" }, "ModuleScript", [=[
--- AdminUI: 👑 адмін-панель (лише для адмінів) + оголошення й таймер подій (для всіх).
+setSource({ "ReplicatedStorage", "Shared", "Config", "HeroArtConfig" }, "ModuleScript", [=[
+-- HeroArtConfig: як виглядають герої — 3D-моделі з Creator Store і портрети.
 --
--- Кнопка 👑 з'являється в верхньому меню, якщо сервер позначив гравця атрибутом IsAdmin.
--- На ПК панель також відкривається клавішею F2. Усі дії виконує й перевіряє сервер (AdminService).
+-- Models   — ID безкоштовних моделей з Creator Store (Toolbox). Їх завантажує в
+--            ReplicatedStorage/HeroModels скрипт tools/load_hero_models.lua (Command Bar → ▶ Run),
+--            а гра ставить їх на базу, у команду й показує під час кидка.
+-- Portraits — свої картинки героїв (ID з Asset Manager). Якщо порожньо, портретом
+--            стає знімок моделі з Models — нічого завантажувати не треба.
+--
+-- Моделі підібрані в аніме-стилі й без персонажів чужих франшиз (Roblox видаляє ігри
+-- з чужими персонажами за авторські права). Будь-який ID можна замінити на свій.
 
-local Players = game:GetService("Players")
-local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local TweenService = game:GetService("TweenService")
-local UserInputService = game:GetService("UserInputService")
+local HeroArtConfig = {}
 
-local Shared = ReplicatedStorage:WaitForChild("Shared")
-local Config = Shared:WaitForChild("Config")
-local AdminConfig = require(Config:WaitForChild("AdminConfig"))
-local HeroConfig = require(Config:WaitForChild("HeroConfig"))
-local RarityConfig = require(Config:WaitForChild("RarityConfig"))
-local WorldConfig = require(Config:WaitForChild("WorldConfig"))
-local GameMath = require(Shared:WaitForChild("GameMath"))
-local Remotes = require(Shared:WaitForChild("Remotes"))
-
-local Client = script.Parent
-local UIKit = require(Client:WaitForChild("UIKit"))
-local ClientState = require(Client:WaitForChild("ClientState"))
-local Hud = require(Client:WaitForChild("Hud"))
-local SoundController = require(Client:WaitForChild("SoundController"))
-
-local player = Players.LocalPlayer
-
-local AdminUI = {}
-
-local GOLD = ColorSequence.new({
-	ColorSequenceKeypoint.new(0, Color3.fromRGB(255, 220, 90)),
-	ColorSequenceKeypoint.new(0.5, Color3.fromRGB(255, 140, 50)),
-	ColorSequenceKeypoint.new(1, Color3.fromRGB(255, 70, 150)),
-})
-local COLORS = {
-	Gold = Color3.fromRGB(255, 190, 50),
-	Currency = Color3.fromRGB(255, 185, 40),
-	Heroes = Color3.fromRGB(170, 90, 255),
-	Progress = Color3.fromRGB(60, 200, 110),
-	Player = Color3.fromRGB(60, 160, 255),
-	Server = Color3.fromRGB(255, 80, 170),
-	Log = Color3.fromRGB(120, 115, 160),
-	Danger = Color3.fromRGB(235, 50, 65),
-	Input = Color3.fromRGB(20, 18, 30),
+HeroArtConfig.Models = {
+	riku_windstep = 10465459303, -- Riku Windstep (Common)
+	tomo_deckhand = 100944702942220, -- Tomo the Deckhand (Common)
+	hana_emberling = 5267955171, -- Hana Emberling (Common)
+	zen_cadet = 12757277166, -- Zen Star Cadet (Common)
+	shiro_quickblade = 8988047057, -- Shiro Quickblade (Rare)
+	kaito_saltfang = 132434304646924, -- Kaito Saltfang (Rare)
+	mira_cinderveil = 14976197705, -- Mira Cinderveil (Rare)
+	yoru_lantern = 102936851931650, -- Yoru Lanternbearer (Rare)
+	akane_crimsonfan = 1002392746, -- Akane Crimson Fan (Epic)
+	raizo_thunderstep = 12572205024, -- Raizo Thunderstep (Epic)
+	nox_hollowhunter = 117056856525249, -- Nox Hollowhunter (Epic)
+	coral_vex = 799516341, -- Captain Coral Vex (Epic)
+	seren_starblade = 12864717820, -- Seren Starblade (Legendary)
+	kuro_moonreaper = 133610989566243, -- Kuro Moonreaper (Legendary)
+	homura_ashcrown = 5123918805, -- Homura Ashcrown (Legendary)
+	ryo_skybolt = 88689760627068, -- Ryo Skybolt (Legendary)
+	marisol_tidecaller = 2513353543, -- Marisol Tidecaller (Legendary)
+	rin_hellbane = 9389951512, -- Rin Hellbane (Legendary)
+	astra_novaempress = 1346868188, -- Astra, Nova Empress (Mythic)
+	gekko_voidshinobi = 11965234368, -- Gekko the Void Shinobi (Mythic)
+	volta_stormcaptain = 3552939059, -- Storm Captain Volta (Mythic)
+	ifra_phoenixsaint = 79118375438271, -- Ifra, Phoenix Saint (Mythic)
+	kaizen_deepcrown = 10854041153, -- Admiral Kaizen Deepcrown (Mythic)
+	kagura_duskblade = 89208241488034, -- Kagura Duskblade (Mythic)
+	solenne_eclipse = 7084656859, -- Solenne, Eclipse Sovereign (Secret)
+	mugen_dicegod = 107515140283474, -- Mugen, the Dice God (Secret)
+	vael_abyssal = 4856690928, -- Vael, Abyssal Emperor (Secret)
 }
 
-local ui: { [string]: any } = {}
-local selected = player -- гравець, над яким виконуються дії
-local pages = {}
-local tabButtons = {}
+-- Свої портрети (необов'язково): "1234567890" або "rbxassetid://1234567890"
+HeroArtConfig.Portraits = {
+	riku_windstep = "",
+	tomo_deckhand = "",
+	hana_emberling = "",
+	zen_cadet = "",
+	shiro_quickblade = "",
+	kaito_saltfang = "",
+	mira_cinderveil = "",
+	yoru_lantern = "",
+	akane_crimsonfan = "",
+	raizo_thunderstep = "",
+	nox_hollowhunter = "",
+	coral_vex = "",
+	seren_starblade = "",
+	kuro_moonreaper = "",
+	homura_ashcrown = "",
+	ryo_skybolt = "",
+	marisol_tidecaller = "",
+	rin_hellbane = "",
+	astra_novaempress = "",
+	gekko_voidshinobi = "",
+	volta_stormcaptain = "",
+	ifra_phoenixsaint = "",
+	kaizen_deepcrown = "",
+	kagura_duskblade = "",
+	solenne_eclipse = "",
+	mugen_dicegod = "",
+	vael_abyssal = "",
+}
 
----------------------------------------------------------------------
--- Дрібні будівельні блоки
----------------------------------------------------------------------
+-- true — якщо свого портрета немає, показувати знімок моделі з Creator Store
+HeroArtConfig.ModelThumbnailPortraits = true
 
--- "1.5m" → 1500000, "-250k" → -250000
-local SUFFIX = { k = 1e3, m = 1e6, b = 1e9, t = 1e12 }
-local function parseAmount(text)
-	text = string.lower(string.gsub(text or "", "[%s,_]", ""))
-	local number, suffix = string.match(text, "^(%-?[%d%.]+)(%a?)$")
-	number = tonumber(number)
-	if not number then
-		return nil
+-- Адреса портрета героя або nil (тоді гра показує 3D-модель).
+-- ownOnly = true — лише своя картинка, без знімка моделі (під час кидка краще жива 3D-модель).
+function HeroArtConfig.GetPortrait(heroId, ownOnly)
+	local image = HeroArtConfig.Portraits[heroId]
+	if type(image) == "number" then
+		image = tostring(image)
 	end
-	if suffix ~= "" then
-		if not SUFFIX[suffix] then
-			return nil
+	if type(image) == "string" and image ~= "" then
+		if string.match(image, "^%d+$") then
+			return "rbxassetid://" .. image
 		end
-		number *= SUFFIX[suffix]
+		return image
 	end
-	return math.floor(number)
+	local modelId = HeroArtConfig.Models[heroId]
+	if not ownOnly and HeroArtConfig.ModelThumbnailPortraits and type(modelId) == "number" then
+		return ("rbxthumb://type=Asset&id=%d&w=420&h=420"):format(modelId)
+	end
+	return nil
 end
 
-local function input(parent, placeholder, props)
-	local box = UIKit.Create("TextBox", {
-		Size = UDim2.new(1, 0, 0, 44),
-		BackgroundColor3 = COLORS.Input,
-		Font = UIKit.BodyFont,
-		TextSize = 18,
-		TextColor3 = UIKit.Colors.Text,
-		PlaceholderText = placeholder,
-		PlaceholderColor3 = Color3.fromRGB(140, 130, 175),
-		TextXAlignment = Enum.TextXAlignment.Left,
-		ClearTextOnFocus = false,
-		Text = "",
-		Parent = parent,
-	})
-	for key, value in props or {} do
-		box[key] = value
-	end
-	UIKit.Corner(box, 10)
-	local stroke = UIKit.Stroke(box, Color3.fromRGB(110, 95, 170), 2)
-	UIKit.Create("UIPadding", { PaddingLeft = UDim.new(0, 12), PaddingRight = UDim.new(0, 12), Parent = box })
-	box.Focused:Connect(function()
-		stroke.Color = COLORS.Gold
-	end)
-	box.FocusLost:Connect(function()
-		stroke.Color = Color3.fromRGB(110, 95, 170)
-	end)
-	return box
+return HeroArtConfig
+]=])
+
+setSource({ "ReplicatedStorage", "Shared", "Config", "AdminConfig" }, "ModuleScript", [=[
+-- AdminConfig: хто має доступ до адмін-панелі.
+-- Кожну дію адміна сервер перевіряє заново — клієнт лише показує кнопки.
+
+local AdminConfig = {}
+
+-- Імена адмінів. Сервер сам перетворює їх на UserId (так надійніше, ніж порівнювати імена).
+AdminConfig.Usernames = { "FlimeYTLK" }
+
+-- UserId адмінів (необов'язково): числа з посилання на профіль roblox.com/users/<UserId>/profile
+AdminConfig.UserIds = {}
+
+-- Власник гри (або власник групи, якщо гра групова) — завжди адмін
+AdminConfig.OwnerIsAdmin = true
+
+-- У Studio (Play / Start Server) адмінами є всі тестові гравці — зручно перевіряти панель
+AdminConfig.StudioIsAdmin = true
+
+-- Межі, щоб випадковий нуль зайвий не зламав економіку
+AdminConfig.MaxCurrency = 1e15
+AdminConfig.MaxHeroesPerAction = 10
+AdminConfig.MaxBoostMinutes = 24 * 60
+AdminConfig.MaxEventMinutes = 120
+AdminConfig.EventMultipliers = { 2, 3, 5, 10 }
+AdminConfig.WalkSpeeds = { 16, 32, 60, 100 }
+AdminConfig.LogSize = 60
+
+return AdminConfig
+]=])
+
+setSource({ "ReplicatedStorage", "Shared", "Config", "DiceConfig" }, "ModuleScript", [=[
+-- DiceConfig: усі кубики гри.
+-- price         — ціна одного кидка в Coins
+-- luck          — множник удачі (діє на рідкості з luckAffected = true)
+-- requiredRolls — скільки всього кидків треба зробити, щоб відкрити кубик
+-- requiredBoss  — (необов'язково) id боса, якого треба перемогти хоча б раз
+-- element       — стихія, герої якої випадають частіше
+-- elementBonus  — у скільки разів частіше випадають герої цієї стихії
+-- weights       — базові ваги рідкостей (не обов'язково в сумі 100)
+
+local DiceConfig = {}
+
+-- Кубик, яким робиться перший безкоштовний навчальний кидок.
+DiceConfig.TutorialDice = "Basic"
+
+DiceConfig.Order = { "Basic", "Fire", "Lightning", "Shadow", "Tidal", "Celestial", "Abyss" }
+
+DiceConfig.Dice = {
+	Abyss = {
+		displayName = "Abyss Dice",
+		description = "Нагорода за Demon Queen Noctyra. Тіньові герої втричі частіше.",
+		icon = "🔮",
+		color = Color3.fromRGB(150, 40, 200),
+		price = 25000,
+		luck = 2.8,
+		requiredRolls = 0,
+		requiredBoss = "demon_queen_noctyra",
+		element = "Shadow",
+		elementBonus = 3,
+		weights = { Common = 200, Rare = 300, Epic = 250, Legendary = 150, Mythic = 75, Secret = 25 },
+	},
+	Basic = {
+		displayName = "Basic Dice",
+		description = "Простий кубик для старту пригоди.",
+		icon = "🎲",
+		color = Color3.fromRGB(235, 235, 245),
+		price = 25,
+		luck = 1,
+		requiredRolls = 0,
+		element = nil,
+		elementBonus = 1,
+		weights = { Common = 700, Rare = 230, Epic = 60, Legendary = 9, Mythic = 1, Secret = 0 },
+	},
+	Fire = {
+		displayName = "Fire Dice",
+		description = "Вогняні герої випадають утричі частіше.",
+		icon = "🔥",
+		color = Color3.fromRGB(255, 110, 50),
+		price = 150,
+		luck = 1.25,
+		requiredRolls = 25,
+		element = "Fire",
+		elementBonus = 3,
+		weights = { Common = 600, Rare = 280, Epic = 95, Legendary = 20, Mythic = 4.5, Secret = 0.5 },
+	},
+	Lightning = {
+		displayName = "Lightning Dice",
+		description = "Блискавичні герої випадають утричі частіше.",
+		icon = "⚡",
+		color = Color3.fromRGB(255, 230, 60),
+		price = 600,
+		luck = 1.5,
+		requiredRolls = 75,
+		element = "Lightning",
+		elementBonus = 3,
+		weights = { Common = 500, Rare = 320, Epic = 130, Legendary = 38, Mythic = 10, Secret = 2 },
+	},
+	Shadow = {
+		displayName = "Shadow Dice",
+		description = "Тіньові герої випадають утричі частіше.",
+		icon = "🌑",
+		color = Color3.fromRGB(120, 60, 200),
+		price = 2500,
+		luck = 1.8,
+		requiredRolls = 200,
+		element = "Shadow",
+		elementBonus = 3,
+		weights = { Common = 380, Rare = 340, Epic = 180, Legendary = 70, Mythic = 25, Secret = 5 },
+	},
+	Tidal = {
+		displayName = "Tidal Dice",
+		description = "Нагорода за Captain Blackwake. Водні герої втричі частіше.",
+		icon = "🌊",
+		color = Color3.fromRGB(40, 170, 255),
+		price = 5000,
+		luck = 2,
+		requiredRolls = 0,
+		requiredBoss = "captain_blackwake",
+		element = "Water",
+		elementBonus = 3,
+		weights = { Common = 300, Rare = 340, Epic = 210, Legendary = 100, Mythic = 40, Secret = 10 },
+	},
+	Celestial = {
+		displayName = "Celestial Dice",
+		description = "Небесний кубик: найкраща удача, світлі герої частіше.",
+		icon = "✨",
+		color = Color3.fromRGB(150, 230, 255),
+		price = 10000,
+		luck = 2.2,
+		requiredRolls = 500,
+		element = "Light",
+		elementBonus = 3,
+		weights = { Common = 250, Rare = 330, Epic = 230, Legendary = 120, Mythic = 55, Secret = 15 },
+	},
+}
+
+return DiceConfig
+]=])
+
+setSource({ "ReplicatedStorage", "Shared", "Config", "EnemyConfig" }, "ModuleScript", [=[
+-- EnemyConfig: вороги, боси та де вони з'являються у кожному світі.
+-- health   — запас здоров'я
+-- coins    — нагорода в Coins кожному, хто допоміг перемогти
+-- crystals — нагорода в Crystals (лише боси)
+-- respawn  — через скільки секунд ворог з'явиться знову
+-- style    — зовнішній вигляд простої моделі з Part
+--
+-- Атаки боса (attacks) — список; бос щоразу вибирає випадкову. pattern:
+--   "self"    — коло навколо боса
+--   "targets" — коло під кожним гравцем поруч
+--   "random"  — count кіл у випадкових місцях арени (spread — радіус розкиду)
+
+local EnemyConfig = {}
+
+EnemyConfig.Enemies = {
+	bandit_genin = {
+		name = "Bandit Genin",
+		health = 80,
+		coins = 12,
+		crystals = 0,
+		respawn = 8,
+		scale = 1,
+		style = "Genin",
+		body = Color3.fromRGB(90, 85, 75),
+		accent = Color3.fromRGB(200, 60, 60),
+	},
+	shadow_puppet = {
+		name = "Shadow Puppet",
+		health = 240,
+		coins = 32,
+		crystals = 0,
+		respawn = 10,
+		scale = 1.1,
+		style = "Puppet",
+		body = Color3.fromRGB(35, 25, 50),
+		accent = Color3.fromRGB(170, 80, 255),
+	},
+	rogue_ronin = {
+		name = "Rogue Ronin",
+		health = 650,
+		coins = 85,
+		crystals = 0,
+		respawn = 14,
+		scale = 1.25,
+		style = "Ronin",
+		body = Color3.fromRGB(60, 70, 110),
+		accent = Color3.fromRGB(230, 230, 240),
+	},
+	oni_kurogane = {
+		name = "Oni Warlord Kurogane",
+		health = 6000,
+		coins = 1500,
+		crystals = 25,
+		respawn = 90,
+		scale = 2.6,
+		style = "Oni",
+		body = Color3.fromRGB(180, 40, 40),
+		accent = Color3.fromRGB(255, 200, 60),
+		isBoss = true,
+		attackInterval = 5, -- секунд між атаками
+		attacks = {
+			-- Удар по землі навколо боса: червоне коло, потім шкода всім усередині
+			{ displayName = "Ground Slam", pattern = "self", telegraph = 1.6, radius = 20, damage = 35 },
+			-- Дощ сюрикенів: кола під кожним гравцем поруч, треба відбігти
+			{ displayName = "Shuriken Rain", pattern = "targets", telegraph = 1.3, radius = 9, damage = 25 },
+		},
+	},
+
+	-- ===== Pirate Island =====
+	deckhand_brawler = {
+		name = "Deckhand Brawler",
+		health = 900,
+		coins = 70,
+		crystals = 0,
+		respawn = 8,
+		scale = 1.15,
+		style = "Brawler",
+		body = Color3.fromRGB(150, 110, 80),
+		accent = Color3.fromRGB(220, 40, 40),
+	},
+	cannon_crab = {
+		name = "Cannon Crab",
+		health = 2200,
+		coins = 160,
+		crystals = 0,
+		respawn = 10,
+		scale = 1.3,
+		style = "Crab",
+		body = Color3.fromRGB(230, 90, 60),
+		accent = Color3.fromRGB(60, 60, 70),
+	},
+	cursed_corsair = {
+		name = "Cursed Corsair",
+		health = 5000,
+		coins = 350,
+		crystals = 0,
+		respawn = 14,
+		scale = 1.35,
+		style = "Corsair",
+		body = Color3.fromRGB(40, 70, 80),
+		accent = Color3.fromRGB(80, 255, 200),
+	},
+	captain_blackwake = {
+		name = "Captain Blackwake",
+		health = 45000,
+		coins = 12000,
+		crystals = 60,
+		respawn = 120,
+		scale = 2.8,
+		style = "Captain",
+		body = Color3.fromRGB(30, 30, 45),
+		accent = Color3.fromRGB(255, 200, 60),
+		isBoss = true,
+		attackInterval = 4.5,
+		attacks = {
+			{ displayName = "Cannon Barrage", pattern = "random", count = 7, spread = 26, telegraph = 1.5, radius = 8, damage = 40 },
+			{ displayName = "Anchor Sweep", pattern = "self", telegraph = 1.8, radius = 24, damage = 50 },
+			{ displayName = "Kraken Grab", pattern = "targets", telegraph = 1.4, radius = 10, damage = 45 },
+		},
+	},
+
+	-- ===== Demon Night City =====
+	alley_imp = {
+		name = "Alley Imp",
+		health = 6000,
+		coins = 300,
+		crystals = 0,
+		respawn = 8,
+		scale = 0.95,
+		style = "Imp",
+		body = Color3.fromRGB(150, 30, 60),
+		accent = Color3.fromRGB(255, 80, 200),
+	},
+	lantern_wraith = {
+		name = "Lantern Wraith",
+		health = 14000,
+		coins = 650,
+		crystals = 0,
+		respawn = 10,
+		scale = 1.25,
+		style = "Wraith",
+		body = Color3.fromRGB(40, 30, 70),
+		accent = Color3.fromRGB(80, 220, 255),
+	},
+	night_fiend = {
+		name = "Night Fiend",
+		health = 32000,
+		coins = 1400,
+		crystals = 0,
+		respawn = 14,
+		scale = 1.5,
+		style = "Fiend",
+		body = Color3.fromRGB(25, 20, 30),
+		accent = Color3.fromRGB(255, 60, 60),
+	},
+	demon_queen_noctyra = {
+		name = "Demon Queen Noctyra",
+		health = 300000,
+		coins = 80000,
+		crystals = 150,
+		respawn = 150,
+		scale = 3,
+		style = "DemonQueen",
+		body = Color3.fromRGB(60, 15, 70),
+		accent = Color3.fromRGB(255, 50, 160),
+		isBoss = true,
+		attackInterval = 4,
+		attacks = {
+			{ displayName = "Hellfire Ring", pattern = "self", telegraph = 1.7, radius = 26, damage = 60 },
+			{ displayName = "Shadow Spikes", pattern = "random", count = 9, spread = 28, telegraph = 1.4, radius = 8, damage = 55 },
+			{ displayName = "Soul Chains", pattern = "targets", telegraph = 1.3, radius = 11, damage = 55 },
+		},
+	},
+}
+
+-- Точки появи. offset — відносно центру світу (Y = 0 — рівень землі).
+-- zone — номер зони з WorldConfig (ворогів закритої зони не можна атакувати).
+EnemyConfig.WorldSpawns = {
+	NinjaVillage = {
+		{ enemy = "bandit_genin", offset = Vector3.new(-22, 0, -65), zone = 1 },
+		{ enemy = "bandit_genin", offset = Vector3.new(22, 0, -65), zone = 1 },
+		{ enemy = "shadow_puppet", offset = Vector3.new(-38, 0, -15), zone = 1 },
+		{ enemy = "shadow_puppet", offset = Vector3.new(38, 0, -15), zone = 1 },
+		{ enemy = "rogue_ronin", offset = Vector3.new(-32, 0, 35), zone = 2 },
+		{ enemy = "rogue_ronin", offset = Vector3.new(32, 0, 35), zone = 2 },
+		{ enemy = "oni_kurogane", offset = Vector3.new(0, 0, 92), zone = 3 },
+	},
+	PirateIsland = {
+		{ enemy = "deckhand_brawler", offset = Vector3.new(-24, 0, -65), zone = 1 },
+		{ enemy = "deckhand_brawler", offset = Vector3.new(24, 0, -65), zone = 1 },
+		{ enemy = "cannon_crab", offset = Vector3.new(-40, 0, -15), zone = 1 },
+		{ enemy = "cannon_crab", offset = Vector3.new(40, 0, -15), zone = 1 },
+		{ enemy = "cursed_corsair", offset = Vector3.new(-30, 0, 36), zone = 2 },
+		{ enemy = "cursed_corsair", offset = Vector3.new(30, 0, 36), zone = 2 },
+		{ enemy = "captain_blackwake", offset = Vector3.new(0, 0, 92), zone = 3 },
+	},
+	DemonCity = {
+		{ enemy = "alley_imp", offset = Vector3.new(-22, 0, -65), zone = 1 },
+		{ enemy = "alley_imp", offset = Vector3.new(22, 0, -65), zone = 1 },
+		{ enemy = "lantern_wraith", offset = Vector3.new(-36, 0, -15), zone = 1 },
+		{ enemy = "lantern_wraith", offset = Vector3.new(36, 0, -15), zone = 1 },
+		{ enemy = "night_fiend", offset = Vector3.new(-30, 0, 36), zone = 2 },
+		{ enemy = "night_fiend", offset = Vector3.new(30, 0, 36), zone = 2 },
+		{ enemy = "demon_queen_noctyra", offset = Vector3.new(0, 0, 92), zone = 3 },
+	},
+}
+
+return EnemyConfig
+]=])
+
+setSource({ "ReplicatedStorage", "Shared", "Config", "HeroConfig" }, "ModuleScript", [=[
+-- HeroConfig: усі герої гри (оригінальні персонажі).
+-- ВАЖЛИВО: ніколи не видаляй і не перейменовуй id героя після релізу —
+-- id зберігається в DataStore, і гравці втратять цих героїв.
+--
+-- damage       — базова шкода (знадобиться в боях, етап 2)
+-- attackSpeed  — атак за секунду
+-- income       — монет за секунду на базі (рівень 1)
+-- ability      — особлива здібність (працюватиме в боях)
+-- awakened     — пробуджена форма (відкриється на наступних етапах)
+-- look         — кольори простої моделі з Part
+
+local HeroConfig = {}
+
+HeroConfig.ElementColors = {
+	Fire = Color3.fromRGB(255, 95, 40),
+	Water = Color3.fromRGB(40, 150, 255),
+	Lightning = Color3.fromRGB(255, 225, 50),
+	Wind = Color3.fromRGB(90, 230, 140),
+	Shadow = Color3.fromRGB(140, 60, 220),
+	Light = Color3.fromRGB(255, 250, 200),
+}
+
+HeroConfig.ElementIcons = {
+	Fire = "🔥",
+	Water = "💧",
+	Lightning = "⚡",
+	Wind = "🍃",
+	Shadow = "🌑",
+	Light = "✨",
+}
+
+local SKIN = Color3.fromRGB(255, 220, 190)
+
+HeroConfig.List = {
+	-- ===== Common =====
+	{
+		id = "riku_windstep",
+		name = "Riku Windstep",
+		rarity = "Common",
+		archetype = "Ninja",
+		element = "Wind",
+		damage = 4,
+		attackSpeed = 1.2,
+		income = 1,
+		ability = { name = "Leaf Step", description = "Кожна 5-та атака б'є двічі." },
+		awakened = { name = "Riku, Storm Leaf", multiplier = 2.5 },
+		look = { body = Color3.fromRGB(60, 120, 80), hair = Color3.fromRGB(40, 40, 40), skin = SKIN, height = 0.9 },
+	},
+	{
+		id = "tomo_deckhand",
+		name = "Tomo the Deckhand",
+		rarity = "Common",
+		archetype = "Pirate",
+		element = "Water",
+		damage = 5,
+		attackSpeed = 0.9,
+		income = 1,
+		ability = { name = "Barrel Toss", description = "Кидає бочку, що оглушує ворога на 0.5 с." },
+		awakened = { name = "Tomo, Tide Breaker", multiplier = 2.5 },
+		look = { body = Color3.fromRGB(230, 230, 230), hair = Color3.fromRGB(120, 70, 30), skin = SKIN, height = 0.95 },
+	},
+	{
+		id = "hana_emberling",
+		name = "Hana Emberling",
+		rarity = "Common",
+		archetype = "Mage",
+		element = "Fire",
+		damage = 6,
+		attackSpeed = 0.8,
+		income = 1.2,
+		ability = { name = "Tiny Flame", description = "Підпалює ворога: +10% шкоди протягом 3 с." },
+		awakened = { name = "Hana, Bright Cinder", multiplier = 2.5 },
+		look = { body = Color3.fromRGB(200, 70, 70), hair = Color3.fromRGB(255, 150, 60), skin = SKIN, height = 0.9 },
+	},
+	{
+		id = "zen_cadet",
+		name = "Zen Star Cadet",
+		rarity = "Common",
+		archetype = "Space Warrior",
+		element = "Lightning",
+		damage = 5,
+		attackSpeed = 1,
+		income = 1.1,
+		ability = { name = "Blaster Burst", description = "Три швидкі постріли поспіль." },
+		awakened = { name = "Zen, Orbit Ranger", multiplier = 2.5 },
+		look = { body = Color3.fromRGB(80, 90, 120), hair = Color3.fromRGB(240, 240, 240), skin = SKIN, height = 1 },
+	},
+
+	-- ===== Rare =====
+	{
+		id = "shiro_quickblade",
+		name = "Shiro Quickblade",
+		rarity = "Rare",
+		archetype = "Swordsman",
+		element = "Lightning",
+		damage = 14,
+		attackSpeed = 1.1,
+		income = 3,
+		ability = { name = "Flash Draw", description = "Перший удар по ворогу завдає подвійної шкоди." },
+		awakened = { name = "Shiro, Thunder Sheath", multiplier = 2.6 },
+		look = { body = Color3.fromRGB(240, 240, 250), hair = Color3.fromRGB(220, 220, 230), skin = SKIN, height = 1.05 },
+	},
+	{
+		id = "kaito_saltfang",
+		name = "Kaito Saltfang",
+		rarity = "Rare",
+		archetype = "Pirate",
+		element = "Water",
+		damage = 16,
+		attackSpeed = 0.9,
+		income = 3.2,
+		ability = { name = "Anchor Drop", description = "Б'є якорем по площі навколо цілі." },
+		awakened = { name = "Kaito, Deepwater Fang", multiplier = 2.6 },
+		look = { body = Color3.fromRGB(40, 60, 110), hair = Color3.fromRGB(20, 20, 30), skin = SKIN, height = 1.1 },
+	},
+	{
+		id = "mira_cinderveil",
+		name = "Mira Cinderveil",
+		rarity = "Rare",
+		archetype = "Mage",
+		element = "Fire",
+		damage = 18,
+		attackSpeed = 0.8,
+		income = 3.5,
+		ability = { name = "Ash Veil", description = "Зменшує шкоду від босів на 15% для команди." },
+		awakened = { name = "Mira, Veil of Embers", multiplier = 2.6 },
+		look = { body = Color3.fromRGB(120, 30, 40), hair = Color3.fromRGB(250, 220, 120), skin = SKIN, height = 1 },
+	},
+	{
+		id = "yoru_lantern",
+		name = "Yoru Lanternbearer",
+		rarity = "Rare",
+		archetype = "Demon Hunter",
+		element = "Shadow",
+		damage = 15,
+		attackSpeed = 1,
+		income = 3,
+		ability = { name = "Spirit Lantern", description = "+25% шкоди по демонам і нічним ворогам." },
+		awakened = { name = "Yoru, Night Watcher", multiplier = 2.6 },
+		look = { body = Color3.fromRGB(40, 35, 60), hair = Color3.fromRGB(90, 50, 140), skin = SKIN, height = 1.05 },
+	},
+
+	-- ===== Epic =====
+	{
+		id = "akane_crimsonfan",
+		name = "Akane Crimson Fan",
+		rarity = "Epic",
+		archetype = "Ninja",
+		element = "Fire",
+		damage = 40,
+		attackSpeed = 1.2,
+		income = 8,
+		ability = { name = "Crimson Fan Dance", description = "Вогняний вихор б'є всіх ворогів поруч." },
+		awakened = { name = "Akane, Scarlet Tempest", multiplier = 2.8 },
+		look = { body = Color3.fromRGB(180, 20, 40), hair = Color3.fromRGB(30, 10, 10), skin = SKIN, height = 1 },
+	},
+	{
+		id = "raizo_thunderstep",
+		name = "Raizo Thunderstep",
+		rarity = "Epic",
+		archetype = "Ninja",
+		element = "Lightning",
+		damage = 42,
+		attackSpeed = 1.3,
+		income = 8.5,
+		ability = { name = "Thunder Step", description = "Телепортується до цілі й оглушує її." },
+		awakened = { name = "Raizo, Storm Phantom", multiplier = 2.8 },
+		look = { body = Color3.fromRGB(30, 30, 50), hair = Color3.fromRGB(255, 220, 60), skin = SKIN, height = 1.05 },
+	},
+	{
+		id = "nox_hollowhunter",
+		name = "Nox Hollowhunter",
+		rarity = "Epic",
+		archetype = "Demon Hunter",
+		element = "Shadow",
+		damage = 45,
+		attackSpeed = 1,
+		income = 9,
+		ability = { name = "Hollow Mark", description = "Позначена ціль отримує +30% шкоди." },
+		awakened = { name = "Nox, Abyss Warden", multiplier = 2.8 },
+		look = { body = Color3.fromRGB(20, 20, 25), hair = Color3.fromRGB(230, 230, 240), skin = SKIN, height = 1.15 },
+	},
+	{
+		id = "coral_vex",
+		name = "Captain Coral Vex",
+		rarity = "Epic",
+		archetype = "Pirate",
+		element = "Water",
+		damage = 38,
+		attackSpeed = 1,
+		income = 8,
+		ability = { name = "Broadside", description = "Залп гармат: 5 снарядів по випадкових ворогах." },
+		awakened = { name = "Coral Vex, Reef Admiral", multiplier = 2.8 },
+		look = { body = Color3.fromRGB(240, 120, 140), hair = Color3.fromRGB(255, 160, 170), skin = SKIN, height = 1.05 },
+	},
+
+	-- ===== Legendary =====
+	{
+		id = "seren_starblade",
+		name = "Seren Starblade",
+		rarity = "Legendary",
+		archetype = "Space Warrior",
+		element = "Light",
+		damage = 110,
+		attackSpeed = 1.1,
+		income = 25,
+		ability = { name = "Starfall Edge", description = "Кожна 4-та атака викликає падіння зірки." },
+		awakened = { name = "Seren, Galaxy Blade", multiplier = 3 },
+		look = { body = Color3.fromRGB(240, 240, 255), hair = Color3.fromRGB(150, 200, 255), skin = SKIN, height = 1.15 },
+	},
+	{
+		id = "kuro_moonreaper",
+		name = "Kuro Moonreaper",
+		rarity = "Legendary",
+		archetype = "Swordsman",
+		element = "Shadow",
+		damage = 120,
+		attackSpeed = 1,
+		income = 26,
+		ability = { name = "Lunar Severance", description = "Удар-півмісяць, що проходить крізь усіх ворогів." },
+		awakened = { name = "Kuro, Eclipse Reaper", multiplier = 3 },
+		look = { body = Color3.fromRGB(25, 20, 40), hair = Color3.fromRGB(60, 40, 110), skin = SKIN, height = 1.2 },
+	},
+	{
+		id = "homura_ashcrown",
+		name = "Homura Ashcrown",
+		rarity = "Legendary",
+		archetype = "Mage",
+		element = "Fire",
+		damage = 125,
+		attackSpeed = 0.9,
+		income = 27,
+		ability = { name = "Crown of Ash", description = "Палає вся арена: шкода всім ворогам щосекунди." },
+		awakened = { name = "Homura, Inferno Monarch", multiplier = 3 },
+		look = { body = Color3.fromRGB(60, 20, 20), hair = Color3.fromRGB(255, 80, 30), skin = SKIN, height = 1.1 },
+	},
+	{
+		id = "ryo_skybolt",
+		name = "Ryo Skybolt",
+		rarity = "Legendary",
+		archetype = "Swordsman",
+		element = "Lightning",
+		damage = 115,
+		attackSpeed = 1.2,
+		income = 25,
+		ability = { name = "Sky Splitter", description = "Блискавка перескакує між 4 ворогами." },
+		awakened = { name = "Ryo, Heaven's Bolt", multiplier = 3 },
+		look = { body = Color3.fromRGB(30, 50, 90), hair = Color3.fromRGB(255, 240, 120), skin = SKIN, height = 1.15 },
+	},
+
+	{
+		id = "marisol_tidecaller",
+		name = "Marisol Tidecaller",
+		rarity = "Legendary",
+		archetype = "Mage",
+		element = "Water",
+		damage = 118,
+		attackSpeed = 1,
+		income = 26,
+		ability = { name = "Riptide Spiral", description = "Вир затягує ворогів до цілі й сповільнює їх." },
+		awakened = { name = "Marisol, Ocean's Voice", multiplier = 3 },
+		look = { body = Color3.fromRGB(30, 120, 170), hair = Color3.fromRGB(120, 230, 255), skin = SKIN, height = 1.1 },
+	},
+
+	{
+		id = "rin_hellbane",
+		name = "Rin Hellbane",
+		rarity = "Legendary",
+		archetype = "Demon Hunter",
+		element = "Fire",
+		damage = 122,
+		attackSpeed = 1.1,
+		income = 27,
+		ability = { name = "Hellbane Brand", description = "Позначені демони горять і отримують +40% шкоди." },
+		awakened = { name = "Rin, Sunfire Exorcist", multiplier = 3 },
+		look = { body = Color3.fromRGB(150, 25, 35), hair = Color3.fromRGB(250, 240, 230), skin = SKIN, height = 1.1 },
+	},
+
+	-- ===== Mythic =====
+	{
+		id = "astra_novaempress",
+		name = "Astra, Nova Empress",
+		rarity = "Mythic",
+		archetype = "Space Warrior",
+		element = "Light",
+		damage = 320,
+		attackSpeed = 1,
+		income = 80,
+		ability = { name = "Supernova", description = "Вибух зірки: величезна шкода всім і щит команді." },
+		awakened = { name = "Astra, Cosmic Sovereign", multiplier = 3.3 },
+		look = { body = Color3.fromRGB(255, 240, 200), hair = Color3.fromRGB(255, 200, 255), skin = SKIN, height = 1.2 },
+	},
+	{
+		id = "gekko_voidshinobi",
+		name = "Gekko the Void Shinobi",
+		rarity = "Mythic",
+		archetype = "Ninja",
+		element = "Shadow",
+		damage = 340,
+		attackSpeed = 1.3,
+		income = 85,
+		ability = { name = "Void Clone", description = "Створює 2 тіньові клони, що атакують разом із ним." },
+		awakened = { name = "Gekko, Endless Night", multiplier = 3.3 },
+		look = { body = Color3.fromRGB(15, 10, 25), hair = Color3.fromRGB(180, 80, 255), skin = SKIN, height = 1.1 },
+	},
+	{
+		id = "volta_stormcaptain",
+		name = "Storm Captain Volta",
+		rarity = "Mythic",
+		archetype = "Pirate",
+		element = "Lightning",
+		damage = 330,
+		attackSpeed = 1.1,
+		income = 82,
+		ability = { name = "Tempest Cannon", description = "Гармата-блискавка, що пробиває броню босів." },
+		awakened = { name = "Volta, Tempest Queen", multiplier = 3.3 },
+		look = { body = Color3.fromRGB(40, 40, 70), hair = Color3.fromRGB(120, 230, 255), skin = SKIN, height = 1.15 },
+	},
+	{
+		id = "ifra_phoenixsaint",
+		name = "Ifra, Phoenix Saint",
+		rarity = "Mythic",
+		archetype = "Mage",
+		element = "Fire",
+		damage = 335,
+		attackSpeed = 1,
+		income = 83,
+		ability = { name = "Rebirth Flame", description = "Раз за бій воскрешає союзника з повним здоров'ям." },
+		awakened = { name = "Ifra, Eternal Phoenix", multiplier = 3.3 },
+		look = { body = Color3.fromRGB(255, 150, 40), hair = Color3.fromRGB(255, 60, 20), skin = SKIN, height = 1.15 },
+	},
+
+	{
+		id = "kaizen_deepcrown",
+		name = "Admiral Kaizen Deepcrown",
+		rarity = "Mythic",
+		archetype = "Pirate",
+		element = "Water",
+		damage = 345,
+		attackSpeed = 1.1,
+		income = 84,
+		ability = { name = "Leviathan Call", description = "Кличе морського змія, що б'є всіх ворогів на арені." },
+		awakened = { name = "Kaizen, Abyss Sovereign", multiplier = 3.3 },
+		look = { body = Color3.fromRGB(20, 40, 80), hair = Color3.fromRGB(240, 240, 255), skin = SKIN, height = 1.2 },
+	},
+
+	{
+		id = "kagura_duskblade",
+		name = "Kagura Duskblade",
+		rarity = "Mythic",
+		archetype = "Demon Hunter",
+		element = "Shadow",
+		damage = 350,
+		attackSpeed = 1.2,
+		income = 86,
+		ability = { name = "Dusk Requiem", description = "Кожен 3-й удар розрізає тінь цілі: шкода ×3." },
+		awakened = { name = "Kagura, Moonless Requiem", multiplier = 3.3 },
+		look = { body = Color3.fromRGB(30, 20, 45), hair = Color3.fromRGB(200, 40, 90), skin = SKIN, height = 1.15 },
+	},
+
+	-- ===== Secret =====
+	{
+		id = "solenne_eclipse",
+		name = "Solenne, Eclipse Sovereign",
+		rarity = "Secret",
+		archetype = "Mage",
+		element = "Light",
+		damage = 1000,
+		attackSpeed = 1,
+		income = 300,
+		ability = { name = "Total Eclipse", description = "Зупиняє час для ворогів на 3 с." },
+		awakened = { name = "Solenne, Dawn and Dusk", multiplier = 4 },
+		look = { body = Color3.fromRGB(250, 245, 255), hair = Color3.fromRGB(255, 215, 100), skin = SKIN, height = 1.25 },
+	},
+	{
+		id = "mugen_dicegod",
+		name = "Mugen, the Dice God",
+		rarity = "Secret",
+		archetype = "Space Warrior",
+		element = "Shadow",
+		damage = 1100,
+		attackSpeed = 1.2,
+		income = 320,
+		ability = { name = "Loaded Fate", description = "Кожна атака кидає кубик: шкода ×1…×6." },
+		awakened = { name = "Mugen, Infinite Roll", multiplier = 4 },
+		look = { body = Color3.fromRGB(20, 15, 30), hair = Color3.fromRGB(40, 255, 210), skin = SKIN, height = 1.3 },
+	},
+	{
+		id = "vael_abyssal",
+		name = "Vael, Abyssal Emperor",
+		rarity = "Secret",
+		archetype = "Swordsman",
+		element = "Shadow",
+		damage = 1150,
+		attackSpeed = 1.1,
+		income = 330,
+		ability = { name = "Throne of the Abyss", description = "Кожні 10 с поглинає 5% здоров'я всіх ворогів на арені." },
+		awakened = { name = "Vael, Endless Abyss", multiplier = 4 },
+		look = { body = Color3.fromRGB(15, 10, 25), hair = Color3.fromRGB(160, 60, 255), skin = SKIN, height = 1.3 },
+	},
+}
+
+-- Швидкий доступ: HeroConfig.Heroes[id] і HeroConfig.ByRarity[rarity]
+HeroConfig.Heroes = {}
+HeroConfig.ByRarity = {}
+
+for _, hero in HeroConfig.List do
+	assert(HeroConfig.Heroes[hero.id] == nil, "Duplicate hero id: " .. hero.id)
+	HeroConfig.Heroes[hero.id] = hero
+	HeroConfig.ByRarity[hero.rarity] = HeroConfig.ByRarity[hero.rarity] or {}
+	table.insert(HeroConfig.ByRarity[hero.rarity], hero)
 end
 
-local function button(parent, text, color, onClick, props)
-	local b = UIKit.Button({
-		Size = UDim2.fromOffset(150, 46),
-		BackgroundColor3 = color,
-		Text = text,
-		TextSize = 18,
-		Parent = parent,
-	}, onClick)
-	for key, value in props or {} do
-		b[key] = value
-	end
-	return b
-end
+return HeroConfig
+]=])
 
--- Кнопка небезпечної дії: перше натискання просить підтвердження
-local function confirmButton(parent, text, onConfirm, props)
-	local armedUntil = 0
-	local b
-	b = button(parent, text, COLORS.Danger, function()
-		if os.clock() > armedUntil then
-			armedUntil = os.clock() + 3
-			b.Text = "⚠️ Точно? Ще раз!"
-			task.delay(3.05, function()
-				if os.clock() > armedUntil then
-					b.Text = text
-				end
-			end)
-			return
-		end
-		armedUntil = 0
-		b.Text = text
-		onConfirm()
-	end, props)
-	return b
-end
+setSource({ "ReplicatedStorage", "Shared", "Config", "QuestConfig" }, "ModuleScript", [=[
+-- QuestConfig: завдання та нагороди.
+--
+-- Main  — сюжетний ланцюжок: одне активне завдання, після нагороди відкривається наступне.
+--         metric — що рахуємо (див. GameMath.GetMetric), target — скільки треба.
+-- Daily — щоденні завдання: щодня (за UTC) сервер вибирає 3 з пулу.
+--         event — подія, яку рахуємо від початку дня: roll, kill, boss, merge, upgrade.
+-- reward — { coins = N, crystals = N }
 
--- Вибір одного з варіантів (чіпи). Повертає функцію, що віддає поточне значення.
-local function chips(parent, options, default, color, width)
-	local current = default
-	local buttons = {}
-	local function paint()
-		for value, b in buttons do
-			local active = value == current
-			b.BackgroundColor3 = if active then color else Color3.fromRGB(70, 66, 92)
-			UIKit.SetOutline(b, if active then Color3.new(1, 1, 1) else UIKit.Colors.Outline, 3)
-		end
-	end
-	for index, option in options do
-		local b = button(parent, option.text, color, function()
-			current = option.value
-			paint()
-		end, { Size = UDim2.fromOffset(width or 72, 40), LayoutOrder = index })
-		buttons[option.value] = b
-	end
-	paint()
-	return function()
-		return current
-	end
-end
+local QuestConfig = {}
 
--- Розділ сторінки: заголовок і тіло з вертикальним списком
-local function section(page, title, color, order)
-	local card = UIKit.Create("Frame", {
-		Size = UDim2.new(1, -10, 0, 0),
-		AutomaticSize = Enum.AutomaticSize.Y,
-		BackgroundColor3 = Color3.fromRGB(28, 26, 38),
-		LayoutOrder = order,
-		Parent = page,
-	})
-	UIKit.Corner(card, 14)
-	UIKit.Stroke(card, color, 3)
-	local glow = UIKit.Create("Frame", {
-		Size = UDim2.new(1, 0, 0, 44),
-		BackgroundColor3 = color,
-		BackgroundTransparency = 0.55,
-		BorderSizePixel = 0,
-		Parent = card,
-	})
-	UIKit.Corner(glow, 14)
-	UIKit.Create("UIGradient", { Transparency = NumberSequence.new(0.2, 1), Parent = glow })
-	UIKit.Create("UIPadding", {
-		PaddingTop = UDim.new(0, 8),
-		PaddingBottom = UDim.new(0, 12),
-		PaddingLeft = UDim.new(0, 12),
-		PaddingRight = UDim.new(0, 12),
-		Parent = card,
-	})
-	UIKit.Create("UIListLayout", { Padding = UDim.new(0, 8), SortOrder = Enum.SortOrder.LayoutOrder, Parent = card })
-	UIKit.Label({
-		Size = UDim2.new(1, 0, 0, 30),
-		Font = UIKit.Font,
-		TextSize = 24,
-		TextXAlignment = Enum.TextXAlignment.Left,
-		Text = title,
-		LayoutOrder = 0,
-		Parent = card,
-	})
-	return card
-end
+QuestConfig.Main = {
+	{ id = "first_roll", title = "Перший кидок", description = "Кинь кубик", metric = "totalRolls", target = 1, reward = { coins = 50 } },
+	{ id = "builder", title = "Будівничий", description = "Постав 3 героїв на базу", metric = "placedHeroes", target = 3, reward = { coins = 150 } },
+	{ id = "collector", title = "Колекціонер", description = "Відкрий 5 різних героїв", metric = "discovered", target = 5, reward = { crystals = 3 } },
+	{ id = "squad", title = "Бойовий загін", description = "Збери команду з 3 героїв у ⚔️ Team", metric = "teamSize", target = 3, reward = { coins = 200 } },
+	{ id = "first_blood", title = "Перші перемоги", description = "Переможи 5 ворогів у Ninja Village", metric = "enemiesDefeated", target = 5, reward = { crystals = 5 } },
+	{ id = "expansion", title = "Розширення бази", description = "Відкрий 5 слотів бази в ⬆️ Upgrades", metric = "slotCount", target = 5, reward = { coins = 500 } },
+	{ id = "fire_path", title = "Шлях вогню", description = "Зроби 25 кидків — відкриється Fire Dice", metric = "totalRolls", target = 25, reward = { crystals = 5 } },
+	{ id = "dojo", title = "Ворота Dojo", description = "Переможи 15 ворогів — відкриється зона Dojo", metric = "enemiesDefeated", target = 15, reward = { coins = 1000 } },
+	{ id = "merge_master", title = "Майстер злиття", description = "Підніми будь-якого героя до 5 рівня (Merge)", metric = "maxHeroLevel", target = 5, reward = { crystals = 10 } },
+	{ id = "shrine", title = "Святилище Оні", description = "Переможи 40 ворогів — відкриється арена боса", metric = "enemiesDefeated", target = 40, reward = { crystals = 10 } },
+	{ id = "oni_slayer", title = "Переможець Оні", description = "Переможи Oni Warlord Kurogane — відкриється Pirate Island", metric = "boss:oni_kurogane", target = 1, reward = { crystals = 25 } },
+	{ id = "landfall", title = "Висадка", description = "Переможи 10 ворогів на Pirate Island", metric = "kills:PirateIsland", target = 10, reward = { crystals = 10 } },
+	{ id = "cove", title = "Бухта контрабандистів", description = "20 перемог на острові — відкриється Smugglers' Cove", metric = "kills:PirateIsland", target = 20, reward = { coins = 5000 } },
+	{ id = "collector2", title = "Колекціонер II", description = "Відкрий 15 різних героїв", metric = "discovered", target = 15, reward = { crystals = 20 } },
+	{ id = "dock", title = "Причал капітана", description = "60 перемог на острові — відкриється Captain's Dock", metric = "kills:PirateIsland", target = 60, reward = { crystals = 15 } },
+	{ id = "sea_terror", title = "Гроза морів", description = "Переможи Captain Blackwake — відкриється Tidal Dice", metric = "boss:captain_blackwake", target = 1, reward = { crystals = 60 } },
+	{ id = "awakening", title = "Пробудження", description = "Пробуди героя: максимальний рівень + 💎 (Backpack → Awaken)", metric = "awakenedHeroes", target = 1, reward = { crystals = 30 } },
+	{ id = "rebirth", title = "Новий початок", description = "Зроби перший ♻️ Rebirth", metric = "rebirths", target = 1, reward = { crystals = 50 } },
+	{ id = "night_falls", title = "Настає ніч", description = "Переможи Captain Blackwake — відкриється Demon Night City", metric = "boss:captain_blackwake", target = 1, reward = { crystals = 20 } },
+	{ id = "alleys", title = "Темні провулки", description = "Переможи 15 демонів у Demon Night City", metric = "kills:DemonCity", target = 15, reward = { crystals = 15 } },
+	{ id = "neon_market", title = "Неоновий ринок", description = "30 перемог у місті — відкриється Neon Market", metric = "kills:DemonCity", target = 30, reward = { coins = 100000 } },
+	{ id = "abyss_shrine", title = "Святилище безодні", description = "90 перемог у місті — відкриється Abyss Shrine", metric = "kills:DemonCity", target = 90, reward = { crystals = 30 } },
+	{ id = "queen_slayer", title = "Кінець ночі", description = "Переможи Demon Queen Noctyra — відкриється Abyss Dice", metric = "boss:demon_queen_noctyra", target = 1, reward = { crystals = 150 } },
+}
 
--- Рядок кнопок, що переноситься
-local function row(parent, order, height)
-	local frame = UIKit.Create("Frame", {
-		Size = UDim2.new(1, 0, 0, height or 0),
-		AutomaticSize = if height then Enum.AutomaticSize.None else Enum.AutomaticSize.Y,
-		BackgroundTransparency = 1,
-		LayoutOrder = order or 1,
-		Parent = parent,
-	})
-	UIKit.Create("UIListLayout", {
-		FillDirection = Enum.FillDirection.Horizontal,
-		Wraps = true,
-		Padding = UDim.new(0, 8),
-		VerticalAlignment = Enum.VerticalAlignment.Center,
-		SortOrder = Enum.SortOrder.LayoutOrder,
-		Parent = frame,
-	})
-	return frame
-end
+QuestConfig.DailyPool = {
+	{ id = "d_roll_small", title = "Щоденні кидки", description = "Зроби 20 кидків", event = "roll", target = 20, reward = { coins = 300 } },
+	{ id = "d_kill_small", title = "Розминка", description = "Переможи 15 ворогів", event = "kill", target = 15, reward = { coins = 400, crystals = 1 } },
+	{ id = "d_merge", title = "Тренування", description = "Злий героїв 2 рази (Merge)", event = "merge", target = 2, reward = { crystals = 2 } },
+	{ id = "d_roll_big", title = "Азартний день", description = "Зроби 60 кидків", event = "roll", target = 60, reward = { coins = 800, crystals = 1 } },
+	{ id = "d_kill_big", title = "Зачистка села", description = "Переможи 40 ворогів", event = "kill", target = 40, reward = { crystals = 3 } },
+	{ id = "d_upgrade", title = "Будівництво", description = "Купи 2 покращення в ⬆️ Upgrades", event = "upgrade", target = 2, reward = { coins = 500 } },
+	{ id = "d_boss", title = "Мисливець на босів", description = "Переможи будь-якого боса", event = "boss", target = 1, reward = { crystals = 5 } },
+}
 
--- fixed = true — сторінка без прокрутки (у неї своя прокрутна область)
-local function newPage(name, fixed)
-	local page = if fixed
-		then UIKit.Create("Frame", { Name = name, Size = UDim2.fromScale(1, 1), BackgroundTransparency = 1, Visible = false, Parent = ui.pageHolder })
-		else UIKit.Create("ScrollingFrame", {
-			Name = name,
-			Size = UDim2.fromScale(1, 1),
-			BackgroundTransparency = 1,
-			BorderSizePixel = 0,
-			ScrollBarThickness = 6,
-			ScrollBarImageColor3 = COLORS.Gold,
-			CanvasSize = UDim2.new(),
-			AutomaticCanvasSize = Enum.AutomaticSize.Y,
-			Visible = false,
-			Parent = ui.pageHolder,
-		})
-	UIKit.Create("UIListLayout", { Padding = UDim.new(0, 12), SortOrder = Enum.SortOrder.LayoutOrder, Parent = page })
-	UIKit.Create("UIPadding", { PaddingTop = UDim.new(0, 4), PaddingLeft = UDim.new(0, 4), PaddingBottom = UDim.new(0, 8), Parent = page })
-	pages[name] = page
-	return page
-end
+QuestConfig.DailyCount = 3
 
----------------------------------------------------------------------
--- Запити до сервера
----------------------------------------------------------------------
-
-local refreshTarget
-
-local function request(action, args, perPlayer)
-	args = args or {}
-	if perPlayer then
-		if not selected or selected.Parent == nil then
-			selected = player
-		end
-		args.target = selected.UserId
-	end
-	local result = ClientState.Request("AdminAction", action, args)
-	if result.message and result.message ~= "" then
-		UIKit.Toast((if result.ok then "👑 " else "") .. result.message, if result.ok then "success" else "error")
-	end
-	if perPlayer then
-		task.delay(0.25, refreshTarget)
+-- Щоденні завдання дня day (номер доби UTC). Однакові для всіх гравців і серверів.
+function QuestConfig.GetDaily(day)
+	local pool = QuestConfig.DailyPool
+	local result = {}
+	for i = 0, QuestConfig.DailyCount - 1 do
+		table.insert(result, pool[(day + i * 2) % #pool + 1])
 	end
 	return result
 end
 
----------------------------------------------------------------------
--- Картка вибраного гравця
----------------------------------------------------------------------
+-- Нагороди за колекцію: відкрив count різних героїв — забирай кристали.
+QuestConfig.CollectionMilestones = {
+	{ count = 5, crystals = 5 },
+	{ count = 10, crystals = 10 },
+	{ count = 15, crystals = 20 },
+	{ count = 20, crystals = 40 },
+	{ count = 24, crystals = 80 },
+	{ count = 27, crystals = 120 },
+}
 
-local function playerList()
-	local list = Players:GetPlayers()
-	table.sort(list, function(a, b)
-		if a == player or b == player then
-			return a == player
+return QuestConfig
+]=])
+
+setSource({ "ReplicatedStorage", "Shared", "Config", "WorldConfig" }, "ModuleScript", [=[
+-- WorldConfig: світи гри.
+-- available — чи можна вже потрапити у світ
+-- center    — де світ збудовано (далеко від лобі, у повітрі)
+-- unlock    — що потрібно, щоб потрапити у світ: { boss = id боса з EnemyConfig }
+-- zones     — зони світу; requiredKills — перемог саме в цьому світі
+
+local WorldConfig = {}
+
+WorldConfig.Order = { "NinjaVillage", "PirateIsland", "DemonCity", "MagicAcademy", "SkyArena" }
+
+WorldConfig.Worlds = {
+	NinjaVillage = {
+		displayName = "Ninja Village",
+		localName = "Село ніндзя",
+		description = "Бандити, тіньові ляльки, ронін і бос Oni Warlord Kurogane.",
+		color = Color3.fromRGB(90, 230, 140),
+		available = true,
+		center = Vector3.new(1500, 200, 0),
+		-- gateZ — де стоять ворота зони (відносно центру світу).
+		zones = {
+			{ id = "Outskirts", name = "Outskirts", requiredKills = 0 },
+			{ id = "Dojo", name = "Dojo", requiredKills = 15, gateZ = 10 },
+			{ id = "OniShrine", name = "Oni Shrine", requiredKills = 40, gateZ = 62 },
+		},
+	},
+	PirateIsland = {
+		displayName = "Pirate Island",
+		localName = "Острів піратів",
+		description = "Матроси, гарматні краби, прокляті корсари й Captain Blackwake.",
+		color = Color3.fromRGB(40, 150, 255),
+		available = true,
+		center = Vector3.new(1500, 200, 1200),
+		unlock = { boss = "oni_kurogane" },
+		zones = {
+			{ id = "Beach", name = "Beach", requiredKills = 0 },
+			{ id = "SmugglersCove", name = "Smugglers' Cove", requiredKills = 20, gateZ = 10 },
+			{ id = "CaptainsDock", name = "Captain's Dock", requiredKills = 60, gateZ = 62 },
+		},
+	},
+	DemonCity = {
+		displayName = "Demon Night City",
+		localName = "Нічне місто демонів",
+		description = "Вічна ніч, неон, біси, примари та Demon Queen Noctyra.",
+		color = Color3.fromRGB(150, 60, 220),
+		available = true,
+		center = Vector3.new(1500, 200, 2400),
+		unlock = { boss = "captain_blackwake" },
+		night = true, -- клієнт вмикає нічне освітлення, поки гравець тут
+		zones = {
+			{ id = "BackAlleys", name = "Back Alleys", requiredKills = 0 },
+			{ id = "NeonMarket", name = "Neon Market", requiredKills = 30, gateZ = 10 },
+			{ id = "AbyssShrine", name = "Abyss Shrine", requiredKills = 90, gateZ = 62 },
+		},
+	},
+	MagicAcademy = {
+		displayName = "Magic Academy",
+		localName = "Академія магії",
+		description = "Скоро",
+		color = Color3.fromRGB(255, 120, 200),
+		available = false,
+	},
+	SkyArena = {
+		displayName = "Sky Arena",
+		localName = "Небесна арена",
+		description = "Скоро",
+		color = Color3.fromRGB(255, 230, 120),
+		available = false,
+	},
+}
+
+return WorldConfig
+]=])
+
+setSource({ "ReplicatedStorage", "Shared", "GameMath" }, "ModuleScript", [=[
+-- GameMath: формули балансу, спільні для сервера й клієнта.
+-- Сервер використовує їх для справжніх розрахунків, клієнт — лише для показу,
+-- тому цифри в інтерфейсі завжди збігаються з тим, що рахує сервер.
+
+local Config = script.Parent:WaitForChild("Config")
+local RarityConfig = require(Config:WaitForChild("RarityConfig"))
+local EconomyConfig = require(Config:WaitForChild("EconomyConfig"))
+local HeroConfig = require(Config:WaitForChild("HeroConfig"))
+local CombatConfig = require(Config:WaitForChild("CombatConfig"))
+local ShopConfig = require(Config:WaitForChild("ShopConfig"))
+local WorldConfig = require(Config:WaitForChild("WorldConfig"))
+local EnemyConfig = require(Config:WaitForChild("EnemyConfig"))
+
+local GameMath = {}
+
+-- Ваги рідкостей з урахуванням удачі кубика та гравця.
+function GameMath.GetRarityWeights(dice, playerLuck)
+	local luck = dice.luck * (playerLuck or 1)
+	local weights = {}
+	local total = 0
+	for _, rarity in RarityConfig.Order do
+		local weight = dice.weights[rarity] or 0
+		if RarityConfig.Info[rarity].luckAffected then
+			weight *= luck
 		end
-		return string.lower(a.Name) < string.lower(b.Name)
-	end)
-	return list
+		weights[rarity] = weight
+		total += weight
+	end
+	return weights, total
 end
 
-function refreshTarget()
-	if not ui.targetName then
-		return
+-- Шанси у відсотках: { Common = 70.1, Rare = 23.0, ... }
+function GameMath.GetChances(dice, playerLuck)
+	local weights, total = GameMath.GetRarityWeights(dice, playerLuck)
+	local chances = {}
+	for rarity, weight in weights do
+		chances[rarity] = if total > 0 then weight / total * 100 else 0
 	end
-	if not selected or selected.Parent == nil then
-		selected = player
-	end
-	local target = selected
-	ui.targetName.Text = target.DisplayName
-	ui.targetUser.Text = "@" .. target.Name .. (if target == player then " (ти)" else "")
-	ui.avatar.Image = ""
-	task.spawn(function()
-		local ok, image = pcall(function()
-			return Players:GetUserThumbnailAsync(target.UserId, Enum.ThumbnailType.HeadShot, Enum.ThumbnailSize.Size150x150)
-		end)
-		if ok and selected == target then
-			ui.avatar.Image = image
-		end
-	end)
-	local count = #Players:GetPlayers()
-	ui.playerCount.Text = ("%d / %d"):format(table.find(playerList(), target) or 1, count)
-	ui.stats.Text = "Завантаження…"
-	task.spawn(function()
-		local result = ClientState.Request("AdminAction", "Inspect", { target = target.UserId })
-		if selected ~= target then
-			return
-		end
-		if not result.ok then
-			ui.stats.Text = result.message or "Немає даних"
-			return
-		end
-		local world = WorldConfig.Worlds[result.world]
-		ui.stats.Text = ("🪙 %s  •  💎 %s\n⚡ +%s/s\n♻️ Rebirth %d\n🦸 %d героїв • 📖 %d\n🎲 %s кидків\n🌍 %s"):format(
-			GameMath.FormatNumber(result.coins),
-			GameMath.FormatNumber(result.crystals),
-			GameMath.FormatNumber(result.income),
-			result.rebirths,
-			result.heroes,
-			result.discovered,
-			GameMath.FormatNumber(result.totalRolls),
-			if world then world.displayName else "Лобі"
-		)
-		ui.adminBadge.Visible = result.isAdmin == true
-	end)
+	return chances
 end
 
-local function cycleTarget(step)
-	local list = playerList()
-	local index = table.find(list, selected) or 1
-	selected = list[(index - 1 + step) % #list + 1]
-	refreshTarget()
-end
-
-local function buildSidebar(content)
-	local sidebar = UIKit.Create("Frame", {
-		Size = UDim2.new(0, 220, 1, 0),
-		BackgroundTransparency = 1,
-		Parent = content,
-	})
-
-	-- Картка гравця
-	local card = UIKit.Card({ Size = UDim2.new(1, 0, 0, 236), Parent = sidebar }, COLORS.Gold)
-	local avatarFrame = UIKit.Create("Frame", {
-		Position = UDim2.fromOffset(10, 10),
-		Size = UDim2.fromOffset(64, 64),
-		BackgroundColor3 = Color3.fromRGB(60, 50, 90),
-		Parent = card,
-	})
-	UIKit.Corner(avatarFrame, 32)
-	UIKit.Stroke(avatarFrame, COLORS.Gold, 3)
-	ui.avatar = UIKit.Create("ImageLabel", { Size = UDim2.fromScale(1, 1), BackgroundTransparency = 1, Parent = avatarFrame })
-	UIKit.Corner(ui.avatar, 32)
-	ui.adminBadge = UIKit.Label({
-		Position = UDim2.fromOffset(44, 46),
-		Size = UDim2.fromOffset(28, 28),
-		Text = "👑",
-		TextScaled = true,
-		Visible = false,
-		Parent = card,
-	})
-	ui.targetName = UIKit.Label({
-		Position = UDim2.fromOffset(82, 12),
-		Size = UDim2.new(1, -90, 0, 30),
-		Font = UIKit.Font,
-		TextScaled = true,
-		TextXAlignment = Enum.TextXAlignment.Left,
-		Parent = card,
-	})
-	ui.targetUser = UIKit.Label({
-		Position = UDim2.fromOffset(82, 42),
-		Size = UDim2.new(1, -90, 0, 20),
-		TextSize = 14,
-		TextColor3 = UIKit.Colors.SubText,
-		TextXAlignment = Enum.TextXAlignment.Left,
-		TextTruncate = Enum.TextTruncate.AtEnd,
-		Parent = card,
-	})
-	ui.stats = UIKit.Label({
-		Position = UDim2.fromOffset(12, 82),
-		Size = UDim2.new(1, -24, 0, 104),
-		TextSize = 14,
-		LineHeight = 1.05,
-		TextXAlignment = Enum.TextXAlignment.Left,
-		TextYAlignment = Enum.TextYAlignment.Top,
-		Parent = card,
-	})
-	-- ◀ 1/3 ▶ та "Я"
-	local nav = UIKit.Create("Frame", { Position = UDim2.new(0, 10, 1, -44), Size = UDim2.new(1, -20, 0, 36), BackgroundTransparency = 1, Parent = card })
-	button(nav, "◀", COLORS.Player, function()
-		cycleTarget(-1)
-	end, { Size = UDim2.fromOffset(44, 36) })
-	ui.playerCount = UIKit.Label({ Position = UDim2.fromOffset(48, 0), Size = UDim2.new(1, -150, 1, 0), Font = UIKit.Font, TextSize = 18, Parent = nav })
-	button(nav, "▶", COLORS.Player, function()
-		cycleTarget(1)
-	end, { Size = UDim2.fromOffset(44, 36), Position = UDim2.new(1, -98, 0, 0) })
-	button(nav, "Я", COLORS.Gold, function()
-		selected = player
-		refreshTarget()
-	end, { Size = UDim2.fromOffset(46, 36), Position = UDim2.new(1, -46, 0, 0) })
-
-	-- Вкладки
-	local tabs = UIKit.Create("Frame", { Position = UDim2.fromOffset(0, 248), Size = UDim2.new(1, 0, 1, -248), BackgroundTransparency = 1, Parent = sidebar })
-	UIKit.Create("UIGridLayout", { CellSize = UDim2.new(0.5, -4, 0, 42), CellPadding = UDim2.fromOffset(8, 8), SortOrder = Enum.SortOrder.LayoutOrder, Parent = tabs })
-	for index, tab in {
-		{ "Currency", "💰 Валюта" },
-		{ "Heroes", "🦸 Герої" },
-		{ "Progress", "🗺️ Прогрес" },
-		{ "Player", "🧍 Гравець" },
-		{ "Server", "📢 Сервер" },
-		{ "Log", "📜 Журнал" },
-	} do
-		local id = tab[1]
-		tabButtons[id] = button(tabs, tab[2], COLORS[id], function()
-			AdminUI.ShowTab(id)
-		end, { LayoutOrder = index, TextSize = 15 })
+-- Шанс випасти саме цьому герою з кубика (0..1) — для напису "1 in 52K".
+function GameMath.GetHeroChance(dice, heroId, playerLuck)
+	local heroDef = HeroConfig.Heroes[heroId]
+	if not heroDef then
+		return 0
 	end
-end
-
-function AdminUI.ShowTab(id)
-	for name, page in pages do
-		page.Visible = name == id
+	local weights, total = GameMath.GetRarityWeights(dice, playerLuck)
+	if total <= 0 then
+		return 0
 	end
-	for name, b in tabButtons do
-		local active = name == id
-		b.BackgroundColor3 = if active then COLORS[name] else COLORS[name]:Lerp(Color3.fromRGB(40, 38, 55), 0.6)
-		UIKit.SetOutline(b, if active then Color3.new(1, 1, 1) else UIKit.Colors.Outline, 3)
-	end
-	if id == "Log" then
-		AdminUI.RefreshLog()
-	end
-end
-
----------------------------------------------------------------------
--- Сторінки
----------------------------------------------------------------------
-
-local function buildCurrency()
-	local page = newPage("Currency")
-	for order, kind in { { "Coins", "🪙 Монети", { 1e3, 1e5, 1e7, 1e9 } }, { "Crystals", "💎 Кристали", { 10, 100, 1000, 10000 } } } do
-		local card = section(page, kind[2], COLORS.Currency, order)
-		local quick = row(card, 1)
-		for index, amount in kind[3] do
-			button(quick, "+" .. GameMath.FormatNumber(amount), if kind[1] == "Coins" then Color3.fromRGB(240, 170, 30) else Color3.fromRGB(70, 180, 255), function()
-				request(kind[1], { amount = amount }, true)
-			end, { LayoutOrder = index, Size = UDim2.fromOffset(120, 44) })
+	local heroWeight, rarityTotal = 0, 0
+	for _, other in HeroConfig.ByRarity[heroDef.rarity] or {} do
+		local weight = if dice.element and other.element == dice.element then dice.elementBonus else 1
+		rarityTotal += weight
+		if other.id == heroId then
+			heroWeight = weight
 		end
-		local custom = row(card, 2, 44)
-		local box = input(custom, "Своя кількість: 2500, 1.5m, 3b…", { Size = UDim2.new(1, -236, 0, 44) })
-		local function send(sign)
-			local amount = parseAmount(box.Text)
-			if not amount or amount <= 0 then
-				UIKit.Toast("Введи число, напр. 5000 або 2.5m", "error")
-				return
+	end
+	if rarityTotal <= 0 then
+		return 0
+	end
+	return weights[heroDef.rarity] / total * heroWeight / rarityTotal
+end
+
+-- 0.000019 -> "1 in 52.6K"
+function GameMath.FormatOdds(chance)
+	if chance <= 0 then
+		return "1 in ∞"
+	end
+	return "1 in " .. GameMath.FormatNumber(math.max(1, math.floor(1 / chance + 0.5)))
+end
+
+function GameMath.GetIncomeMultiplier(incomeLevel)
+	return 1 + (incomeLevel or 0) * EconomyConfig.IncomeUpgrade.bonusPerLevel
+end
+
+-- Множник пробудженої форми (1, якщо герой не пробуджений)
+function GameMath.GetAwakenMultiplier(heroDef, awakened)
+	return if awakened then heroDef.awakened.multiplier else 1
+end
+
+function GameMath.GetHeroIncome(heroDef, level, incomeLevel, awakened)
+	local levelBonus = 1 + EconomyConfig.LevelIncomeBonus * (level - 1)
+	return heroDef.income * levelBonus * GameMath.GetIncomeMultiplier(incomeLevel) * GameMath.GetAwakenMultiplier(heroDef, awakened)
+end
+
+function GameMath.GetHeroDamage(heroDef, level, awakened)
+	return heroDef.damage * (1 + EconomyConfig.LevelDamageBonus * (level - 1)) * GameMath.GetAwakenMultiplier(heroDef, awakened)
+end
+
+function GameMath.GetSellPrice(heroDef, level)
+	local base = RarityConfig.Info[heroDef.rarity].sellPrice
+	return math.floor(base * (1 + EconomyConfig.SellLevelBonus * (level - 1)))
+end
+
+-- Ціна наступного слота або nil, якщо слотів уже максимум.
+function GameMath.GetSlotPrice(slotCount)
+	if slotCount >= EconomyConfig.MaxSlots then
+		return nil
+	end
+	local upgrade = EconomyConfig.SlotUpgrade
+	return math.floor(upgrade.basePrice * upgrade.growth ^ (slotCount - EconomyConfig.StartSlots))
+end
+
+-- Ціна наступного рівня доходу або nil, якщо досягнуто максимуму.
+function GameMath.GetIncomeUpgradePrice(incomeLevel)
+	local upgrade = EconomyConfig.IncomeUpgrade
+	if incomeLevel >= upgrade.maxLevel then
+		return nil
+	end
+	return math.floor(upgrade.basePrice * upgrade.growth ^ incomeLevel)
+end
+
+-- Номер доби UTC (для щоденних завдань).
+function GameMath.GetDay(now)
+	return math.floor(now / 86400)
+end
+
+-- Чи діє буст ("luck" / "income") у момент now. now = nil — бусти не враховуються.
+function GameMath.IsBoostActive(data, boostId, now)
+	return now ~= nil and (data.boosts[boostId] or 0) > now
+end
+
+function GameMath.GetBoostMultiplier(data, boostId, now)
+	if GameMath.IsBoostActive(data, boostId, now) then
+		return ShopConfig.Boosts[boostId].multiplier
+	end
+	return 1
+end
+
+-- Серверна подія від адміна ("Luck" / "Income"): множник діє для всіх гравців до часу Event<kind>Ends.
+-- Значення лежать в атрибутах workspace, тож їх бачать і сервер, і клієнти. now = nil — подія не враховується.
+function GameMath.GetEventMultiplier(kind, now)
+	if now == nil then
+		return 1
+	end
+	local multiplier = workspace:GetAttribute("Event" .. kind)
+	local ends = workspace:GetAttribute("Event" .. kind .. "Ends")
+	if type(multiplier) == "number" and type(ends) == "number" and ends > now and multiplier > 1 then
+		return multiplier
+	end
+	return 1
+end
+
+-- Удача гравця (множиться на удачу кубика): зілля × бонус Rebirth × серверна подія.
+function GameMath.GetLuck(data, now)
+	return GameMath.GetBoostMultiplier(data, "luck", now) * GameMath.GetRebirthLuck(data.rebirths or 0) * GameMath.GetEventMultiplier("Luck", now)
+end
+
+function GameMath.GetHeroName(heroDef, awakened)
+	return if awakened then heroDef.awakened.name else heroDef.name
+end
+
+-- Чи можна пробудити героя. Повертає ok, причина, ціна.
+function GameMath.CanAwaken(heroDef, hero)
+	local info = RarityConfig.Info[heroDef.rarity]
+	if hero.awakened then
+		return false, "Герой уже пробуджений", info.awakenCost
+	end
+	if hero.level < info.maxLevel then
+		return false, ("Потрібен максимальний рівень %d (зараз %d)"):format(info.maxLevel, hero.level), info.awakenCost
+	end
+	return true, nil, info.awakenCost
+end
+
+-- Rebirth
+function GameMath.GetRebirthCost(rebirths)
+	local config = EconomyConfig.Rebirth
+	return math.floor(config.baseCost * config.growth ^ rebirths)
+end
+
+function GameMath.GetRebirthIncome(rebirths)
+	return 1 + rebirths * EconomyConfig.Rebirth.incomeBonus
+end
+
+function GameMath.GetRebirthLuck(rebirths)
+	return 1 + rebirths * EconomyConfig.Rebirth.luckBonus
+end
+
+function GameMath.CountDiscovered(data)
+	local count = 0
+	for heroId in data.discovered do
+		if HeroConfig.Heroes[heroId] then
+			count += 1
+		end
+	end
+	return count
+end
+
+-- Бонус колекції: +2% доходу за кожного відкритого героя.
+function GameMath.GetCollectionMultiplier(data)
+	return 1 + GameMath.CountDiscovered(data) * EconomyConfig.CollectionIncomeBonus
+end
+
+function GameMath.GetMaxInventory(data)
+	return EconomyConfig.MaxInventory + (data.inventoryBonus or 0)
+end
+
+-- Ціна наступної "Більшої сумки" або nil, якщо куплено максимум.
+function GameMath.GetBagPrice(data)
+	local item = ShopConfig.Items.BigBag
+	local purchases = math.floor((data.inventoryBonus or 0) / item.amount)
+	if purchases >= item.maxPurchases then
+		return nil
+	end
+	return item.basePrice + item.priceStep * purchases
+end
+
+-- Скільки ворогів гравець переміг саме в цьому світі.
+function GameMath.GetWorldKills(data, worldId)
+	return data.worldKills[worldId] or 0
+end
+
+function GameMath.GetBossKills(data, enemyId)
+	return data.bossKills[enemyId] or 0
+end
+
+function GameMath.GetEnemyName(enemyId)
+	local def = EnemyConfig.Enemies[enemyId]
+	return if def then def.name else tostring(enemyId)
+end
+
+-- Чи відкрита зона zoneIndex світу worldId (зони без вимог відкриті завжди).
+function GameMath.IsZoneUnlocked(data, worldId, zoneIndex)
+	local world = WorldConfig.Worlds[worldId]
+	local zone = world and world.zones and world.zones[zoneIndex]
+	if not zone then
+		return true
+	end
+	return GameMath.GetWorldKills(data, worldId) >= zone.requiredKills
+end
+
+-- Чи можна потрапити у світ. Повертає ok, текст вимоги.
+function GameMath.IsWorldUnlocked(data, worldId)
+	local world = WorldConfig.Worlds[worldId]
+	if not world or not world.available then
+		return false, "Скоро"
+	end
+	local unlock = world.unlock
+	if unlock and unlock.boss and GameMath.GetBossKills(data, unlock.boss) < 1 then
+		return false, "Переможи " .. GameMath.GetEnemyName(unlock.boss)
+	end
+	return true, nil
+end
+
+-- Чи відкритий кубик. Повертає ok, текст вимоги.
+function GameMath.IsDiceUnlocked(data, dice)
+	if data.totalRolls < dice.requiredRolls then
+		return false, ("%d / %d кидків"):format(data.totalRolls, dice.requiredRolls)
+	end
+	if dice.requiredBoss and GameMath.GetBossKills(data, dice.requiredBoss) < 1 then
+		return false, "Переможи " .. GameMath.GetEnemyName(dice.requiredBoss)
+	end
+	return true, nil
+end
+
+-- Значення для сюжетних завдань (QuestConfig.Main[].metric).
+function GameMath.GetMetric(data, metric)
+	if metric == "totalRolls" then
+		return data.totalRolls
+	elseif metric == "slotCount" then
+		return data.slotCount
+	elseif metric == "discovered" then
+		return GameMath.CountDiscovered(data)
+	elseif metric == "placedHeroes" then
+		local count = 0
+		for i = 1, data.slotCount do
+			if data.slots[i] ~= "" then
+				count += 1
 			end
-			request(kind[1], { amount = amount * sign }, true)
 		end
-		button(custom, "➕ Видати", UIKit.Colors.Success, function()
-			send(1)
-		end, { Size = UDim2.fromOffset(110, 44), LayoutOrder = 2 })
-		button(custom, "➖ Забрати", COLORS.Danger, function()
-			send(-1)
-		end, { Size = UDim2.fromOffset(110, 44), LayoutOrder = 3 })
-	end
-
-	local boosts = section(page, "🧪 Бусти", Color3.fromRGB(90, 220, 120), 3)
-	local boostRow = row(boosts, 1)
-	for index, entry in {
-		{ "luck", 15, "🍀 Удача 15 хв" },
-		{ "luck", 60, "🍀 Удача 1 год" },
-		{ "income", 15, "💰 Дохід 15 хв" },
-		{ "income", 60, "💰 Дохід 1 год" },
-	} do
-		button(boostRow, entry[3], if entry[1] == "luck" then Color3.fromRGB(70, 200, 90) else Color3.fromRGB(240, 170, 30), function()
-			request("Boost", { boost = entry[1], minutes = entry[2] }, true)
-		end, { LayoutOrder = index, Size = UDim2.fromOffset(145, 44), TextSize = 15 })
-	end
-end
-
-local function buildHeroes()
-	local page = newPage("Heroes", true)
-	local selectedHero = nil
-	local cards = {}
-
-	local top = UIKit.Create("Frame", { Size = UDim2.new(1, -10, 0, 44), BackgroundTransparency = 1, LayoutOrder = 1, Parent = page })
-	local search = input(top, "🔍 Пошук: ім'я, рідкість або стихія…", { Size = UDim2.fromScale(1, 1) })
-
-	local grid = UIKit.Create("ScrollingFrame", {
-		Size = UDim2.new(1, -10, 1, -158),
-		BackgroundColor3 = Color3.fromRGB(24, 22, 34),
-		BorderSizePixel = 0,
-		ScrollBarThickness = 6,
-		ScrollBarImageColor3 = COLORS.Heroes,
-		CanvasSize = UDim2.new(),
-		AutomaticCanvasSize = Enum.AutomaticSize.Y,
-		LayoutOrder = 2,
-		Parent = page,
-	})
-	UIKit.Corner(grid, 12)
-	UIKit.Stroke(grid, COLORS.Heroes, 3)
-	UIKit.Create("UIPadding", { PaddingTop = UDim.new(0, 8), PaddingLeft = UDim.new(0, 8), PaddingRight = UDim.new(0, 8), PaddingBottom = UDim.new(0, 8), Parent = grid })
-	UIKit.Create("UIGridLayout", { CellSize = UDim2.fromOffset(142, 62), CellPadding = UDim2.fromOffset(8, 8), SortOrder = Enum.SortOrder.LayoutOrder, Parent = grid })
-
-	local controls = UIKit.Card({ Size = UDim2.new(1, -10, 0, 86), LayoutOrder = 3, Parent = page }, COLORS.Heroes)
-	local chosen = UIKit.Label({
-		Position = UDim2.fromOffset(12, 6),
-		Size = UDim2.new(1, -24, 0, 24),
-		Font = UIKit.Font,
-		TextSize = 20,
-		TextXAlignment = Enum.TextXAlignment.Left,
-		Text = "Обери героя зі списку",
-		Parent = controls,
-	})
-	local line = row(controls, 1, 44)
-	line.Position = UDim2.fromOffset(12, 34)
-	line.Size = UDim2.new(1, -24, 0, 44)
-	local level = input(line, "Рівень (макс.)", { Size = UDim2.fromOffset(130, 40), LayoutOrder = 1 })
-	local awakened = false
-	local awakenButton
-	awakenButton = button(line, "✨ Пробуджений: ні", Color3.fromRGB(70, 66, 92), function()
-		awakened = not awakened
-		awakenButton.Text = if awakened then "✨ Пробуджений: так" else "✨ Пробуджений: ні"
-		awakenButton.BackgroundColor3 = if awakened then COLORS.Gold else Color3.fromRGB(70, 66, 92)
-	end, { Size = UDim2.fromOffset(170, 40), LayoutOrder = 2, TextSize = 14 })
-	local countHolder = UIKit.Create("Frame", { Size = UDim2.fromOffset(156, 40), BackgroundTransparency = 1, LayoutOrder = 3, Parent = line })
-	UIKit.Create("UIListLayout", { FillDirection = Enum.FillDirection.Horizontal, Padding = UDim.new(0, 6), SortOrder = Enum.SortOrder.LayoutOrder, Parent = countHolder })
-	local getCount = chips(countHolder, { { text = "×1", value = 1 }, { text = "×5", value = 5 }, { text = "×10", value = 10 } }, 1, COLORS.Heroes, 48)
-	button(line, "🎁 Видати", UIKit.Colors.Success, function()
-		if not selectedHero then
-			UIKit.Toast("Спершу обери героя", "error")
-			return
-		end
-		request("GiveHero", { heroId = selectedHero, level = tonumber(level.Text), awakened = awakened, count = getCount() }, true)
-	end, { Size = UDim2.fromOffset(124, 40), LayoutOrder = 4 })
-
-	for index, heroDef in HeroConfig.List do
-		local rarityColor = RarityConfig.GetColor(heroDef.rarity)
-		local card = UIKit.Button({
-			Name = heroDef.id,
-			BackgroundColor3 = rarityColor:Lerp(Color3.fromRGB(20, 18, 30), 0.45),
-			Text = "",
-			LayoutOrder = RarityConfig.GetRank(heroDef.rarity) * 100 + index,
-			Parent = grid,
-		}, function()
-			selectedHero = heroDef.id
-			for id, other in cards do
-				UIKit.SetOutline(other, if id == heroDef.id then COLORS.Gold else UIKit.Colors.Outline, if id == heroDef.id then 5 else 3)
+		return count
+	elseif metric == "teamSize" then
+		local count = 0
+		for i = 1, CombatConfig.TeamSize do
+			if data.team[i] ~= "" then
+				count += 1
 			end
-			local maxLevel = RarityConfig.Info[heroDef.rarity].maxLevel
-			chosen.Text = ("%s %s • %s • макс. Lv %d"):format(HeroConfig.ElementIcons[heroDef.element] or "", heroDef.name, heroDef.rarity, maxLevel)
-			chosen.TextColor3 = rarityColor
-		end)
-		-- Портрет є лише в новіших версіях UIKit (AssetConfig.HeroPortraits)
-		if UIKit.HeroPortrait then
-			UIKit.HeroPortrait(card, heroDef.id, 0.5)
 		end
-		UIKit.Label({
-			Position = UDim2.fromOffset(6, 4),
-			Size = UDim2.new(1, -12, 0, 30),
-			Font = UIKit.Font,
-			TextScaled = true,
-			Text = heroDef.name,
-			Parent = card,
-		})
-		UIKit.Label({
-			Position = UDim2.fromOffset(6, 36),
-			Size = UDim2.new(1, -12, 0, 20),
-			Font = UIKit.Font,
-			TextScaled = true,
-			TextColor3 = rarityColor:Lerp(Color3.new(1, 1, 1), 0.35),
-			Text = (HeroConfig.ElementIcons[heroDef.element] or "") .. " " .. heroDef.rarity,
-			Parent = card,
-		})
-		cards[heroDef.id] = card
-	end
-
-	search:GetPropertyChangedSignal("Text"):Connect(function()
-		local query = string.lower(search.Text)
-		for _, heroDef in HeroConfig.List do
-			local text = string.lower(heroDef.name .. " " .. heroDef.rarity .. " " .. heroDef.element)
-			cards[heroDef.id].Visible = query == "" or string.find(text, query, 1, true) ~= nil
-		end
-	end)
-end
-
-local function buildProgress()
-	local page = newPage("Progress")
-	local unlock = section(page, "🔓 Прогрес гравця", COLORS.Progress, 1)
-	local unlockRow = row(unlock, 1)
-	for index, entry in {
-		{ "UnlockAll", "🌍 Відкрити все" },
-		{ "MaxBase", "🧱 Макс. база" },
-		{ "AddRebirth", "♻️ +1 Rebirth" },
-	} do
-		button(unlockRow, entry[2], COLORS.Progress, function()
-			request(entry[1], {}, true)
-		end, { LayoutOrder = index, Size = UDim2.fromOffset(170, 46) })
-	end
-	UIKit.Label({
-		Size = UDim2.new(1, 0, 0, 20),
-		TextSize = 14,
-		TextColor3 = UIKit.Colors.SubText,
-		TextXAlignment = Enum.TextXAlignment.Left,
-		Text = "«Відкрити все» — світи, зони й кубики. «+1 Rebirth» — бонус без скидання прогресу.",
-		LayoutOrder = 2,
-		Parent = unlock,
-	})
-
-	local travel = section(page, "🌀 Телепорт у світ (без вимог)", Color3.fromRGB(70, 150, 255), 2)
-	local travelRow = row(travel, 1)
-	button(travelRow, "🏠 Лобі", Color3.fromRGB(255, 120, 200), function()
-		request("Travel", { world = "Lobby" }, true)
-	end, { LayoutOrder = 0, Size = UDim2.fromOffset(170, 46) })
-	for index, worldId in WorldConfig.Order do
-		local world = WorldConfig.Worlds[worldId]
-		if world.available then
-			button(travelRow, world.displayName, world.color, function()
-				request("Travel", { world = worldId }, true)
-			end, { LayoutOrder = index, Size = UDim2.fromOffset(170, 46), TextSize = 16 })
-		end
-	end
-
-	local danger = section(page, "⚠️ Небезпечна зона", COLORS.Danger, 3)
-	local dangerRow = row(danger, 1)
-	confirmButton(dangerRow, "🗑️ Скинути прогрес", function()
-		request("ResetData", {}, true)
-	end, { Size = UDim2.fromOffset(220, 46) })
-end
-
-local function buildPlayer()
-	local page = newPage("Player")
-	local move = section(page, "📍 Переміщення", COLORS.Player, 1)
-	local moveRow = row(move, 1)
-	for index, entry in { { "GoTo", "➡️ До гравця" }, { "Bring", "⬅️ До себе" }, { "Heal", "❤️ Вилікувати" } } do
-		button(moveRow, entry[2], if entry[1] == "Heal" then UIKit.Colors.Success else COLORS.Player, function()
-			request(entry[1], {}, true)
-		end, { LayoutOrder = index, Size = UDim2.fromOffset(170, 46) })
-	end
-
-	local speed = section(page, "🏃 Швидкість ходьби", Color3.fromRGB(80, 220, 200), 2)
-	local speedRow = row(speed, 1)
-	for index, value in AdminConfig.WalkSpeeds do
-		button(speedRow, (if index == 1 then "🚶 " else "🏃 ") .. value, Color3.fromRGB(50, 190, 170), function()
-			request("Speed", { speed = value }, true)
-		end, { LayoutOrder = index, Size = UDim2.fromOffset(120, 46) })
-	end
-
-	local kick = section(page, "🚪 Вигнати з сервера", COLORS.Danger, 3)
-	local kickRow = row(kick, 1, 46)
-	local reason = input(kickRow, "Причина (необов'язково)", { Size = UDim2.new(1, -168, 0, 46) })
-	confirmButton(kickRow, "🚪 Вигнати", function()
-		request("Kick", { reason = reason.Text }, true)
-		reason.Text = ""
-	end, { Size = UDim2.fromOffset(160, 46), LayoutOrder = 2 })
-end
-
-local function buildServer()
-	local page = newPage("Server")
-	local announce = section(page, "📢 Оголошення для всіх", COLORS.Server, 1)
-	local announceRow = row(announce, 1, 46)
-	local text = input(announceRow, "Напр.: Через 5 хвилин подія удачі ×3!", { Size = UDim2.new(1, -168, 0, 46) })
-	button(announceRow, "📢 Надіслати", COLORS.Server, function()
-		if #text.Text < 2 then
-			UIKit.Toast("Напиши текст оголошення", "error")
-			return
-		end
-		if request("Announce", { text = text.Text }).ok then
-			text.Text = ""
-		end
-	end, { Size = UDim2.fromOffset(160, 46), LayoutOrder = 2 })
-
-	local events = section(page, "🎉 Подія для всього сервера", COLORS.Gold, 2)
-	local minutesRow = row(events, 1)
-	UIKit.Label({ Size = UDim2.fromOffset(110, 40), Font = UIKit.Font, TextSize = 18, Text = "⏱ Тривалість:", LayoutOrder = 0, Parent = minutesRow })
-	local getMinutes = chips(minutesRow, { { text = "5 хв", value = 5 }, { text = "15 хв", value = 15 }, { text = "30 хв", value = 30 }, { text = "60 хв", value = 60 } }, 15, COLORS.Gold, 76)
-	for order, kind in { { "Luck", "🍀 Удача", Color3.fromRGB(70, 200, 90) }, { "Income", "💰 Дохід", Color3.fromRGB(240, 170, 30) } } do
-		local eventRow = row(events, order + 1)
-		UIKit.Label({ Size = UDim2.fromOffset(110, 44), Font = UIKit.Font, TextSize = 18, Text = kind[2], TextColor3 = kind[3], LayoutOrder = 0, Parent = eventRow })
-		for index, multiplier in AdminConfig.EventMultipliers do
-			button(eventRow, "×" .. multiplier, kind[3], function()
-				request("Event", { kind = kind[1], multiplier = multiplier, minutes = getMinutes() })
-			end, { LayoutOrder = index, Size = UDim2.fromOffset(76, 44) })
-		end
-	end
-	local stopRow = row(events, 5)
-	button(stopRow, "⏹ Зупинити всі події", COLORS.Danger, function()
-		request("StopEvents")
-	end, { Size = UDim2.fromOffset(240, 44) })
-
-	local world = section(page, "⚔️ Світ", Color3.fromRGB(255, 110, 70), 3)
-	local worldRow = row(world, 1)
-	confirmButton(worldRow, "💥 Перемогти всіх ворогів тут", function()
-		request("ClearWorld")
-	end, { Size = UDim2.fromOffset(300, 46) })
-end
-
-local function buildLog()
-	local page = newPage("Log")
-	local head = row(page, 0, 44)
-	button(head, "🔄 Оновити", COLORS.Log, function()
-		AdminUI.RefreshLog()
-	end, { Size = UDim2.fromOffset(150, 40) })
-	ui.logList = UIKit.Create("Frame", { Size = UDim2.new(1, -10, 0, 0), AutomaticSize = Enum.AutomaticSize.Y, BackgroundTransparency = 1, LayoutOrder = 1, Parent = page })
-	UIKit.Create("UIListLayout", { Padding = UDim.new(0, 6), SortOrder = Enum.SortOrder.LayoutOrder, Parent = ui.logList })
-end
-
-function AdminUI.RefreshLog()
-	if not ui.logList then
-		return
-	end
-	local result = ClientState.Request("AdminAction", "GetLog")
-	for _, child in ui.logList:GetChildren() do
-		if child:IsA("GuiObject") then
-			child:Destroy()
-		end
-	end
-	local entries = if result.ok and type(result.log) == "table" then result.log else {}
-	if #entries == 0 then
-		UIKit.Label({ Size = UDim2.new(1, 0, 0, 40), TextSize = 18, TextColor3 = UIKit.Colors.SubText, Text = "Поки що порожньо", Parent = ui.logList })
-	end
-	for index, entry in entries do
-		local line = UIKit.Create("Frame", { Size = UDim2.new(1, 0, 0, 40), BackgroundColor3 = if index % 2 == 0 then Color3.fromRGB(32, 30, 44) else Color3.fromRGB(26, 24, 36), LayoutOrder = index, Parent = ui.logList })
-		UIKit.Corner(line, 10)
-		UIKit.Label({
-			Position = UDim2.fromOffset(10, 0),
-			Size = UDim2.new(1, -20, 1, 0),
-			TextSize = 15,
-			TextXAlignment = Enum.TextXAlignment.Left,
-			RichText = true,
-			TextTruncate = Enum.TextTruncate.AtEnd,
-			Text = ('<font color="#a8a0d0">%s</font>  <b>%s</b> → <font color="#ffcc55">%s</font>%s %s'):format(
-				os.date("%H:%M:%S", entry.time),
-				entry.admin or "?",
-				entry.action or "?",
-				if entry.target then " • " .. entry.target else "",
-				entry.details or ""
-			),
-			Parent = line,
-		})
-	end
-end
-
----------------------------------------------------------------------
--- Панель і кнопка 👑
----------------------------------------------------------------------
-
-local function buildPanel(gui)
-	local panel, content = UIKit.Panel(gui, "Admin", "👑 Admin Panel", GOLD)
-	panel.Size = UDim2.fromOffset(920, 580)
-	Hud.RegisterPanel("Admin", panel)
-	ui.panel = panel
-
-	buildSidebar(content)
-	ui.pageHolder = UIKit.Create("Frame", {
-		Position = UDim2.fromOffset(236, 0),
-		Size = UDim2.new(1, -236, 1, 0),
-		BackgroundTransparency = 1,
-		Parent = content,
-	})
-	buildCurrency()
-	buildHeroes()
-	buildProgress()
-	buildPlayer()
-	buildServer()
-	buildLog()
-	AdminUI.ShowTab("Currency")
-
-	panel:GetPropertyChangedSignal("Visible"):Connect(function()
-		if panel.Visible then
-			refreshTarget()
-		end
-	end)
-	Players.PlayerAdded:Connect(function()
-		if panel.Visible then
-			refreshTarget()
-		end
-	end)
-	Players.PlayerRemoving:Connect(function(leaving)
-		if leaving == selected then
-			selected = player
-		end
-		task.defer(function()
-			if panel.Visible then
-				refreshTarget()
+		return count
+	elseif metric == "rebirths" then
+		return data.rebirths or 0
+	elseif metric == "awakenedHeroes" then
+		local count = 0
+		for _, hero in data.heroes do
+			if hero.awakened then
+				count += 1
 			end
-		end)
-	end)
-
-	-- Кнопка 👑 у верхньому меню поруч із Worlds / Home / Shop
-	local topNav = Hud.Get("Worlds") and Hud.Get("Worlds").Parent
-	local crown = UIKit.Button({
-		Name = "Admin",
-		LayoutOrder = 10,
-		Size = UDim2.fromOffset(62, 62),
-		BackgroundColor3 = COLORS.Gold,
-		Text = "👑",
-		TextScaled = true,
-		Parent = topNav or gui,
-	}, function()
-		Hud.TogglePanel("Admin")
-	end)
-	crown.Outline.UIStroke.Thickness = 4
-	if not topNav then
-		crown.Position = UDim2.new(0, 12, 0, 70)
-		UIKit.AddScale(crown)
-	end
-
-	UserInputService.InputBegan:Connect(function(inputObject, gameProcessed)
-		if not gameProcessed and inputObject.KeyCode == Enum.KeyCode.F2 then
-			Hud.TogglePanel("Admin")
 		end
-	end)
-end
-
----------------------------------------------------------------------
--- Для всіх гравців: оголошення та таймер подій
----------------------------------------------------------------------
-
-local function buildAnnouncements(gui)
-	local holder = UIKit.Create("Frame", {
-		Name = "Announcement",
-		AnchorPoint = Vector2.new(0.5, 0),
-		Position = UDim2.new(0.5, 0, 0, 150),
-		Size = UDim2.fromOffset(640, 100),
-		BackgroundColor3 = Color3.fromRGB(26, 20, 40),
-		Visible = false,
-		ZIndex = 60,
-		Parent = gui,
-	})
-	UIKit.Corner(holder, 20)
-	local stroke = UIKit.Stroke(holder, Color3.new(1, 1, 1), 5)
-	local rainbow = UIKit.Create("UIGradient", { Color = UIKit.Rainbow, Parent = stroke })
-	UIKit.Create("UIGradient", { Color = ColorSequence.new(Color3.fromRGB(255, 255, 255), Color3.fromRGB(170, 160, 200)), Rotation = 90, Parent = holder })
-	local scale = UIKit.AddScale(holder)
-	local title = UIKit.Label({
-		Position = UDim2.fromOffset(16, 8),
-		Size = UDim2.new(1, -32, 0, 26),
-		Font = UIKit.Font,
-		TextSize = 22,
-		TextColor3 = COLORS.Gold,
-		Text = "📢 ОГОЛОШЕННЯ",
-		ZIndex = 61,
-		Parent = holder,
-	})
-	local body = UIKit.Label({
-		Position = UDim2.fromOffset(16, 36),
-		Size = UDim2.new(1, -32, 1, -44),
-		Font = UIKit.Font,
-		TextScaled = true,
-		ZIndex = 61,
-		Parent = holder,
-	})
-	UIKit.Create("UITextSizeConstraint", { MaxTextSize = 30, Parent = body })
-
-	local token = 0
-	Remotes.Get("Announce").OnClientEvent:Connect(function(text, author)
-		token += 1
-		local mine = token
-		title.Text = "📢 ОГОЛОШЕННЯ" .. (if typeof(author) == "string" then " від " .. author else "")
-		body.Text = tostring(text)
-		holder.Visible = true
-		holder.Size = UDim2.fromOffset(640, 100)
-		local base = scale.Scale
-		scale.Scale = base * 0.6
-		TweenService:Create(scale, TweenInfo.new(0.35, Enum.EasingStyle.Back, Enum.EasingDirection.Out), { Scale = base }):Play()
-		SoundController.Play("Reward")
-		task.spawn(function()
-			while holder.Visible and token == mine do
-				rainbow.Rotation = (rainbow.Rotation + 4) % 360
-				task.wait(0.03)
-			end
-		end)
-		task.delay(7, function()
-			if token == mine then
-				holder.Visible = false
-			end
-		end)
-	end)
-end
-
-local function buildEventTimer(gui)
-	local pill = UIKit.Create("Frame", {
-		Name = "ServerEvents",
-		AnchorPoint = Vector2.new(1, 0),
-		Position = UDim2.new(1, -12, 0, 164),
-		Size = UDim2.fromOffset(230, 0),
-		AutomaticSize = Enum.AutomaticSize.Y,
-		BackgroundTransparency = 1,
-		Visible = false,
-		Parent = gui,
-	})
-	UIKit.AddScale(pill)
-	UIKit.Create("UIListLayout", { Padding = UDim.new(0, 6), HorizontalAlignment = Enum.HorizontalAlignment.Right, SortOrder = Enum.SortOrder.LayoutOrder, Parent = pill })
-	local labels = {}
-	for index, kind in { { "Luck", "🍀 Удача", Color3.fromRGB(70, 200, 90) }, { "Income", "💰 Дохід", Color3.fromRGB(240, 170, 30) } } do
-		local label = UIKit.Label({
-			Size = UDim2.fromOffset(230, 40),
-			BackgroundColor3 = kind[3],
-			BackgroundTransparency = 0,
-			Font = UIKit.Font,
-			TextSize = 20,
-			LayoutOrder = index,
-			Visible = false,
-			Parent = pill,
-		})
-		UIKit.Corner(label, 12)
-		UIKit.Stroke(label, UIKit.Colors.Outline, 3)
-		UIKit.Shade(label, 0.25)
-		labels[kind[1]] = { label = label, name = kind[2] }
-	end
-	task.spawn(function()
-		while true do
-			local now = workspace:GetServerTimeNow()
-			local any = false
-			for kind, entry in labels do
-				local multiplier = GameMath.GetEventMultiplier(kind, now)
-				local ends = workspace:GetAttribute("Event" .. kind .. "Ends")
-				local active = multiplier > 1 and type(ends) == "number"
-				entry.label.Visible = active
-				if active then
-					any = true
-					entry.label.Text = ("🎉 %s ×%d • %s"):format(entry.name, multiplier, GameMath.FormatTime(math.max(0, ends - now)))
-				end
-			end
-			pill.Visible = any
-			task.wait(1)
+		return count
+	elseif metric == "maxHeroLevel" then
+		local best = 0
+		for _, hero in data.heroes do
+			best = math.max(best, hero.level)
 		end
-	end)
+		return best
+	elseif string.sub(metric, 1, 6) == "kills:" then
+		return GameMath.GetWorldKills(data, string.sub(metric, 7))
+	elseif string.sub(metric, 1, 5) == "boss:" then
+		return GameMath.GetBossKills(data, string.sub(metric, 6))
+	elseif data.stats[metric] ~= nil then
+		return data.stats[metric]
+	end
+	return 0
 end
 
-function AdminUI.Init(gui)
-	buildAnnouncements(gui)
-	buildEventTimer(gui)
-	-- Панель будуємо лише для адмінів (сервер ставить атрибут; він може прийти трохи пізніше)
-	local built = false
-	local function check()
-		if not built and player:GetAttribute("IsAdmin") == true then
-			built = true
-			buildPanel(gui)
+-- "+300 🪙 +1 💎"
+function GameMath.FormatReward(reward)
+	local parts = {}
+	if reward.coins and reward.coins > 0 then
+		table.insert(parts, "+" .. GameMath.FormatNumber(reward.coins) .. " 🪙")
+	end
+	if reward.crystals and reward.crystals > 0 then
+		table.insert(parts, "+" .. GameMath.FormatNumber(reward.crystals) .. " 💎")
+	end
+	return table.concat(parts, " ")
+end
+
+-- 125 -> "2:05"
+function GameMath.FormatTime(seconds)
+	seconds = math.max(0, math.floor(seconds))
+	if seconds >= 3600 then
+		return string.format("%d:%02d:%02d", seconds // 3600, (seconds % 3600) // 60, seconds % 60)
+	end
+	return string.format("%d:%02d", seconds // 60, seconds % 60)
+end
+
+-- Загальний дохід бази за секунду з бонусом колекції.
+-- now — серверний час; якщо передано, враховується буст доходу.
+function GameMath.GetTotalIncome(data, now)
+	local total = 0
+	for i = 1, data.slotCount do
+		local uid = data.slots[i]
+		local hero = uid and uid ~= "" and data.heroes[uid]
+		local heroDef = hero and HeroConfig.Heroes[hero.id]
+		if heroDef then
+			total += GameMath.GetHeroIncome(heroDef, hero.level, data.incomeLevel, hero.awakened)
 		end
 	end
-	player:GetAttributeChangedSignal("IsAdmin"):Connect(check)
-	check()
+	return total
+		* GameMath.GetCollectionMultiplier(data)
+		* GameMath.GetRebirthIncome(data.rebirths or 0)
+		* GameMath.GetBoostMultiplier(data, "income", now)
+		* GameMath.GetEventMultiplier("Income", now)
 end
 
-return AdminUI
+-- Шкода героя за секунду.
+function GameMath.GetHeroDps(heroDef, level, awakened)
+	return GameMath.GetHeroDamage(heroDef, level, awakened) * heroDef.attackSpeed
+end
+
+-- Чи входить герой до бойової команди.
+function GameMath.IsInTeam(data, uid)
+	for i = 1, CombatConfig.TeamSize do
+		if data.team[i] == uid then
+			return true
+		end
+	end
+	return false
+end
+
+-- Чи стоїть герой на базі.
+function GameMath.IsOnBase(data, uid)
+	for i = 1, data.slotCount do
+		if data.slots[i] == uid then
+			return true
+		end
+	end
+	return false
+end
+
+-- Сумарна шкода команди за секунду.
+function GameMath.GetTeamDps(data)
+	local total = 0
+	for i = 1, CombatConfig.TeamSize do
+		local uid = data.team[i]
+		local hero = uid and uid ~= "" and data.heroes[uid]
+		local heroDef = hero and HeroConfig.Heroes[hero.id]
+		if heroDef then
+			total += GameMath.GetHeroDps(heroDef, hero.level, hero.awakened)
+		end
+	end
+	return total
+end
+
+-- Скільки кидків лишилось до гарантії кожного рівня.
+function GameMath.GetPityRemaining(data)
+	local result = {}
+	for _, tier in EconomyConfig.Pity do
+		local count = data.pity[tier.rarity] or 0
+		table.insert(result, { rarity = tier.rarity, remaining = math.max(tier.rolls - count, 1) })
+	end
+	return result
+end
+
+local SUFFIXES = { "", "K", "M", "B", "T", "Qa", "Qi" }
+
+-- 1234 -> "1.23K", 5600000 -> "5.6M"
+function GameMath.FormatNumber(value)
+	value = tonumber(value) or 0
+	if math.abs(value) < 1000 then
+		if value == math.floor(value) then
+			return tostring(value)
+		end
+		return string.format("%.1f", value)
+	end
+	local index = 1
+	while math.abs(value) >= 1000 and index < #SUFFIXES do
+		value /= 1000
+		index += 1
+	end
+	local text = string.format("%.2f", value):gsub("%.?0+$", "")
+	return text .. SUFFIXES[index]
+end
+
+function GameMath.FormatChance(percent)
+	if percent <= 0 then
+		return "—"
+	elseif percent < 0.01 then
+		return "<0.01%"
+	elseif percent < 1 then
+		return string.format("%.2f%%", percent)
+	end
+	return string.format("%.1f%%", percent)
+end
+
+return GameMath
 ]=])
 
 if recording then
 	ChangeHistoryService:FinishRecording(recording, Enum.FinishRecordingOperation.Commit)
 end
-print("Частина 1 з 1 готова")
+print("Частина 1 з 7 готова")

@@ -12,7 +12,7 @@ local HeroConfig = require(Config:WaitForChild("HeroConfig"))
 local RarityConfig = require(Config:WaitForChild("RarityConfig"))
 local GameMath = require(Shared:WaitForChild("GameMath"))
 local HeroModelBuilder = require(Shared:WaitForChild("HeroModelBuilder"))
-local AssetConfig = require(Config:WaitForChild("AssetConfig"))
+local HeroArtConfig = require(Config:WaitForChild("HeroArtConfig"))
 
 local Client = script.Parent
 local UIKit = require(Client:WaitForChild("UIKit"))
@@ -311,8 +311,8 @@ local function showHero(heroDef, awakened)
 		o.model:Destroy()
 		o.model = nil
 	end
-	-- Якщо для героя підключено портрет — показуємо його замість 3D-моделі
-	local portrait = AssetConfig.GetPortrait(heroDef.id)
+	-- Якщо для героя підключено свій портрет — показуємо його замість 3D-моделі
+	local portrait = HeroArtConfig.GetPortrait(heroDef.id, true)
 	o.portrait.Visible = portrait ~= nil
 	o.viewport.Visible = portrait == nil
 	if portrait then

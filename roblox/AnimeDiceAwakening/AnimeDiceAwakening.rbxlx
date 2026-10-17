@@ -116,39 +116,6 @@ AssetConfig.Fallback = {
 	BigBag = "🎒",
 }
 
--- Портрети героїв (картинка, яка показується під час кидка, у Backpack, Team та Index).
--- Використовуй лише картинки, на які маєш права: власний арт, куплений арт-пак
--- або безкоштовний пак, що дозволяє використання в іграх. Порожньо — показується 3D-модель.
-AssetConfig.HeroPortraits = {
-	riku_windstep = "", -- Riku Windstep (Common)
-	tomo_deckhand = "", -- Tomo the Deckhand (Common)
-	hana_emberling = "", -- Hana Emberling (Common)
-	zen_cadet = "", -- Zen Star Cadet (Common)
-	shiro_quickblade = "", -- Shiro Quickblade (Rare)
-	kaito_saltfang = "", -- Kaito Saltfang (Rare)
-	mira_cinderveil = "", -- Mira Cinderveil (Rare)
-	yoru_lantern = "", -- Yoru Lanternbearer (Rare)
-	akane_crimsonfan = "", -- Akane Crimson Fan (Epic)
-	raizo_thunderstep = "", -- Raizo Thunderstep (Epic)
-	nox_hollowhunter = "", -- Nox Hollowhunter (Epic)
-	coral_vex = "", -- Captain Coral Vex (Epic)
-	seren_starblade = "", -- Seren Starblade (Legendary)
-	kuro_moonreaper = "", -- Kuro Moonreaper (Legendary)
-	homura_ashcrown = "", -- Homura Ashcrown (Legendary)
-	ryo_skybolt = "", -- Ryo Skybolt (Legendary)
-	marisol_tidecaller = "", -- Marisol Tidecaller (Legendary)
-	rin_hellbane = "", -- Rin Hellbane (Legendary)
-	astra_novaempress = "", -- Astra, Nova Empress (Mythic)
-	gekko_voidshinobi = "", -- Gekko the Void Shinobi (Mythic)
-	volta_stormcaptain = "", -- Storm Captain Volta (Mythic)
-	ifra_phoenixsaint = "", -- Ifra, Phoenix Saint (Mythic)
-	kaizen_deepcrown = "", -- Admiral Kaizen Deepcrown (Mythic)
-	kagura_duskblade = "", -- Kagura Duskblade (Mythic)
-	solenne_eclipse = "", -- Solenne, Eclipse Sovereign (Secret)
-	mugen_dicegod = "", -- Mugen, the Dice God (Secret)
-	vael_abyssal = "", -- Vael, Abyssal Emperor (Secret)
-}
-
 AssetConfig.Sounds = {
 	Click = "", -- натискання кнопки
 	RollTick = "", -- кожна зміна героя під час прокрутки
@@ -182,10 +149,6 @@ end
 -- Повна адреса картинки або nil, якщо її ще не підключено.
 function AssetConfig.GetImage(key)
 	return normalize(AssetConfig.Icons[key])
-end
-
-function AssetConfig.GetPortrait(heroId)
-	return normalize(AssetConfig.HeroPortraits[heroId])
 end
 
 function AssetConfig.GetSound(key)
@@ -615,6 +578,110 @@ return EnemyConfig
         </Item>
         <Item class="ModuleScript" referent="10">
           <Properties>
+            <string name="Name">HeroArtConfig</string>
+            <string name="Source"><![CDATA[-- HeroArtConfig: як виглядають герої — 3D-моделі з Creator Store і портрети.
+--
+-- Models   — ID безкоштовних моделей з Creator Store (Toolbox). Їх завантажує в
+--            ReplicatedStorage/HeroModels скрипт tools/load_hero_models.lua (Command Bar → ▶ Run),
+--            а гра ставить їх на базу, у команду й показує під час кидка.
+-- Portraits — свої картинки героїв (ID з Asset Manager). Якщо порожньо, портретом
+--            стає знімок моделі з Models — нічого завантажувати не треба.
+--
+-- Моделі підібрані в аніме-стилі й без персонажів чужих франшиз (Roblox видаляє ігри
+-- з чужими персонажами за авторські права). Будь-який ID можна замінити на свій.
+
+local HeroArtConfig = {}
+
+HeroArtConfig.Models = {
+	riku_windstep = 10465459303, -- Riku Windstep (Common)
+	tomo_deckhand = 100944702942220, -- Tomo the Deckhand (Common)
+	hana_emberling = 5267955171, -- Hana Emberling (Common)
+	zen_cadet = 12757277166, -- Zen Star Cadet (Common)
+	shiro_quickblade = 8988047057, -- Shiro Quickblade (Rare)
+	kaito_saltfang = 132434304646924, -- Kaito Saltfang (Rare)
+	mira_cinderveil = 14976197705, -- Mira Cinderveil (Rare)
+	yoru_lantern = 102936851931650, -- Yoru Lanternbearer (Rare)
+	akane_crimsonfan = 1002392746, -- Akane Crimson Fan (Epic)
+	raizo_thunderstep = 12572205024, -- Raizo Thunderstep (Epic)
+	nox_hollowhunter = 117056856525249, -- Nox Hollowhunter (Epic)
+	coral_vex = 799516341, -- Captain Coral Vex (Epic)
+	seren_starblade = 12864717820, -- Seren Starblade (Legendary)
+	kuro_moonreaper = 133610989566243, -- Kuro Moonreaper (Legendary)
+	homura_ashcrown = 5123918805, -- Homura Ashcrown (Legendary)
+	ryo_skybolt = 88689760627068, -- Ryo Skybolt (Legendary)
+	marisol_tidecaller = 2513353543, -- Marisol Tidecaller (Legendary)
+	rin_hellbane = 9389951512, -- Rin Hellbane (Legendary)
+	astra_novaempress = 1346868188, -- Astra, Nova Empress (Mythic)
+	gekko_voidshinobi = 11965234368, -- Gekko the Void Shinobi (Mythic)
+	volta_stormcaptain = 3552939059, -- Storm Captain Volta (Mythic)
+	ifra_phoenixsaint = 79118375438271, -- Ifra, Phoenix Saint (Mythic)
+	kaizen_deepcrown = 10854041153, -- Admiral Kaizen Deepcrown (Mythic)
+	kagura_duskblade = 89208241488034, -- Kagura Duskblade (Mythic)
+	solenne_eclipse = 7084656859, -- Solenne, Eclipse Sovereign (Secret)
+	mugen_dicegod = 107515140283474, -- Mugen, the Dice God (Secret)
+	vael_abyssal = 4856690928, -- Vael, Abyssal Emperor (Secret)
+}
+
+-- Свої портрети (необов'язково): "1234567890" або "rbxassetid://1234567890"
+HeroArtConfig.Portraits = {
+	riku_windstep = "",
+	tomo_deckhand = "",
+	hana_emberling = "",
+	zen_cadet = "",
+	shiro_quickblade = "",
+	kaito_saltfang = "",
+	mira_cinderveil = "",
+	yoru_lantern = "",
+	akane_crimsonfan = "",
+	raizo_thunderstep = "",
+	nox_hollowhunter = "",
+	coral_vex = "",
+	seren_starblade = "",
+	kuro_moonreaper = "",
+	homura_ashcrown = "",
+	ryo_skybolt = "",
+	marisol_tidecaller = "",
+	rin_hellbane = "",
+	astra_novaempress = "",
+	gekko_voidshinobi = "",
+	volta_stormcaptain = "",
+	ifra_phoenixsaint = "",
+	kaizen_deepcrown = "",
+	kagura_duskblade = "",
+	solenne_eclipse = "",
+	mugen_dicegod = "",
+	vael_abyssal = "",
+}
+
+-- true — якщо свого портрета немає, показувати знімок моделі з Creator Store
+HeroArtConfig.ModelThumbnailPortraits = true
+
+-- Адреса портрета героя або nil (тоді гра показує 3D-модель).
+-- ownOnly = true — лише своя картинка, без знімка моделі (під час кидка краще жива 3D-модель).
+function HeroArtConfig.GetPortrait(heroId, ownOnly)
+	local image = HeroArtConfig.Portraits[heroId]
+	if type(image) == "number" then
+		image = tostring(image)
+	end
+	if type(image) == "string" and image ~= "" then
+		if string.match(image, "^%d+$") then
+			return "rbxassetid://" .. image
+		end
+		return image
+	end
+	local modelId = HeroArtConfig.Models[heroId]
+	if not ownOnly and HeroArtConfig.ModelThumbnailPortraits and type(modelId) == "number" then
+		return ("rbxthumb://type=Asset&id=%d&w=420&h=420"):format(modelId)
+	end
+	return nil
+end
+
+return HeroArtConfig
+]]></string>
+          </Properties>
+        </Item>
+        <Item class="ModuleScript" referent="11">
+          <Properties>
             <string name="Name">HeroConfig</string>
             <string name="Source"><![CDATA[-- HeroConfig: усі герої гри (оригінальні персонажі).
 -- ВАЖЛИВО: ніколи не видаляй і не перейменовуй id героя після релізу —
@@ -1033,7 +1100,7 @@ return HeroConfig
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="11">
+        <Item class="ModuleScript" referent="12">
           <Properties>
             <string name="Name">QuestConfig</string>
             <string name="Source"><![CDATA[-- QuestConfig: завдання та нагороди.
@@ -1108,7 +1175,7 @@ return QuestConfig
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="12">
+        <Item class="ModuleScript" referent="13">
           <Properties>
             <string name="Name">RarityConfig</string>
             <string name="Source"><![CDATA[-- RarityConfig: рідкості героїв.
@@ -1207,7 +1274,7 @@ return RarityConfig
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="13">
+        <Item class="ModuleScript" referent="14">
           <Properties>
             <string name="Name">ShopConfig</string>
             <string name="Source"><![CDATA[-- ShopConfig: покупки за Crystals.
@@ -1257,7 +1324,7 @@ return ShopConfig
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="14">
+        <Item class="ModuleScript" referent="15">
           <Properties>
             <string name="Name">WorldConfig</string>
             <string name="Source"><![CDATA[-- WorldConfig: світи гри.
@@ -1335,7 +1402,7 @@ return WorldConfig
           </Properties>
         </Item>
       </Item>
-      <Item class="ModuleScript" referent="15">
+      <Item class="ModuleScript" referent="16">
         <Properties>
           <string name="Name">GameMath</string>
           <string name="Source"><![CDATA[-- GameMath: формули балансу, спільні для сервера й клієнта.
@@ -1769,7 +1836,7 @@ return GameMath
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="16">
+      <Item class="ModuleScript" referent="17">
         <Properties>
           <string name="Name">HeroModelBuilder</string>
           <string name="Source"><![CDATA[-- HeroModelBuilder: будує просту модель героя з Part (без платних моделей).
@@ -2053,7 +2120,7 @@ return HeroModelBuilder
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="17">
+      <Item class="ModuleScript" referent="18">
         <Properties>
           <string name="Name">Remotes</string>
           <string name="Source"><![CDATA[-- Remotes: єдиний список усіх RemoteEvent / RemoteFunction гри.
@@ -2135,17 +2202,17 @@ return Remotes
         </Properties>
       </Item>
     </Item>
-    <Item class="Folder" referent="18">
+    <Item class="Folder" referent="19">
       <Properties>
         <string name="Name">HeroModels</string>
       </Properties>
     </Item>
   </Item>
-  <Item class="ServerScriptService" referent="19">
+  <Item class="ServerScriptService" referent="20">
     <Properties>
       <string name="Name">ServerScriptService</string>
     </Properties>
-    <Item class="Script" referent="20">
+    <Item class="Script" referent="21">
       <Properties>
         <string name="Name">Main</string>
         <token name="RunContext">0</token>
@@ -2231,11 +2298,11 @@ print("[Main] Anime Dice: Awakening — сервер запущено")
 ]]></string>
       </Properties>
     </Item>
-    <Item class="Folder" referent="21">
+    <Item class="Folder" referent="22">
       <Properties>
         <string name="Name">Services</string>
       </Properties>
-      <Item class="ModuleScript" referent="22">
+      <Item class="ModuleScript" referent="23">
         <Properties>
           <string name="Name">AdminService</string>
           <string name="Source"><![CDATA[-- AdminService: адмін-панель. Хто адмін — вирішує ТІЛЬКИ сервер (AdminConfig),
@@ -2735,7 +2802,7 @@ return AdminService
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="23">
+      <Item class="ModuleScript" referent="24">
         <Properties>
           <string name="Name">BuildUtil</string>
           <string name="Source"><![CDATA[-- BuildUtil: спільні функції для будівництва карти з простих Part.
@@ -3145,7 +3212,7 @@ return BuildUtil
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="24">
+      <Item class="ModuleScript" referent="25">
         <Properties>
           <string name="Name">CombatService</string>
           <string name="Source"><![CDATA[-- CombatService: вибір цілі та автоатака бойової команди.
@@ -3368,7 +3435,7 @@ return CombatService
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="25">
+      <Item class="ModuleScript" referent="26">
         <Properties>
           <string name="Name">DataService</string>
           <string name="Source"><![CDATA[-- DataService: завантаження, зберігання та синхронізація даних гравців.
@@ -3855,7 +3922,7 @@ return DataService
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="26">
+      <Item class="ModuleScript" referent="27">
         <Properties>
           <string name="Name">EnemyModelBuilder</string>
           <string name="Source"><![CDATA[-- EnemyModelBuilder: прості моделі ворогів з Part + смуга здоров'я над головою.
@@ -4070,7 +4137,7 @@ return EnemyModelBuilder
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="27">
+      <Item class="ModuleScript" referent="28">
         <Properties>
           <string name="Name">EnemyService</string>
           <string name="Source"><![CDATA[-- EnemyService: вороги та боси — поява, здоров'я, нагороди, атаки боса.
@@ -4360,7 +4427,7 @@ return EnemyService
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="28">
+      <Item class="ModuleScript" referent="29">
         <Properties>
           <string name="Name">IncomeService</string>
           <string name="Source"><![CDATA[-- IncomeService: нарахування монет від героїв на базі та офлайн-дохід.
@@ -4422,7 +4489,7 @@ return IncomeService
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="29">
+      <Item class="ModuleScript" referent="30">
         <Properties>
           <string name="Name">InventoryService</string>
           <string name="Source"><![CDATA[-- InventoryService: герої гравця — видача, розміщення на базі, блокування,
@@ -4665,7 +4732,7 @@ return InventoryService
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="30">
+      <Item class="ModuleScript" referent="31">
         <Properties>
           <string name="Name">PlotService</string>
           <string name="Source"><![CDATA[-- PlotService: будує лобі й ділянки, видає кожному гравцеві власну базу,
@@ -5181,7 +5248,7 @@ return PlotService
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="31">
+      <Item class="ModuleScript" referent="32">
         <Properties>
           <string name="Name">QuestService</string>
           <string name="Source"><![CDATA[-- QuestService: сюжетні та щоденні завдання, нагороди колекції, відкриття зон.
@@ -5375,7 +5442,7 @@ return QuestService
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="32">
+      <Item class="ModuleScript" referent="33">
         <Properties>
           <string name="Name">RateLimiter</string>
           <string name="Source"><![CDATA[-- RateLimiter: обмеження частоти запитів (алгоритм "відро з жетонами").
@@ -5414,7 +5481,7 @@ return RateLimiter
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="33">
+      <Item class="ModuleScript" referent="34">
         <Properties>
           <string name="Name">RebirthService</string>
           <string name="Source"><![CDATA[-- RebirthService: Rebirth — віддаєш монети, слоти бази й рівень доходу,
@@ -5485,7 +5552,7 @@ return RebirthService
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="34">
+      <Item class="ModuleScript" referent="35">
         <Properties>
           <string name="Name">RollService</string>
           <string name="Source"><![CDATA[-- RollService: кидки кубиків. Результат визначає ТІЛЬКИ сервер;
@@ -5660,7 +5727,7 @@ return RollService
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="35">
+      <Item class="ModuleScript" referent="36">
         <Properties>
           <string name="Name">SettingsService</string>
           <string name="Source"><![CDATA[-- SettingsService: збереження налаштувань гравця (звук, ефекти, пропуск анімацій).
@@ -5706,7 +5773,7 @@ return SettingsService
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="36">
+      <Item class="ModuleScript" referent="37">
         <Properties>
           <string name="Name">ShopService</string>
           <string name="Source"><![CDATA[-- ShopService: покупки за Crystals — зілля (тимчасові бусти) і більша сумка.
@@ -5785,7 +5852,7 @@ return ShopService
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="37">
+      <Item class="ModuleScript" referent="38">
         <Properties>
           <string name="Name">TeamService</string>
           <string name="Source"><![CDATA[-- TeamService: бойова команда з 3 героїв.
@@ -5952,7 +6019,7 @@ return TeamService
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="38">
+      <Item class="ModuleScript" referent="39">
         <Properties>
           <string name="Name">UpgradeService</string>
           <string name="Source"><![CDATA[-- UpgradeService: покупка покращень бази (слоти та дохід).
@@ -6028,7 +6095,7 @@ return UpgradeService
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="39">
+      <Item class="ModuleScript" referent="40">
         <Properties>
           <string name="Name">WorldService</string>
           <string name="Source"><![CDATA[-- WorldService: будує світи, переносить гравців через портали та кнопку Worlds.
@@ -6825,19 +6892,19 @@ return WorldService
       </Item>
     </Item>
   </Item>
-  <Item class="StarterPlayer" referent="40">
+  <Item class="StarterPlayer" referent="41">
     <Properties>
       <string name="Name">StarterPlayer</string>
     </Properties>
-    <Item class="StarterPlayerScripts" referent="41">
+    <Item class="StarterPlayerScripts" referent="42">
       <Properties>
         <string name="Name">StarterPlayerScripts</string>
       </Properties>
-      <Item class="Folder" referent="42">
+      <Item class="Folder" referent="43">
         <Properties>
           <string name="Name">Client</string>
         </Properties>
-        <Item class="ModuleScript" referent="43">
+        <Item class="ModuleScript" referent="44">
           <Properties>
             <string name="Name">AdminUI</string>
             <string name="Source"><![CDATA[-- AdminUI: 👑 адмін-панель (лише для адмінів) + оголошення й таймер подій (для всіх).
@@ -7394,7 +7461,7 @@ local function buildHeroes()
 			chosen.Text = ("%s %s • %s • макс. Lv %d"):format(HeroConfig.ElementIcons[heroDef.element] or "", heroDef.name, heroDef.rarity, maxLevel)
 			chosen.TextColor3 = rarityColor
 		end)
-		-- Портрет є лише в новіших версіях UIKit (AssetConfig.HeroPortraits)
+		-- UIKit.HeroPortrait є лише в новіших версіях UIKit
 		if UIKit.HeroPortrait then
 			UIKit.HeroPortrait(card, heroDef.id, 0.5)
 		end
@@ -7791,7 +7858,7 @@ return AdminUI
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="44">
+        <Item class="ModuleScript" referent="45">
           <Properties>
             <string name="Name">ClientState</string>
             <string name="Source"><![CDATA[-- ClientState: копія даних гравця на клієнті + запити до сервера.
@@ -7895,7 +7962,7 @@ return ClientState
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="45">
+        <Item class="ModuleScript" referent="46">
           <Properties>
             <string name="Name">CombatUI</string>
             <string name="Source"><![CDATA[-- CombatUI: інтерфейс бою — поточна ціль, смуга здоров'я боса з попередженням
@@ -8143,7 +8210,7 @@ return CombatUI
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="46">
+        <Item class="ModuleScript" referent="47">
           <Properties>
             <string name="Name">EnemyRegistry</string>
             <string name="Source"><![CDATA[-- EnemyRegistry: швидкий пошук моделі ворога за EnemyId на клієнті.
@@ -8195,7 +8262,7 @@ return EnemyRegistry
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="47">
+        <Item class="ModuleScript" referent="48">
           <Properties>
             <string name="Name">FollowerController</string>
             <string name="Source"><![CDATA[-- FollowerController: герої бойової команди йдуть за своїм гравцем.
@@ -8335,7 +8402,7 @@ return FollowerController
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="48">
+        <Item class="ModuleScript" referent="49">
           <Properties>
             <string name="Name">Hud</string>
             <string name="Source"><![CDATA[-- Hud: головний екран у стилі аніме-симуляторів.
@@ -8895,7 +8962,7 @@ return Hud
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="49">
+        <Item class="ModuleScript" referent="50">
           <Properties>
             <string name="Name">InventoryUI</string>
             <string name="Source"><![CDATA[-- InventoryUI: сітка героїв, сортування, Equip Best і дії з вибраним героєм
@@ -9282,7 +9349,7 @@ return InventoryUI
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="50">
+        <Item class="ModuleScript" referent="51">
           <Properties>
             <string name="Name">QuestsUI</string>
             <string name="Source"><![CDATA[-- QuestsUI: вікно Quests з вкладками "Завдання" (сюжет + щоденні) і "Колекція"
@@ -9728,7 +9795,7 @@ return QuestsUI
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="51">
+        <Item class="ModuleScript" referent="52">
           <Properties>
             <string name="Name">RebirthUI</string>
             <string name="Source"><![CDATA[-- RebirthUI: вікно Rebirth — прогрес до наступного Rebirth, що отримаєш і що скинеться.
@@ -9886,7 +9953,7 @@ return RebirthUI
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="52">
+        <Item class="ModuleScript" referent="53">
           <Properties>
             <string name="Name">RollUI</string>
             <string name="Source"><![CDATA[-- RollUI: вікно кубиків (вибір кубика, шанси, гарантія), кнопки Roll / Auto / Skip
@@ -9903,7 +9970,7 @@ local HeroConfig = require(Config:WaitForChild("HeroConfig"))
 local RarityConfig = require(Config:WaitForChild("RarityConfig"))
 local GameMath = require(Shared:WaitForChild("GameMath"))
 local HeroModelBuilder = require(Shared:WaitForChild("HeroModelBuilder"))
-local AssetConfig = require(Config:WaitForChild("AssetConfig"))
+local HeroArtConfig = require(Config:WaitForChild("HeroArtConfig"))
 
 local Client = script.Parent
 local UIKit = require(Client:WaitForChild("UIKit"))
@@ -10202,8 +10269,8 @@ local function showHero(heroDef, awakened)
 		o.model:Destroy()
 		o.model = nil
 	end
-	-- Якщо для героя підключено портрет — показуємо його замість 3D-моделі
-	local portrait = AssetConfig.GetPortrait(heroDef.id)
+	-- Якщо для героя підключено свій портрет — показуємо його замість 3D-моделі
+	local portrait = HeroArtConfig.GetPortrait(heroDef.id, true)
 	o.portrait.Visible = portrait ~= nil
 	o.viewport.Visible = portrait == nil
 	if portrait then
@@ -10661,7 +10728,7 @@ return RollUI
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="53">
+        <Item class="ModuleScript" referent="54">
           <Properties>
             <string name="Name">SettingsUI</string>
             <string name="Source"><![CDATA[-- SettingsUI: перемикачі звуку, ефектів і пропуску анімацій.
@@ -10742,7 +10809,7 @@ return SettingsUI
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="54">
+        <Item class="ModuleScript" referent="55">
           <Properties>
             <string name="Name">SoundController</string>
             <string name="Source"><![CDATA[-- SoundController: звуки інтерфейсу. ID звуків — у Config/AssetConfig.
@@ -10786,7 +10853,7 @@ return SoundController
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="55">
+        <Item class="ModuleScript" referent="56">
           <Properties>
             <string name="Name">TeamUI</string>
             <string name="Source"><![CDATA[-- TeamUI: вікно бойової команди. Зверху 3 слоти, нижче — усі герої за шкодою.
@@ -11049,7 +11116,7 @@ return TeamUI
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="56">
+        <Item class="ModuleScript" referent="57">
           <Properties>
             <string name="Name">UIKit</string>
             <string name="Source"><![CDATA[-- UIKit: стиль і готові елементи інтерфейсу.
@@ -11064,6 +11131,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local TweenService = game:GetService("TweenService")
 
 local AssetConfig = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("Config"):WaitForChild("AssetConfig"))
+local HeroArtConfig = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("Config"):WaitForChild("HeroArtConfig"))
 local SoundController = require(script.Parent:WaitForChild("SoundController"))
 
 local player = Players.LocalPlayer
@@ -11230,10 +11298,10 @@ function UIKit.Icon(props)
 	return icon
 end
 
--- Портрет героя як фон картки (якщо підключено в AssetConfig.HeroPortraits).
+-- Портрет героя як фон картки (HeroArtConfig: своя картинка або знімок моделі).
 -- Повертає ImageLabel або nil.
 function UIKit.HeroPortrait(parent, heroId, transparency)
-	local image = AssetConfig.GetPortrait(heroId)
+	local image = HeroArtConfig.GetPortrait(heroId)
 	if not image then
 		return nil
 	end
@@ -11723,7 +11791,7 @@ return UIKit
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="57">
+        <Item class="ModuleScript" referent="58">
           <Properties>
             <string name="Name">UpgradesUI</string>
             <string name="Source"><![CDATA[-- UpgradesUI: покращення бази за Coins і магазин за Crystals (зілля, більша сумка).
@@ -11974,7 +12042,7 @@ return UpgradesUI
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="58">
+        <Item class="ModuleScript" referent="59">
           <Properties>
             <string name="Name">WorldEffects</string>
             <string name="Source"><![CDATA[-- WorldEffects: локальні ефекти світу на екрані цього гравця.
@@ -12060,7 +12128,7 @@ return WorldEffects
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="59">
+        <Item class="ModuleScript" referent="60">
           <Properties>
             <string name="Name">WorldLighting</string>
             <string name="Source"><![CDATA[-- WorldLighting: освітлення й атмосфера на екрані цього гравця.
@@ -12160,7 +12228,7 @@ return WorldLighting
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="60">
+        <Item class="ModuleScript" referent="61">
           <Properties>
             <string name="Name">WorldsUI</string>
             <string name="Source"><![CDATA[-- WorldsUI: список світів і кнопки подорожі. Переносить гравця сервер.
@@ -12289,7 +12357,7 @@ return WorldsUI
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="61">
+        <Item class="ModuleScript" referent="62">
           <Properties>
             <string name="Name">ZoneGates</string>
             <string name="Source"><![CDATA[-- ZoneGates: ворота зон на екрані цього гравця.
@@ -12348,7 +12416,7 @@ return ZoneGates
           </Properties>
         </Item>
       </Item>
-      <Item class="LocalScript" referent="62">
+      <Item class="LocalScript" referent="63">
         <Properties>
           <string name="Name">ClientMain</string>
           <string name="Source"><![CDATA[-- ClientMain: точка входу клієнта. Будує інтерфейс і підключає модулі.

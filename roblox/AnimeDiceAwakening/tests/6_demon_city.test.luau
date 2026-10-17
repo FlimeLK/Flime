@@ -96,15 +96,26 @@ end
 check(data.worldKills.DemonCity == before + 1, "city kill counted for DemonCity")
 check(GameMath.GetMetric(data, "kills:DemonCity") == before + 1, "city kill metric")
 
--- Portrait slots exist for every hero and only for real heroes
-local AssetConfig = R(Shared.Config.AssetConfig)
+-- Hero art: a model and a portrait slot for every hero and only for real heroes
+local HeroArtConfig = R(Shared.Config.HeroArtConfig)
 for _, heroDef in HeroConfig.List do
-	check(AssetConfig.HeroPortraits[heroDef.id] ~= nil, "portrait slot for " .. heroDef.id)
+	check(type(HeroArtConfig.Models[heroDef.id]) == "number", "model for " .. heroDef.id)
+	check(HeroArtConfig.Portraits[heroDef.id] ~= nil, "portrait slot for " .. heroDef.id)
 end
-for heroId in AssetConfig.HeroPortraits do
+for heroId in HeroArtConfig.Models do
+	check(HeroConfig.Heroes[heroId] ~= nil, "model matches hero " .. heroId)
+end
+for heroId in HeroArtConfig.Portraits do
 	check(HeroConfig.Heroes[heroId] ~= nil, "portrait slot matches hero " .. heroId)
 end
-check(AssetConfig.GetPortrait("riku_windstep") == nil, "empty portrait -> 3D model")
+check(HeroArtConfig.GetPortrait("riku_windstep") == ("rbxthumb://type=Asset&id=%d&w=420&h=420"):format(HeroArtConfig.Models.riku_windstep), "model thumbnail portrait")
+check(HeroArtConfig.GetPortrait("riku_windstep", true) == nil, "roll reveal keeps the 3D model")
+HeroArtConfig.Portraits.riku_windstep = "123"
+check(HeroArtConfig.GetPortrait("riku_windstep") == "rbxassetid://123", "own portrait wins")
+HeroArtConfig.Portraits.riku_windstep = ""
+HeroArtConfig.ModelThumbnailPortraits = false
+check(HeroArtConfig.GetPortrait("riku_windstep") == nil, "no portrait -> 3D model")
+HeroArtConfig.ModelThumbnailPortraits = true
 
 print(("demon city passed=%d failed=%d"):format(passed, failed))
 if failed > 0 then

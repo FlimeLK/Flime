@@ -552,7 +552,7 @@ local function buildHeroes()
 			chosen.Text = ("%s %s • %s • макс. Lv %d"):format(HeroConfig.ElementIcons[heroDef.element] or "", heroDef.name, heroDef.rarity, maxLevel)
 			chosen.TextColor3 = rarityColor
 		end)
-		-- Портрет є лише в новіших версіях UIKit (AssetConfig.HeroPortraits)
+		-- UIKit.HeroPortrait є лише в новіших версіях UIKit
 		if UIKit.HeroPortrait then
 			UIKit.HeroPortrait(card, heroDef.id, 0.5)
 		end

@@ -1,5 +1,5 @@
 -- Завантажує готові моделі з Creator Store (Toolbox) для героїв — одним запуском.
--- Запускати в Studio: Command Bar (рядок унизу) → встав увесь текст → Enter.
+-- Запускати в Studio (гра зупинена): Command Bar → встав увесь текст → ▶ Run.
 --
 -- Для кожного героя скрипт:
 --   1. завантажує модель за ID (як вставка з Toolbox),
@@ -7,42 +7,14 @@
 --   3. кладе в ReplicatedStorage/HeroModels з назвою героя.
 -- Гра сама масштабує модель і ставить її на слот (див. HeroModelBuilder).
 --
--- Можеш змінити будь-який ID на свій або видалити рядок — тоді герой лишиться
--- з простою моделлю з деталей.
-
--- Моделі підібрані за класом і стихією героя: безкоштовні, без персонажів чужих франшиз.
--- Прев'ю всіх: docs/hero-models.png
-local MODELS = {
-	riku_windstep = 1073102214, -- Riku Windstep (Common)
-	tomo_deckhand = 100944702942220, -- Tomo the Deckhand (Common)
-	hana_emberling = 6024404244, -- Hana Emberling (Common)
-	zen_cadet = 11272270678, -- Zen Star Cadet (Common)
-	shiro_quickblade = 15560466932, -- Shiro Quickblade (Rare)
-	kaito_saltfang = 132434304646924, -- Kaito Saltfang (Rare)
-	mira_cinderveil = 10559568125, -- Mira Cinderveil (Rare)
-	yoru_lantern = 136347862663720, -- Yoru Lanternbearer (Rare)
-	akane_crimsonfan = 12306246169, -- Akane Crimson Fan (Epic)
-	raizo_thunderstep = 3162408043, -- Raizo Thunderstep (Epic)
-	nox_hollowhunter = 126153895579904, -- Nox Hollowhunter (Epic)
-	coral_vex = 799516341, -- Captain Coral Vex (Epic)
-	seren_starblade = 8073321485, -- Seren Starblade (Legendary)
-	kuro_moonreaper = 133610989566243, -- Kuro Moonreaper (Legendary)
-	homura_ashcrown = 5123918805, -- Homura Ashcrown (Legendary)
-	ryo_skybolt = 11755051899, -- Ryo Skybolt (Legendary)
-	marisol_tidecaller = 15485406525, -- Marisol Tidecaller (Legendary)
-	rin_hellbane = 631606520, -- Rin Hellbane (Legendary)
-	astra_novaempress = 12229211926, -- Astra, Nova Empress (Mythic)
-	gekko_voidshinobi = 92307562986867, -- Gekko the Void Shinobi (Mythic)
-	volta_stormcaptain = 3552939059, -- Storm Captain Volta (Mythic)
-	ifra_phoenixsaint = 79118375438271, -- Ifra, Phoenix Saint (Mythic)
-	kaizen_deepcrown = 10854041153, -- Admiral Kaizen Deepcrown (Mythic)
-	kagura_duskblade = 8829461349, -- Kagura Duskblade (Mythic)
-	solenne_eclipse = 7084656859, -- Solenne, Eclipse Sovereign (Secret)
-	mugen_dicegod = 114744297, -- Mugen, the Dice God (Secret)
-	vael_abyssal = 121497881801826, -- Vael, Abyssal Emperor (Secret)
-}
+-- Список моделей — у ReplicatedStorage/Shared/Config/HeroArtConfig (Models).
+-- Зміни там будь-який ID на свій і запусти цей скрипт ще раз. Прев'ю: docs/hero-models.png
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+-- Копія модуля, щоб require не повертав стару версію після твоїх змін
+local configModule = ReplicatedStorage:WaitForChild("Shared"):WaitForChild("Config"):WaitForChild("HeroArtConfig")
+local MODELS = require(configModule:Clone()).Models
 
 local folder = ReplicatedStorage:FindFirstChild("HeroModels")
 if not folder then

@@ -121,7 +121,7 @@ def main(argv):
     for number, part in enumerate(parts, 1):
         out = [
             "-- Згенеровано tools/make_studio_patch.py — НЕ редагуй вручну.",
-            "-- Частина %d з %d. Запускай усі частини по черзі (порядок не важливий)." % (number, len(parts)),
+            "-- Частина %d з %d. Запускай усі частини по черзі: від 1 до %d." % (number, len(parts), len(parts)),
             "-- Studio → зупини гру (Stop) → View → Command Bar → встав увесь текст → ▶ Run.",
             "-- Замінює код скриптів нижче на нову версію. Ctrl+Z скасовує зміни.",
         ] + HELPER + part + [

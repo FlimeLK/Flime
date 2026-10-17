@@ -360,7 +360,7 @@ end
 local RS = services.ReplicatedStorage
 local shared = folder(RS, "Shared")
 local config = folder(shared, "Config")
-for _, n in { "RarityConfig", "DiceConfig", "HeroConfig", "EconomyConfig", "WorldConfig", "CombatConfig", "EnemyConfig", "QuestConfig", "ShopConfig", "AssetConfig", "AdminConfig" } do
+for _, n in { "RarityConfig", "DiceConfig", "HeroConfig", "EconomyConfig", "WorldConfig", "CombatConfig", "EnemyConfig", "QuestConfig", "ShopConfig", "AssetConfig", "AdminConfig", "HeroArtConfig" } do
 	makeModule(config, n, ROOT .. "ReplicatedStorage/Shared/Config/" .. n .. ".lua")
 end
 makeModule(shared, "GameMath", ROOT .. "ReplicatedStorage/Shared/GameMath.lua")

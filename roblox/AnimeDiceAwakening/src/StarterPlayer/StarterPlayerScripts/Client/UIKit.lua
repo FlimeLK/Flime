@@ -10,6 +10,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local TweenService = game:GetService("TweenService")
 
 local AssetConfig = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("Config"):WaitForChild("AssetConfig"))
+local HeroArtConfig = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("Config"):WaitForChild("HeroArtConfig"))
 local SoundController = require(script.Parent:WaitForChild("SoundController"))
 
 local player = Players.LocalPlayer
@@ -176,10 +177,10 @@ function UIKit.Icon(props)
 	return icon
 end
 
--- Портрет героя як фон картки (якщо підключено в AssetConfig.HeroPortraits).
+-- Портрет героя як фон картки (HeroArtConfig: своя картинка або знімок моделі).
 -- Повертає ImageLabel або nil.
 function UIKit.HeroPortrait(parent, heroId, transparency)
-	local image = AssetConfig.GetPortrait(heroId)
+	local image = HeroArtConfig.GetPortrait(heroId)
 	if not image then
 		return nil
 	end
