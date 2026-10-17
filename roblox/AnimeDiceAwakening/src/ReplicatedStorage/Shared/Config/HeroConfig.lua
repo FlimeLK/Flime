@@ -262,6 +262,20 @@ HeroConfig.List = {
 		look = { body = Color3.fromRGB(30, 120, 170), hair = Color3.fromRGB(120, 230, 255), skin = SKIN, height = 1.1 },
 	},
 
+	{
+		id = "rin_hellbane",
+		name = "Rin Hellbane",
+		rarity = "Legendary",
+		archetype = "Demon Hunter",
+		element = "Fire",
+		damage = 122,
+		attackSpeed = 1.1,
+		income = 27,
+		ability = { name = "Hellbane Brand", description = "Позначені демони горять і отримують +40% шкоди." },
+		awakened = { name = "Rin, Sunfire Exorcist", multiplier = 3 },
+		look = { body = Color3.fromRGB(150, 25, 35), hair = Color3.fromRGB(250, 240, 230), skin = SKIN, height = 1.1 },
+	},
+
 	-- ===== Mythic =====
 	{
 		id = "astra_novaempress",
@@ -330,6 +344,20 @@ HeroConfig.List = {
 		look = { body = Color3.fromRGB(20, 40, 80), hair = Color3.fromRGB(240, 240, 255), skin = SKIN, height = 1.2 },
 	},
 
+	{
+		id = "kagura_duskblade",
+		name = "Kagura Duskblade",
+		rarity = "Mythic",
+		archetype = "Demon Hunter",
+		element = "Shadow",
+		damage = 350,
+		attackSpeed = 1.2,
+		income = 86,
+		ability = { name = "Dusk Requiem", description = "Кожен 3-й удар розрізає тінь цілі: шкода ×3." },
+		awakened = { name = "Kagura, Moonless Requiem", multiplier = 3.3 },
+		look = { body = Color3.fromRGB(30, 20, 45), hair = Color3.fromRGB(200, 40, 90), skin = SKIN, height = 1.15 },
+	},
+
 	-- ===== Secret =====
 	{
 		id = "solenne_eclipse",
@@ -356,6 +384,19 @@ HeroConfig.List = {
 		ability = { name = "Loaded Fate", description = "Кожна атака кидає кубик: шкода ×1…×6." },
 		awakened = { name = "Mugen, Infinite Roll", multiplier = 4 },
 		look = { body = Color3.fromRGB(20, 15, 30), hair = Color3.fromRGB(40, 255, 210), skin = SKIN, height = 1.3 },
+	},
+	{
+		id = "vael_abyssal",
+		name = "Vael, Abyssal Emperor",
+		rarity = "Secret",
+		archetype = "Swordsman",
+		element = "Shadow",
+		damage = 1150,
+		attackSpeed = 1.1,
+		income = 330,
+		ability = { name = "Throne of the Abyss", description = "Кожні 10 с поглинає 5% здоров'я всіх ворогів на арені." },
+		awakened = { name = "Vael, Endless Abyss", multiplier = 4 },
+		look = { body = Color3.fromRGB(15, 10, 25), hair = Color3.fromRGB(160, 60, 255), skin = SKIN, height = 1.3 },
 	},
 }
 

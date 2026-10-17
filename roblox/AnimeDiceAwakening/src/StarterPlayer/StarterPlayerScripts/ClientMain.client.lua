@@ -22,6 +22,7 @@ local CombatUI = require(Client:WaitForChild("CombatUI"))
 local QuestsUI = require(Client:WaitForChild("QuestsUI"))
 local ZoneGates = require(Client:WaitForChild("ZoneGates"))
 local RebirthUI = require(Client:WaitForChild("RebirthUI"))
+local WorldLighting = require(Client:WaitForChild("WorldLighting"))
 
 local gui = UIKit.CreateScreenGui()
 
@@ -38,6 +39,7 @@ CombatUI.Init(gui)
 QuestsUI.Init(gui)
 RebirthUI.Init(gui)
 ZoneGates.Init()
+WorldLighting.Init()
 WorldEffects.Init()
 
 Remotes.Get("Notify").OnClientEvent:Connect(function(text, kind)

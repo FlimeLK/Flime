@@ -172,9 +172,22 @@ local DiceConfig = {}
 -- Кубик, яким робиться перший безкоштовний навчальний кидок.
 DiceConfig.TutorialDice = "Basic"
 
-DiceConfig.Order = { "Basic", "Fire", "Lightning", "Shadow", "Tidal", "Celestial" }
+DiceConfig.Order = { "Basic", "Fire", "Lightning", "Shadow", "Tidal", "Celestial", "Abyss" }
 
 DiceConfig.Dice = {
+	Abyss = {
+		displayName = "Abyss Dice",
+		description = "Нагорода за Demon Queen Noctyra. Тіньові герої втричі частіше.",
+		icon = "🔮",
+		color = Color3.fromRGB(150, 40, 200),
+		price = 25000,
+		luck = 2.8,
+		requiredRolls = 0,
+		requiredBoss = "demon_queen_noctyra",
+		element = "Shadow",
+		elementBonus = 3,
+		weights = { Common = 200, Rare = 300, Epic = 250, Legendary = 150, Mythic = 75, Secret = 25 },
+	},
 	Basic = {
 		displayName = "Basic Dice",
 		description = "Простий кубик для старту пригоди.",
@@ -439,6 +452,59 @@ EnemyConfig.Enemies = {
 			{ displayName = "Kraken Grab", pattern = "targets", telegraph = 1.4, radius = 10, damage = 45 },
 		},
 	},
+
+	-- ===== Demon Night City =====
+	alley_imp = {
+		name = "Alley Imp",
+		health = 6000,
+		coins = 300,
+		crystals = 0,
+		respawn = 8,
+		scale = 0.95,
+		style = "Imp",
+		body = Color3.fromRGB(150, 30, 60),
+		accent = Color3.fromRGB(255, 80, 200),
+	},
+	lantern_wraith = {
+		name = "Lantern Wraith",
+		health = 14000,
+		coins = 650,
+		crystals = 0,
+		respawn = 10,
+		scale = 1.25,
+		style = "Wraith",
+		body = Color3.fromRGB(40, 30, 70),
+		accent = Color3.fromRGB(80, 220, 255),
+	},
+	night_fiend = {
+		name = "Night Fiend",
+		health = 32000,
+		coins = 1400,
+		crystals = 0,
+		respawn = 14,
+		scale = 1.5,
+		style = "Fiend",
+		body = Color3.fromRGB(25, 20, 30),
+		accent = Color3.fromRGB(255, 60, 60),
+	},
+	demon_queen_noctyra = {
+		name = "Demon Queen Noctyra",
+		health = 300000,
+		coins = 80000,
+		crystals = 150,
+		respawn = 150,
+		scale = 3,
+		style = "DemonQueen",
+		body = Color3.fromRGB(60, 15, 70),
+		accent = Color3.fromRGB(255, 50, 160),
+		isBoss = true,
+		attackInterval = 4,
+		attacks = {
+			{ displayName = "Hellfire Ring", pattern = "self", telegraph = 1.7, radius = 26, damage = 60 },
+			{ displayName = "Shadow Spikes", pattern = "random", count = 9, spread = 28, telegraph = 1.4, radius = 8, damage = 55 },
+			{ displayName = "Soul Chains", pattern = "targets", telegraph = 1.3, radius = 11, damage = 55 },
+		},
+	},
 }
 
 -- Точки появи. offset — відносно центру світу (Y = 0 — рівень землі).
@@ -461,6 +527,15 @@ EnemyConfig.WorldSpawns = {
 		{ enemy = "cursed_corsair", offset = Vector3.new(-30, 0, 36), zone = 2 },
 		{ enemy = "cursed_corsair", offset = Vector3.new(30, 0, 36), zone = 2 },
 		{ enemy = "captain_blackwake", offset = Vector3.new(0, 0, 92), zone = 3 },
+	},
+	DemonCity = {
+		{ enemy = "alley_imp", offset = Vector3.new(-22, 0, -65), zone = 1 },
+		{ enemy = "alley_imp", offset = Vector3.new(22, 0, -65), zone = 1 },
+		{ enemy = "lantern_wraith", offset = Vector3.new(-36, 0, -15), zone = 1 },
+		{ enemy = "lantern_wraith", offset = Vector3.new(36, 0, -15), zone = 1 },
+		{ enemy = "night_fiend", offset = Vector3.new(-30, 0, 36), zone = 2 },
+		{ enemy = "night_fiend", offset = Vector3.new(30, 0, 36), zone = 2 },
+		{ enemy = "demon_queen_noctyra", offset = Vector3.new(0, 0, 92), zone = 3 },
 	},
 }
 
@@ -735,6 +810,20 @@ HeroConfig.List = {
 		look = { body = Color3.fromRGB(30, 120, 170), hair = Color3.fromRGB(120, 230, 255), skin = SKIN, height = 1.1 },
 	},
 
+	{
+		id = "rin_hellbane",
+		name = "Rin Hellbane",
+		rarity = "Legendary",
+		archetype = "Demon Hunter",
+		element = "Fire",
+		damage = 122,
+		attackSpeed = 1.1,
+		income = 27,
+		ability = { name = "Hellbane Brand", description = "Позначені демони горять і отримують +40% шкоди." },
+		awakened = { name = "Rin, Sunfire Exorcist", multiplier = 3 },
+		look = { body = Color3.fromRGB(150, 25, 35), hair = Color3.fromRGB(250, 240, 230), skin = SKIN, height = 1.1 },
+	},
+
 	-- ===== Mythic =====
 	{
 		id = "astra_novaempress",
@@ -803,6 +892,20 @@ HeroConfig.List = {
 		look = { body = Color3.fromRGB(20, 40, 80), hair = Color3.fromRGB(240, 240, 255), skin = SKIN, height = 1.2 },
 	},
 
+	{
+		id = "kagura_duskblade",
+		name = "Kagura Duskblade",
+		rarity = "Mythic",
+		archetype = "Demon Hunter",
+		element = "Shadow",
+		damage = 350,
+		attackSpeed = 1.2,
+		income = 86,
+		ability = { name = "Dusk Requiem", description = "Кожен 3-й удар розрізає тінь цілі: шкода ×3." },
+		awakened = { name = "Kagura, Moonless Requiem", multiplier = 3.3 },
+		look = { body = Color3.fromRGB(30, 20, 45), hair = Color3.fromRGB(200, 40, 90), skin = SKIN, height = 1.15 },
+	},
+
 	-- ===== Secret =====
 	{
 		id = "solenne_eclipse",
@@ -829,6 +932,19 @@ HeroConfig.List = {
 		ability = { name = "Loaded Fate", description = "Кожна атака кидає кубик: шкода ×1…×6." },
 		awakened = { name = "Mugen, Infinite Roll", multiplier = 4 },
 		look = { body = Color3.fromRGB(20, 15, 30), hair = Color3.fromRGB(40, 255, 210), skin = SKIN, height = 1.3 },
+	},
+	{
+		id = "vael_abyssal",
+		name = "Vael, Abyssal Emperor",
+		rarity = "Secret",
+		archetype = "Swordsman",
+		element = "Shadow",
+		damage = 1150,
+		attackSpeed = 1.1,
+		income = 330,
+		ability = { name = "Throne of the Abyss", description = "Кожні 10 с поглинає 5% здоров'я всіх ворогів на арені." },
+		awakened = { name = "Vael, Endless Abyss", multiplier = 4 },
+		look = { body = Color3.fromRGB(15, 10, 25), hair = Color3.fromRGB(160, 60, 255), skin = SKIN, height = 1.3 },
 	},
 }
 
@@ -879,6 +995,11 @@ QuestConfig.Main = {
 	{ id = "sea_terror", title = "Гроза морів", description = "Переможи Captain Blackwake — відкриється Tidal Dice", metric = "boss:captain_blackwake", target = 1, reward = { crystals = 60 } },
 	{ id = "awakening", title = "Пробудження", description = "Пробуди героя: максимальний рівень + 💎 (Backpack → Awaken)", metric = "awakenedHeroes", target = 1, reward = { crystals = 30 } },
 	{ id = "rebirth", title = "Новий початок", description = "Зроби перший ♻️ Rebirth", metric = "rebirths", target = 1, reward = { crystals = 50 } },
+	{ id = "night_falls", title = "Настає ніч", description = "Переможи Captain Blackwake — відкриється Demon Night City", metric = "boss:captain_blackwake", target = 1, reward = { crystals = 20 } },
+	{ id = "alleys", title = "Темні провулки", description = "Переможи 15 демонів у Demon Night City", metric = "kills:DemonCity", target = 15, reward = { crystals = 15 } },
+	{ id = "neon_market", title = "Неоновий ринок", description = "30 перемог у місті — відкриється Neon Market", metric = "kills:DemonCity", target = 30, reward = { coins = 100000 } },
+	{ id = "abyss_shrine", title = "Святилище безодні", description = "90 перемог у місті — відкриється Abyss Shrine", metric = "kills:DemonCity", target = 90, reward = { crystals = 30 } },
+	{ id = "queen_slayer", title = "Кінець ночі", description = "Переможи Demon Queen Noctyra — відкриється Abyss Dice", metric = "boss:demon_queen_noctyra", target = 1, reward = { crystals = 150 } },
 }
 
 QuestConfig.DailyPool = {
@@ -910,6 +1031,7 @@ QuestConfig.CollectionMilestones = {
 	{ count = 15, crystals = 20 },
 	{ count = 20, crystals = 40 },
 	{ count = 24, crystals = 80 },
+	{ count = 27, crystals = 120 },
 }
 
 return QuestConfig
@@ -1110,9 +1232,17 @@ WorldConfig.Worlds = {
 	DemonCity = {
 		displayName = "Demon Night City",
 		localName = "Нічне місто демонів",
-		description = "Скоро",
+		description = "Вічна ніч, неон, біси, примари та Demon Queen Noctyra.",
 		color = Color3.fromRGB(150, 60, 220),
-		available = false,
+		available = true,
+		center = Vector3.new(1500, 200, 1000),
+		unlock = { boss = "captain_blackwake" },
+		night = true, -- клієнт вмикає нічне освітлення, поки гравець тут
+		zones = {
+			{ id = "BackAlleys", name = "Back Alleys", requiredKills = 0 },
+			{ id = "NeonMarket", name = "Neon Market", requiredKills = 30, gateZ = 10 },
+			{ id = "AbyssShrine", name = "Abyss Shrine", requiredKills = 90, gateZ = 62 },
+		},
 	},
 	MagicAcademy = {
 		displayName = "Magic Academy",
@@ -2749,6 +2879,50 @@ local STYLES = {
 		addPart(model, "Hat", Vector3.new(2.6, 0.5, 2) * s, CFrame.new(0, top + 1.9 * s, 0), Color3.fromRGB(20, 25, 30))
 		addPart(model, "Aura", Vector3.new(2.8, 4.6, 1.8) * s, CFrame.new(0, top - 1 * s, 0), def.accent, Enum.Material.ForceField)
 		addPart(model, "Saber", Vector3.new(0.18, 3.4, 0.45) * s, CFrame.new(1.5 * s, top - 0.6 * s, -0.4 * s) * CFrame.Angles(0, 0, -0.25), def.accent, Enum.Material.Neon)
+	end,
+	Imp = function(model, s, def, top)
+		-- Маленькі ріжки, крила й хвіст
+		addPart(model, "HornL", Vector3.new(0.3, 0.8, 0.3) * s, CFrame.new(-0.5 * s, top + 1.8 * s, 0) * CFrame.Angles(0, 0, 0.4), def.accent, Enum.Material.Neon)
+		addPart(model, "HornR", Vector3.new(0.3, 0.8, 0.3) * s, CFrame.new(0.5 * s, top + 1.8 * s, 0) * CFrame.Angles(0, 0, -0.4), def.accent, Enum.Material.Neon)
+		addPart(model, "WingL", Vector3.new(2.2, 1.6, 0.15) * s, CFrame.new(-1.6 * s, top - 0.6 * s, 0.8 * s) * CFrame.Angles(0, 0.5, 0.3), def.body:Lerp(Color3.new(0, 0, 0), 0.3))
+		addPart(model, "WingR", Vector3.new(2.2, 1.6, 0.15) * s, CFrame.new(1.6 * s, top - 0.6 * s, 0.8 * s) * CFrame.Angles(0, -0.5, -0.3), def.body:Lerp(Color3.new(0, 0, 0), 0.3))
+		addPart(model, "Tail", Vector3.new(0.25, 0.25, 2.4) * s, CFrame.new(0, top - 2.6 * s, 1.4 * s) * CFrame.Angles(0.5, 0, 0), def.accent, Enum.Material.Neon)
+	end,
+	Wraith = function(model, s, def, top)
+		-- Напівпрозорий балахон і ліхтар
+		addPart(model, "Robe", Vector3.new(2.8, 4.4, 1.8) * s, CFrame.new(0, top - 1.8 * s, 0), def.body, Enum.Material.ForceField)
+		addPart(model, "Hood", Vector3.new(2.2, 1.4, 2.2) * s, CFrame.new(0, top + 1.3 * s, 0.1 * s), def.body:Lerp(Color3.new(0, 0, 0), 0.4))
+		addPart(model, "Lantern", Vector3.new(0.9, 1.2, 0.9) * s, CFrame.new(1.7 * s, top - 1.6 * s, -0.4 * s), def.accent, Enum.Material.Neon)
+		local light = Instance.new("PointLight")
+		light.Color = def.accent
+		light.Range = 14
+		light.Brightness = 2
+		light.Parent = model:FindFirstChild("Lantern")
+	end,
+	Fiend = function(model, s, def, top)
+		-- Масивні плечі, шипи й світні кігті
+		addPart(model, "Shoulders", Vector3.new(3.6, 1, 1.6) * s, CFrame.new(0, top - 0.2 * s, 0), def.body:Lerp(Color3.new(0.3, 0.3, 0.3), 0.3), Enum.Material.Slate)
+		for i = -1, 1 do
+			addPart(model, "Spike" .. i, Vector3.new(0.35, 1.1, 0.35) * s, CFrame.new(i * 0.9 * s, top + 0.6 * s, 0.4 * s) * CFrame.Angles(-0.3, 0, i * 0.3), def.accent, Enum.Material.Neon)
+		end
+		addPart(model, "ClawL", Vector3.new(0.5, 1.6, 0.5) * s, CFrame.new(-1.9 * s, top - 2.2 * s, -0.5 * s) * CFrame.Angles(0.4, 0, 0), def.accent, Enum.Material.Neon)
+		addPart(model, "ClawR", Vector3.new(0.5, 1.6, 0.5) * s, CFrame.new(1.9 * s, top - 2.2 * s, -0.5 * s) * CFrame.Angles(0.4, 0, 0), def.accent, Enum.Material.Neon)
+	end,
+	DemonQueen = function(model, s, def, top)
+		-- Корона з рогів, сукня-шлейф, крила й коса
+		addPart(model, "Dress", Vector3.new(3.2, 3, 2.4) * s, CFrame.new(0, top - 3.3 * s, 0.1 * s), def.body:Lerp(Color3.new(0, 0, 0), 0.2))
+		for i = -2, 2 do
+			addPart(model, "Crown" .. i, Vector3.new(0.3, 1 + (2 - math.abs(i)) * 0.4, 0.3) * s, CFrame.new(i * 0.4 * s, top + 2 * s, 0) * CFrame.Angles(0, 0, -i * 0.15), def.accent, Enum.Material.Neon)
+		end
+		addPart(model, "WingL", Vector3.new(4, 3, 0.2) * s, CFrame.new(-2.6 * s, top + 0.2 * s, 1 * s) * CFrame.Angles(0, 0.4, 0.35), Color3.fromRGB(30, 10, 40), Enum.Material.SmoothPlastic)
+		addPart(model, "WingR", Vector3.new(4, 3, 0.2) * s, CFrame.new(2.6 * s, top + 0.2 * s, 1 * s) * CFrame.Angles(0, -0.4, -0.35), Color3.fromRGB(30, 10, 40), Enum.Material.SmoothPlastic)
+		addPart(model, "ScytheHandle", Vector3.new(0.3, 6, 0.3) * s, CFrame.new(2 * s, top - 0.8 * s, -0.5 * s), Color3.fromRGB(40, 30, 40), Enum.Material.Metal)
+		addPart(model, "ScytheBlade", Vector3.new(0.2, 0.6, 2.6) * s, CFrame.new(2 * s, top + 2 * s, -1.4 * s) * CFrame.Angles(0.3, 0, 0), def.accent, Enum.Material.Neon)
+		local light = Instance.new("PointLight")
+		light.Color = def.accent
+		light.Range = 26
+		light.Brightness = 3
+		light.Parent = model:FindFirstChild("Torso")
 	end,
 	Captain = function(model, s, def, top)
 		addPart(model, "Coat", Vector3.new(2.6, 3.6, 1.5) * s, CFrame.new(0, top - 1.6 * s, 0.05 * s), Color3.fromRGB(120, 20, 30))
@@ -4845,9 +5019,93 @@ local function buildPirateIsland(folder, center)
 	return spawnPoint
 end
 
+local NEON = { Color3.fromRGB(255, 60, 180), Color3.fromRGB(60, 220, 255), Color3.fromRGB(170, 80, 255), Color3.fromRGB(255, 120, 60) }
+
+-- Хмарочос із неоновими смугами вікон
+local function tower(parent, cframe, height, color)
+	local model = Instance.new("Model")
+	model.Name = "Tower"
+	BuildUtil.Part({ Name = "Body", Size = Vector3.new(20, height, 20), CFrame = cframe * CFrame.new(0, height / 2, 0), Color = Color3.fromRGB(28, 24, 40), Material = Enum.Material.Concrete }, model)
+	for y = 8, height - 6, 10 do
+		BuildUtil.Part({ Name = "Windows", Size = Vector3.new(20.4, 1.2, 20.4), CFrame = cframe * CFrame.new(0, y, 0), Color = color, Material = Enum.Material.Neon }, model)
+	end
+	local sign = BuildUtil.Part({ Name = "Sign", Size = Vector3.new(14, 4, 0.6), CFrame = cframe * CFrame.new(0, height - 4, -10.4), Color = color, Material = Enum.Material.Neon }, model)
+	local light = Instance.new("PointLight")
+	light.Color = color
+	light.Range = 30
+	light.Brightness = 2
+	light.Parent = sign
+	model.Parent = parent
+end
+
+local function streetLamp(parent, position, color)
+	BuildUtil.Part({ Name = "LampPost", Size = Vector3.new(1, 12, 1), CFrame = CFrame.new(position + Vector3.new(0, 6, 0)), Color = Color3.fromRGB(40, 40, 50), Material = Enum.Material.Metal }, parent)
+	local bulb = BuildUtil.Part({ Name = "Lamp", Size = Vector3.new(2.4, 1, 2.4), CFrame = CFrame.new(position + Vector3.new(0, 12.5, 0)), Color = color, Material = Enum.Material.Neon }, parent)
+	local light = Instance.new("PointLight")
+	light.Color = color
+	light.Range = 22
+	light.Brightness = 3
+	light.Parent = bulb
+end
+
+-- "Нічне місто демонів": темний асфальт, неонові вежі, ліхтарі, червона брама й арена королеви.
+local function buildDemonCity(folder, center)
+	local spawnPoint = buildWorldBase(folder, center, "DemonCity", Color3.fromRGB(32, 30, 40), Enum.Material.Asphalt)
+	BuildUtil.Part({ Name = "Avenue", Size = Vector3.new(14, 0.2, WORLD_SIZE - 20), CFrame = center * CFrame.new(0, 0.1, 0), Color = Color3.fromRGB(55, 50, 70), Material = Enum.Material.Asphalt }, folder)
+	for z = -110, 110, 14 do
+		BuildUtil.Part({ Name = "Marking", Size = Vector3.new(0.6, 0.25, 6), CFrame = center * CFrame.new(0, 0.15, z), Color = Color3.fromRGB(255, 210, 80), Material = Enum.Material.Neon }, folder)
+	end
+
+	-- Червона демонічна брама на вході
+	BuildUtil.Part({ Name = "GateL", Size = Vector3.new(2.5, 16, 2.5), CFrame = center * CFrame.new(-9, 8, -95), Color = Color3.fromRGB(120, 10, 30), Material = Enum.Material.Slate }, folder)
+	BuildUtil.Part({ Name = "GateR", Size = Vector3.new(2.5, 16, 2.5), CFrame = center * CFrame.new(9, 8, -95), Color = Color3.fromRGB(120, 10, 30), Material = Enum.Material.Slate }, folder)
+	local gateTop = BuildUtil.Part({ Name = "GateTop", Size = Vector3.new(26, 2, 3), CFrame = center * CFrame.new(0, 17, -95), Color = Color3.fromRGB(255, 40, 90), Material = Enum.Material.Neon }, folder)
+	local gateSign = BuildUtil.Part({ Name = "GateSign", Size = Vector3.new(22, 4, 0.5), CFrame = center * CFrame.new(0, 21, -95) * CFrame.Angles(0, math.pi, 0), Color = Color3.fromRGB(20, 10, 30), Material = Enum.Material.SmoothPlastic }, folder)
+	BuildUtil.SurfaceText(gateSign, Enum.NormalId.Back, "👹 DEMON NIGHT CITY", Color3.fromRGB(255, 80, 200))
+	local gateLight = Instance.new("PointLight")
+	gateLight.Color = gateTop.Color
+	gateLight.Range = 30
+	gateLight.Parent = gateTop
+
+	-- Неонові вежі по обидва боки вулиці
+	local index = 0
+	for _, z in { -80, -40, 0, 40 } do
+		for _, x in { -80, 80, -112, 112 } do
+			index += 1
+			local height = 40 + (index * 17) % 50
+			tower(folder, center * CFrame.new(x, 0, z), height, NEON[index % #NEON + 1])
+		end
+	end
+	for _, z in { -100, -60, -20, 20, 50 } do
+		streetLamp(folder, (center * CFrame.new(-14, 0, z)).Position, NEON[2])
+		streetLamp(folder, (center * CFrame.new(14, 0, z)).Position, NEON[1])
+	end
+
+	-- Арена королеви: темне коло з неоновим кільцем і колонами
+	BuildUtil.Part({ Name = "QueenArena", Shape = Enum.PartType.Cylinder, Size = Vector3.new(0.6, 60, 60), CFrame = center * CFrame.new(0, 0.3, 92) * CFrame.Angles(0, 0, math.rad(90)), Color = Color3.fromRGB(30, 15, 40), Material = Enum.Material.Marble }, folder)
+	BuildUtil.Part({ Name = "QueenRing", Shape = Enum.PartType.Cylinder, Size = Vector3.new(0.4, 62, 62), CFrame = center * CFrame.new(0, 0.2, 92) * CFrame.Angles(0, 0, math.rad(90)), Color = Color3.fromRGB(255, 50, 160), Material = Enum.Material.Neon }, folder)
+	for i = 0, 5 do
+		local angle = math.rad(i * 60)
+		local pillar = BuildUtil.Part({
+			Name = "Pillar",
+			Size = Vector3.new(3, 18, 3),
+			CFrame = center * CFrame.new(math.cos(angle) * 34, 9, 92 + math.sin(angle) * 34),
+			Color = Color3.fromRGB(45, 20, 55),
+			Material = Enum.Material.Slate,
+		}, folder)
+		local flame = BuildUtil.Part({ Name = "Flame", Size = Vector3.new(2.4, 2.4, 2.4), Shape = Enum.PartType.Ball, CFrame = pillar.CFrame * CFrame.new(0, 10, 0), Color = Color3.fromRGB(180, 60, 255), Material = Enum.Material.Neon }, folder)
+		local light = Instance.new("PointLight")
+		light.Color = flame.Color
+		light.Range = 18
+		light.Parent = flame
+	end
+	return spawnPoint
+end
+
 local BUILDERS = {
 	NinjaVillage = buildNinjaVillage,
 	PirateIsland = buildPirateIsland,
+	DemonCity = buildDemonCity,
 }
 
 -- Переносить гравця у світ (або "Lobby" — на його базу).
@@ -7675,8 +7933,8 @@ local function buildPanel(gui)
 	for index, diceId in DiceConfig.Order do
 		ui.diceButtons[diceId] = UIKit.Button({
 			LayoutOrder = index,
-			Size = UDim2.new(1, 0, 0, 56),
-			TextSize = 18,
+			Size = UDim2.new(1, 0, 0, 50), -- 7 кубиків мають вміститися у вікно
+			TextSize = 16,
 			Parent = list,
 		}, function()
 			selectedDice = diceId
@@ -9160,6 +9418,61 @@ return WorldEffects
         </Item>
         <Item class="ModuleScript" referent="55">
           <Properties>
+            <string name="Name">WorldLighting</string>
+            <string name="Source"><![CDATA[-- WorldLighting: освітлення світу на екрані цього гравця.
+-- У світах з night = true (WorldConfig) настає неонова ніч; в інших — звичайний день.
+
+local Lighting = game:GetService("Lighting")
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local TweenService = game:GetService("TweenService")
+
+local WorldConfig = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("Config"):WaitForChild("WorldConfig"))
+
+local player = Players.LocalPlayer
+
+local WorldLighting = {}
+
+local NIGHT = {
+	ClockTime = 0,
+	Brightness = 1,
+	Ambient = Color3.fromRGB(70, 40, 110),
+	OutdoorAmbient = Color3.fromRGB(80, 50, 130),
+	FogColor = Color3.fromRGB(40, 15, 60),
+	FogEnd = 600,
+}
+
+local day = nil -- значення освітлення до входу в нічний світ
+
+local function apply()
+	local worldId = player:GetAttribute("World")
+	local world = worldId and WorldConfig.Worlds[worldId]
+	local wantNight = world ~= nil and world.night == true
+	if wantNight then
+		if not day then
+			day = {}
+			for key in NIGHT do
+				day[key] = Lighting[key]
+			end
+		end
+		TweenService:Create(Lighting, TweenInfo.new(1.2), NIGHT):Play()
+	elseif day then
+		TweenService:Create(Lighting, TweenInfo.new(1.2), day):Play()
+		day = nil
+	end
+end
+
+function WorldLighting.Init()
+	player:GetAttributeChangedSignal("World"):Connect(apply)
+	apply()
+end
+
+return WorldLighting
+]]></string>
+          </Properties>
+        </Item>
+        <Item class="ModuleScript" referent="56">
+          <Properties>
             <string name="Name">WorldsUI</string>
             <string name="Source"><![CDATA[-- WorldsUI: список світів і кнопки подорожі. Переносить гравця сервер.
 
@@ -9287,7 +9600,7 @@ return WorldsUI
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="56">
+        <Item class="ModuleScript" referent="57">
           <Properties>
             <string name="Name">ZoneGates</string>
             <string name="Source"><![CDATA[-- ZoneGates: ворота зон на екрані цього гравця.
@@ -9346,7 +9659,7 @@ return ZoneGates
           </Properties>
         </Item>
       </Item>
-      <Item class="LocalScript" referent="57">
+      <Item class="LocalScript" referent="58">
         <Properties>
           <string name="Name">ClientMain</string>
           <string name="Source"><![CDATA[-- ClientMain: точка входу клієнта. Будує інтерфейс і підключає модулі.
@@ -9373,6 +9686,7 @@ local CombatUI = require(Client:WaitForChild("CombatUI"))
 local QuestsUI = require(Client:WaitForChild("QuestsUI"))
 local ZoneGates = require(Client:WaitForChild("ZoneGates"))
 local RebirthUI = require(Client:WaitForChild("RebirthUI"))
+local WorldLighting = require(Client:WaitForChild("WorldLighting"))
 
 local gui = UIKit.CreateScreenGui()
 
@@ -9389,6 +9703,7 @@ CombatUI.Init(gui)
 QuestsUI.Init(gui)
 RebirthUI.Init(gui)
 ZoneGates.Init()
+WorldLighting.Init()
 WorldEffects.Init()
 
 Remotes.Get("Notify").OnClientEvent:Connect(function(text, kind)

@@ -606,8 +606,8 @@ local function buildPanel(gui)
 	for index, diceId in DiceConfig.Order do
 		ui.diceButtons[diceId] = UIKit.Button({
 			LayoutOrder = index,
-			Size = UDim2.new(1, 0, 0, 56),
-			TextSize = 18,
+			Size = UDim2.new(1, 0, 0, 50), -- 7 кубиків мають вміститися у вікно
+			TextSize = 16,
 			Parent = list,
 		}, function()
 			selectedDice = diceId

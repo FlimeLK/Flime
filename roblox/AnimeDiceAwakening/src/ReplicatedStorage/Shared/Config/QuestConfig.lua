@@ -27,6 +27,11 @@ QuestConfig.Main = {
 	{ id = "sea_terror", title = "Гроза морів", description = "Переможи Captain Blackwake — відкриється Tidal Dice", metric = "boss:captain_blackwake", target = 1, reward = { crystals = 60 } },
 	{ id = "awakening", title = "Пробудження", description = "Пробуди героя: максимальний рівень + 💎 (Backpack → Awaken)", metric = "awakenedHeroes", target = 1, reward = { crystals = 30 } },
 	{ id = "rebirth", title = "Новий початок", description = "Зроби перший ♻️ Rebirth", metric = "rebirths", target = 1, reward = { crystals = 50 } },
+	{ id = "night_falls", title = "Настає ніч", description = "Переможи Captain Blackwake — відкриється Demon Night City", metric = "boss:captain_blackwake", target = 1, reward = { crystals = 20 } },
+	{ id = "alleys", title = "Темні провулки", description = "Переможи 15 демонів у Demon Night City", metric = "kills:DemonCity", target = 15, reward = { crystals = 15 } },
+	{ id = "neon_market", title = "Неоновий ринок", description = "30 перемог у місті — відкриється Neon Market", metric = "kills:DemonCity", target = 30, reward = { coins = 100000 } },
+	{ id = "abyss_shrine", title = "Святилище безодні", description = "90 перемог у місті — відкриється Abyss Shrine", metric = "kills:DemonCity", target = 90, reward = { crystals = 30 } },
+	{ id = "queen_slayer", title = "Кінець ночі", description = "Переможи Demon Queen Noctyra — відкриється Abyss Dice", metric = "boss:demon_queen_noctyra", target = 1, reward = { crystals = 150 } },
 }
 
 QuestConfig.DailyPool = {
@@ -58,6 +63,7 @@ QuestConfig.CollectionMilestones = {
 	{ count = 15, crystals = 20 },
 	{ count = 20, crystals = 40 },
 	{ count = 24, crystals = 80 },
+	{ count = 27, crystals = 120 },
 }
 
 return QuestConfig

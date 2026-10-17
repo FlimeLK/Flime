@@ -1,4 +1,4 @@
-# Anime Dice: Awakening — етапи 1–5
+# Anime Dice: Awakening — етапи 1–6
 
 Аніме-симулятор для Roblox: кидаєш кубик → отримуєш героя → ставиш його на базу або в бойову команду → герої заробляють монети й б'ються → купуєш покращення й сильніші кубики.
 
@@ -6,6 +6,7 @@
 
 - **Етап 1:** вхід у гру → видача бази → кидок кубика → отримання героя → інвентар → розміщення героя → нарахування монет → збереження прогресу.
 - **Етап 2:** бойова команда з 3 героїв → герої йдуть за гравцем → портал у **Ninja Village** → вибір ворога → автоатака (шкоду рахує сервер) → 3 види ворогів і бос **Oni Warlord Kurogane** з помітними атаками → нагороди в Coins і Crystals.
+- **Етап 6:** третій світ **Demon Night City** (відкривається перемогою над Captain Blackwake): вічна неонова ніч, хмарочоси, ліхтарі, 3 види демонів, бос **Demon Queen Noctyra**, нові зони, **🔮 Abyss Dice** за королеву, 3 нові герої (зокрема Secret), 5 сюжетних завдань.
 - **Етап 5:** **пробудження героїв** (макс. рівень + 💎 → пробуджена форма з новим ім'ям, золотим німбом і множником сили) → **♻️ Rebirth** (віддаєш монети й слоти → назавжди +50% доходу, +5% удачі, кристали) → **новий інтерфейс** у стилі аніме-симуляторів.
 - **Етап 4:** новий світ **Pirate Island** (відкривається перемогою над Oni) → 3 нові вороги та бос **Captain Blackwake** з трьома атаками → свої зони острова → перемога над капітаном відкриває **🌊 Tidal Dice** → 2 нові водні герої, 5 нових сюжетних завдань.
 - **Етап 3:** вікно **Quests** (11 сюжетних і 3 щоденні завдання) → **колекція** героїв (+2% доходу за кожного відкритого й нагороди в Crystals) → **зони** Ninja Village відкриваються перемогами → **Crystal Shop**: зілля удачі, зілля монет, більша сумка.
@@ -21,7 +22,8 @@
 | **3. Прогрес** | Завдання (Quests), колекція героїв з нагородами, відкриття зон, покупки за Crystals | ✅ готово |
 | **4. Pirate Island** | Другий світ, вимога для входу, бос-капітан, Tidal Dice за боса, нові герої й завдання | ✅ готово |
 | **5. Пробудження й Rebirth** | Awakened-форми, Rebirth, новий інтерфейс | ✅ готово |
-| 6+. Світи | Demon Night City, Magic Academy, Sky Arena | далі |
+| **6. Demon Night City** | Третій світ, нічне освітлення, бос-королева, Abyss Dice, нові герої | ✅ готово |
+| 7+. Світи | Magic Academy, Sky Arena | далі |
 | 5. Пробудження | Awakened-форми, Rebirth, складні еволюції | |
 | 6. Поліровка | Звуки, частинки, бусти удачі, баланс | |
 
@@ -137,6 +139,7 @@ StarterPlayer
       ├─ QuestsUI               (ModuleScript)  ⭐ вікно Quests (завдання + колекція)
       ├─ RebirthUI              (ModuleScript)  🔥 вікно Rebirth
       ├─ SoundController        (ModuleScript)  🖼 звуки інтерфейсу
+      ├─ WorldLighting          (ModuleScript)  🌙 нічне освітлення світів
       └─ ZoneGates              (ModuleScript)  ⭐ ворота зон на екрані гравця
 ```
 
@@ -187,7 +190,7 @@ StarterPlayer
    - Folder `Services` → 17 ModuleScript з `src/ServerScriptService/Services/*.lua`
 3. **StarterPlayer → StarterPlayerScripts**
    - LocalScript `ClientMain` ← `src/StarterPlayer/StarterPlayerScripts/ClientMain.client.lua`
-   - Folder `Client` → 17 ModuleScript з `src/StarterPlayer/StarterPlayerScripts/Client/*.lua`
+   - Folder `Client` → 18 ModuleScript з `src/StarterPlayer/StarterPlayerScripts/Client/*.lua`
 
 Звір свій Explorer зі схемою з розділу 2 — кожна назва має збігатися літера в літеру.
 
@@ -198,6 +201,13 @@ StarterPlayer
 3. **Заміни код повністю** у змінених скриптах: `WorldConfig`, `GameMath`, `Remotes`, `Main`, `DataService`, `InventoryService`, `PlotService`, `Hud`, `InventoryUI`, `ClientMain`.
 
 Прогрес гравців з етапу 1 зберігається: нові поля (команда, статистика) додаються автоматично.
+
+#### Оновлення до етапу 6 (якщо ставив вручну)
+
+1. **Створи** `WorldLighting` у `Client`.
+2. **Заміни код повністю** в: `WorldConfig`, `EnemyConfig`, `DiceConfig`, `HeroConfig`, `QuestConfig`, `EnemyModelBuilder`, `WorldService`, `RollUI`, `ClientMain`.
+
+⚠️ **Свої ID іконок і звуків не губи:** відкриваючи новий `.rbxlx`, скопіюй свій модуль `AssetConfig` зі старого місця (ПКМ → Copy, потім Paste Into у `Shared/Config` нового місця, старий видали).
 
 #### Оновлення з етапу 4 до етапу 5 (якщо ставив вручну)
 
@@ -329,6 +339,19 @@ rojo build -o AnimeDiceAwakening.rbxlx   # перезібрати готовий
 | 8 | Збери 250K 🪙 → **♻️ Rebirth** | Прогрес-смуга, «Отримаєш / Скинеться». Перше натискання — «⚠️ Точно?», друге — Rebirth: монети 60, 3 слоти, дохід ×1.5, удача ×1.05, +10 💎. Герої на місці. |
 
 > Швидка перевірка: у `EconomyConfig` → `Rebirth.baseCost = 100`, а в `RarityConfig` → `maxLevel = 2` для Common.
+
+### Перевірка етапу 6 — Demon Night City
+
+| # | Дія | Що має статися |
+|---|---|---|
+| 1 | **Worlds** до перемоги над капітаном | Demon Night City: «🔒 Щоб відкрити: Переможи Captain Blackwake». |
+| 2 | Переможи Captain Blackwake → **Travel → Demon Night City** | Плавно настає ніч (лише на твоєму екрані): фіолетовий туман, неонові хмарочоси, ліхтарі, червона брама «👹 DEMON NIGHT CITY». При поверненні — знову день. |
+| 3 | Бий **Alley Imp** (крила, хвіст) і **Lantern Wraith** (примара з ліхтарем) | Нагороди 300 і 650 🪙. Ворота «Neon Market — перемоги тут: N / 30». |
+| 4 | 30 перемог → **Night Fiend**, 90 → **Demon Queen Noctyra** | Королева з короною, крилами й косою: «Hellfire Ring», «Shadow Spikes» (9 кіл), «Soul Chains» (коло під кожним). |
+| 5 | Переможи королеву | «+80K 🪙 +150 💎» і «🔮 Відкрито Abyss Dice!» — удача ×2.8, тіньові герої (зокрема новий Secret **Vael, Abyssal Emperor**) частіше. |
+| 6 | **Index** | 27 героїв і нова нагорода за всіх 27 (+120 💎). |
+
+> Швидка перевірка: прибери `unlock = …` у DemonCity у `WorldConfig` і зменш `health` королеви в `EnemyConfig`.
 
 ---
 

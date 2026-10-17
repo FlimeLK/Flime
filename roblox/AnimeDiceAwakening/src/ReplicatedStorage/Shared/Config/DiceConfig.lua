@@ -12,9 +12,22 @@ local DiceConfig = {}
 -- Кубик, яким робиться перший безкоштовний навчальний кидок.
 DiceConfig.TutorialDice = "Basic"
 
-DiceConfig.Order = { "Basic", "Fire", "Lightning", "Shadow", "Tidal", "Celestial" }
+DiceConfig.Order = { "Basic", "Fire", "Lightning", "Shadow", "Tidal", "Celestial", "Abyss" }
 
 DiceConfig.Dice = {
+	Abyss = {
+		displayName = "Abyss Dice",
+		description = "Нагорода за Demon Queen Noctyra. Тіньові герої втричі частіше.",
+		icon = "🔮",
+		color = Color3.fromRGB(150, 40, 200),
+		price = 25000,
+		luck = 2.8,
+		requiredRolls = 0,
+		requiredBoss = "demon_queen_noctyra",
+		element = "Shadow",
+		elementBonus = 3,
+		weights = { Common = 200, Rare = 300, Epic = 250, Legendary = 150, Mythic = 75, Secret = 25 },
+	},
 	Basic = {
 		displayName = "Basic Dice",
 		description = "Простий кубик для старту пригоди.",

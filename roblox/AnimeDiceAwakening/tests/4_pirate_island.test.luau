@@ -65,7 +65,7 @@ for _, diceId in DiceConfig.Order do
 		check(EnemyConfig.Enemies[dice.requiredBoss] ~= nil, "dice boss exists " .. diceId)
 	end
 end
-check(#HeroConfig.List == 24, "24 heroes")
+check(#HeroConfig.List >= 24, "at least 24 heroes")
 check(QuestConfig.CollectionMilestones[#QuestConfig.CollectionMilestones].count <= #HeroConfig.List, "last milestone reachable")
 for _, quest in QuestConfig.Main do
 	local prefix = string.match(quest.metric, "^(%a+):(.+)$")

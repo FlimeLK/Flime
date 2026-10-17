@@ -262,9 +262,93 @@ local function buildPirateIsland(folder, center)
 	return spawnPoint
 end
 
+local NEON = { Color3.fromRGB(255, 60, 180), Color3.fromRGB(60, 220, 255), Color3.fromRGB(170, 80, 255), Color3.fromRGB(255, 120, 60) }
+
+-- Хмарочос із неоновими смугами вікон
+local function tower(parent, cframe, height, color)
+	local model = Instance.new("Model")
+	model.Name = "Tower"
+	BuildUtil.Part({ Name = "Body", Size = Vector3.new(20, height, 20), CFrame = cframe * CFrame.new(0, height / 2, 0), Color = Color3.fromRGB(28, 24, 40), Material = Enum.Material.Concrete }, model)
+	for y = 8, height - 6, 10 do
+		BuildUtil.Part({ Name = "Windows", Size = Vector3.new(20.4, 1.2, 20.4), CFrame = cframe * CFrame.new(0, y, 0), Color = color, Material = Enum.Material.Neon }, model)
+	end
+	local sign = BuildUtil.Part({ Name = "Sign", Size = Vector3.new(14, 4, 0.6), CFrame = cframe * CFrame.new(0, height - 4, -10.4), Color = color, Material = Enum.Material.Neon }, model)
+	local light = Instance.new("PointLight")
+	light.Color = color
+	light.Range = 30
+	light.Brightness = 2
+	light.Parent = sign
+	model.Parent = parent
+end
+
+local function streetLamp(parent, position, color)
+	BuildUtil.Part({ Name = "LampPost", Size = Vector3.new(1, 12, 1), CFrame = CFrame.new(position + Vector3.new(0, 6, 0)), Color = Color3.fromRGB(40, 40, 50), Material = Enum.Material.Metal }, parent)
+	local bulb = BuildUtil.Part({ Name = "Lamp", Size = Vector3.new(2.4, 1, 2.4), CFrame = CFrame.new(position + Vector3.new(0, 12.5, 0)), Color = color, Material = Enum.Material.Neon }, parent)
+	local light = Instance.new("PointLight")
+	light.Color = color
+	light.Range = 22
+	light.Brightness = 3
+	light.Parent = bulb
+end
+
+-- "Нічне місто демонів": темний асфальт, неонові вежі, ліхтарі, червона брама й арена королеви.
+local function buildDemonCity(folder, center)
+	local spawnPoint = buildWorldBase(folder, center, "DemonCity", Color3.fromRGB(32, 30, 40), Enum.Material.Asphalt)
+	BuildUtil.Part({ Name = "Avenue", Size = Vector3.new(14, 0.2, WORLD_SIZE - 20), CFrame = center * CFrame.new(0, 0.1, 0), Color = Color3.fromRGB(55, 50, 70), Material = Enum.Material.Asphalt }, folder)
+	for z = -110, 110, 14 do
+		BuildUtil.Part({ Name = "Marking", Size = Vector3.new(0.6, 0.25, 6), CFrame = center * CFrame.new(0, 0.15, z), Color = Color3.fromRGB(255, 210, 80), Material = Enum.Material.Neon }, folder)
+	end
+
+	-- Червона демонічна брама на вході
+	BuildUtil.Part({ Name = "GateL", Size = Vector3.new(2.5, 16, 2.5), CFrame = center * CFrame.new(-9, 8, -95), Color = Color3.fromRGB(120, 10, 30), Material = Enum.Material.Slate }, folder)
+	BuildUtil.Part({ Name = "GateR", Size = Vector3.new(2.5, 16, 2.5), CFrame = center * CFrame.new(9, 8, -95), Color = Color3.fromRGB(120, 10, 30), Material = Enum.Material.Slate }, folder)
+	local gateTop = BuildUtil.Part({ Name = "GateTop", Size = Vector3.new(26, 2, 3), CFrame = center * CFrame.new(0, 17, -95), Color = Color3.fromRGB(255, 40, 90), Material = Enum.Material.Neon }, folder)
+	local gateSign = BuildUtil.Part({ Name = "GateSign", Size = Vector3.new(22, 4, 0.5), CFrame = center * CFrame.new(0, 21, -95) * CFrame.Angles(0, math.pi, 0), Color = Color3.fromRGB(20, 10, 30), Material = Enum.Material.SmoothPlastic }, folder)
+	BuildUtil.SurfaceText(gateSign, Enum.NormalId.Back, "👹 DEMON NIGHT CITY", Color3.fromRGB(255, 80, 200))
+	local gateLight = Instance.new("PointLight")
+	gateLight.Color = gateTop.Color
+	gateLight.Range = 30
+	gateLight.Parent = gateTop
+
+	-- Неонові вежі по обидва боки вулиці
+	local index = 0
+	for _, z in { -80, -40, 0, 40 } do
+		for _, x in { -80, 80, -112, 112 } do
+			index += 1
+			local height = 40 + (index * 17) % 50
+			tower(folder, center * CFrame.new(x, 0, z), height, NEON[index % #NEON + 1])
+		end
+	end
+	for _, z in { -100, -60, -20, 20, 50 } do
+		streetLamp(folder, (center * CFrame.new(-14, 0, z)).Position, NEON[2])
+		streetLamp(folder, (center * CFrame.new(14, 0, z)).Position, NEON[1])
+	end
+
+	-- Арена королеви: темне коло з неоновим кільцем і колонами
+	BuildUtil.Part({ Name = "QueenArena", Shape = Enum.PartType.Cylinder, Size = Vector3.new(0.6, 60, 60), CFrame = center * CFrame.new(0, 0.3, 92) * CFrame.Angles(0, 0, math.rad(90)), Color = Color3.fromRGB(30, 15, 40), Material = Enum.Material.Marble }, folder)
+	BuildUtil.Part({ Name = "QueenRing", Shape = Enum.PartType.Cylinder, Size = Vector3.new(0.4, 62, 62), CFrame = center * CFrame.new(0, 0.2, 92) * CFrame.Angles(0, 0, math.rad(90)), Color = Color3.fromRGB(255, 50, 160), Material = Enum.Material.Neon }, folder)
+	for i = 0, 5 do
+		local angle = math.rad(i * 60)
+		local pillar = BuildUtil.Part({
+			Name = "Pillar",
+			Size = Vector3.new(3, 18, 3),
+			CFrame = center * CFrame.new(math.cos(angle) * 34, 9, 92 + math.sin(angle) * 34),
+			Color = Color3.fromRGB(45, 20, 55),
+			Material = Enum.Material.Slate,
+		}, folder)
+		local flame = BuildUtil.Part({ Name = "Flame", Size = Vector3.new(2.4, 2.4, 2.4), Shape = Enum.PartType.Ball, CFrame = pillar.CFrame * CFrame.new(0, 10, 0), Color = Color3.fromRGB(180, 60, 255), Material = Enum.Material.Neon }, folder)
+		local light = Instance.new("PointLight")
+		light.Color = flame.Color
+		light.Range = 18
+		light.Parent = flame
+	end
+	return spawnPoint
+end
+
 local BUILDERS = {
 	NinjaVillage = buildNinjaVillage,
 	PirateIsland = buildPirateIsland,
+	DemonCity = buildDemonCity,
 }
 
 -- Переносить гравця у світ (або "Lobby" — на його базу).

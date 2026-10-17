@@ -40,9 +40,17 @@ WorldConfig.Worlds = {
 	DemonCity = {
 		displayName = "Demon Night City",
 		localName = "Нічне місто демонів",
-		description = "Скоро",
+		description = "Вічна ніч, неон, біси, примари та Demon Queen Noctyra.",
 		color = Color3.fromRGB(150, 60, 220),
-		available = false,
+		available = true,
+		center = Vector3.new(1500, 200, 1000),
+		unlock = { boss = "captain_blackwake" },
+		night = true, -- клієнт вмикає нічне освітлення, поки гравець тут
+		zones = {
+			{ id = "BackAlleys", name = "Back Alleys", requiredKills = 0 },
+			{ id = "NeonMarket", name = "Neon Market", requiredKills = 30, gateZ = 10 },
+			{ id = "AbyssShrine", name = "Abyss Shrine", requiredKills = 90, gateZ = 62 },
+		},
 	},
 	MagicAcademy = {
 		displayName = "Magic Academy",
