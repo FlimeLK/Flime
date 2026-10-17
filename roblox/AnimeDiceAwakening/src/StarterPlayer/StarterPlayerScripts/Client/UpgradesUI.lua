@@ -1,6 +1,7 @@
 -- UpgradesUI: покращення бази за Coins і магазин за Crystals (зілля, більша сумка).
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local TweenService = game:GetService("TweenService")
 
 local Shared = ReplicatedStorage:WaitForChild("Shared")
 local Config = Shared:WaitForChild("Config")
@@ -105,66 +106,72 @@ local function refresh()
 	Hud.SetBadge("Upgrades", affordableUpgrades)
 end
 
-local function buildRow(list, order, entry)
-	local row = UIKit.Create("Frame", {
-		LayoutOrder = order,
-		Size = UDim2.new(1, -12, 0, 88),
-		BackgroundColor3 = UIKit.Colors.Background,
-		BackgroundTransparency = 0.2,
-		Parent = list,
-	})
-	UIKit.Corner(row, 16)
-	UIKit.Stroke(row, UIKit.Colors.Outline, 3)
+-- Колір рамки картки для кожного товару
+local CARD_COLORS = {
+	Slots = Color3.fromRGB(70, 140, 255),
+	Income = Color3.fromRGB(255, 185, 40),
+	LuckPotion = Color3.fromRGB(70, 210, 90),
+	CoinPotion = Color3.fromRGB(255, 185, 40),
+	BigBag = Color3.fromRGB(170, 90, 255),
+}
 
-	-- Квадратна іконка ліворуч (перший символ назви — емодзі)
+-- Картка товару: велика іконка, кольорова назва, опис і зелена кнопка ціни
+local function buildCard(grid, order, entry)
+	local color = CARD_COLORS[entry.id] or UIKit.Colors.Accent2
+	local card = UIKit.Card({ LayoutOrder = order, Parent = grid }, color)
+
 	local icon, name = string.match(entry.title, "^(%S+)%s+(.+)$")
-	local iconBox = UIKit.Label({
-		Position = UDim2.fromOffset(10, 10),
-		Size = UDim2.fromOffset(68, 68),
-		BackgroundColor3 = if entry.currency == "Crystals" then UIKit.Colors.Accent2 else UIKit.Colors.Success,
-		BackgroundTransparency = 0,
+	local iconLabel = UIKit.Label({
+		AnchorPoint = Vector2.new(0.5, 0),
+		Position = UDim2.new(0.5, 0, 0, 8),
+		Size = UDim2.fromOffset(100, 84),
 		TextScaled = true,
 		Text = icon or "⭐",
 		Outline = 0,
-		Parent = row,
+		Parent = card,
 	})
-	UIKit.Corner(iconBox, 14)
-	UIKit.Stroke(iconBox, UIKit.Colors.Outline, 3)
-	UIKit.Shade(iconBox, 0.3)
+	-- Іконка м'яко "плаває"
+	TweenService:Create(iconLabel, TweenInfo.new(1.2, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut, -1, true), {
+		Position = UDim2.new(0.5, 0, 0, 2),
+	}):Play()
 
-	UIKit.Label({
-		Position = UDim2.fromOffset(92, 8),
-		Size = UDim2.new(1, -300, 0, 34),
+	local title = UIKit.Label({
+		Position = UDim2.fromOffset(8, 92),
+		Size = UDim2.new(1, -16, 0, 34),
 		Font = UIKit.Font,
-		TextSize = 26,
-		TextXAlignment = Enum.TextXAlignment.Left,
+		TextScaled = true,
+		TextColor3 = color:Lerp(Color3.new(1, 1, 1), 0.25),
 		Text = name or entry.title,
-		Outline = 2.5,
-		Parent = row,
+		Outline = 3,
+		Parent = card,
 	})
+	UIKit.Create("UITextSizeConstraint", { MaxTextSize = 30, Parent = title })
 	local description = UIKit.Label({
-		Position = UDim2.fromOffset(92, 44),
-		Size = UDim2.new(1, -300, 0, 38),
-		TextSize = 15,
-		TextColor3 = UIKit.Colors.SubText,
-		TextXAlignment = Enum.TextXAlignment.Left,
-		Parent = row,
+		Position = UDim2.fromOffset(10, 126),
+		Size = UDim2.new(1, -20, 0, 52),
+		Font = UIKit.Font,
+		TextScaled = true,
+		Outline = 1.5,
+		Parent = card,
 	})
+	UIKit.Create("UITextSizeConstraint", { MaxTextSize = 17, Parent = description })
 	local button = UIKit.Button({
-		AnchorPoint = Vector2.new(1, 0.5),
-		Position = UDim2.new(1, -14, 0.5, 0),
-		Size = UDim2.fromOffset(190, 60),
-		TextSize = 24,
-		Parent = row,
+		AnchorPoint = Vector2.new(0.5, 1),
+		Position = UDim2.new(0.5, 0, 1, -10),
+		Size = UDim2.new(1, -30, 0, 48),
+		BackgroundColor3 = UIKit.Colors.Success,
+		TextSize = 28,
+		Parent = card,
 	}, function()
 		local result = ClientState.Request(entry.remote, entry.id)
 		UIKit.Toast(result.message or "", if result.ok then "success" else "error")
 	end)
+	button.TextOutline.Thickness = 3
 	rows[entry.id] = { description = description, button = button }
 end
 
--- Вікно зі списком покращень однієї валюти
-local function buildPanel(gui, panelName, title, color, currency, hint)
+-- Вікно з сіткою карток однієї валюти
+local function buildPanel(gui, panelName, title, color, currency, sectionTitle, hint)
 	local newPanel, content = UIKit.Panel(gui, panelName, title, color)
 	Hud.RegisterPanel(panelName, newPanel)
 	local list = UIKit.Create("ScrollingFrame", {
@@ -177,28 +184,47 @@ local function buildPanel(gui, panelName, title, color, currency, hint)
 		ScrollingDirection = Enum.ScrollingDirection.Y,
 		Parent = content,
 	})
-	UIKit.Create("UIListLayout", { Padding = UDim.new(0, 10), SortOrder = Enum.SortOrder.LayoutOrder, Parent = list })
-	UIKit.Create("UIPadding", { PaddingTop = UDim.new(0, 4), PaddingLeft = UDim.new(0, 4), Parent = list })
+	UIKit.Create("UIListLayout", {
+		Padding = UDim.new(0, 8),
+		HorizontalAlignment = Enum.HorizontalAlignment.Center,
+		SortOrder = Enum.SortOrder.LayoutOrder,
+		Parent = list,
+	})
+	UIKit.Divider(list, sectionTitle, 1)
 	UIKit.Label({
-		LayoutOrder = 0,
-		Size = UDim2.new(1, -12, 0, 26),
-		TextSize = 16,
+		LayoutOrder = 2,
+		Size = UDim2.new(1, -12, 0, 22),
+		TextSize = 15,
 		TextColor3 = UIKit.Colors.SubText,
-		TextXAlignment = Enum.TextXAlignment.Left,
 		Text = hint,
 		Parent = list,
 	})
+	local grid = UIKit.Create("Frame", {
+		LayoutOrder = 3,
+		Size = UDim2.new(1, -12, 0, 0),
+		AutomaticSize = Enum.AutomaticSize.Y,
+		BackgroundTransparency = 1,
+		Parent = list,
+	})
+	UIKit.Create("UIGridLayout", {
+		CellSize = UDim2.fromOffset(230, 240),
+		CellPadding = UDim2.fromOffset(12, 12),
+		HorizontalAlignment = Enum.HorizontalAlignment.Center,
+		SortOrder = Enum.SortOrder.LayoutOrder,
+		Parent = grid,
+	})
+	UIKit.Create("UIPadding", { PaddingTop = UDim.new(0, 6), PaddingBottom = UDim.new(0, 6), Parent = grid })
 	for index, entry in ENTRIES do
 		if entry.currency == currency then
-			buildRow(list, index, entry)
+			buildCard(grid, index, entry)
 		end
 	end
 	return newPanel
 end
 
 function UpgradesUI.Init(gui)
-	local upgradesPanel = buildPanel(gui, "Upgrades", "⬆️ Upgrades", Color3.fromRGB(70, 205, 100), "Coins", "Покращення бази за 🪙 Coins")
-	local shopPanel = buildPanel(gui, "Shop", "💎 Crystal Shop", Color3.fromRGB(60, 205, 85), "Crystals", "💎 Кристали дають боси, завдання, колекція та Rebirth")
+	local upgradesPanel = buildPanel(gui, "Upgrades", "⬆️ Upgrades", Color3.fromRGB(70, 205, 100), "Coins", "Base", "Покращення бази за 🪙 Coins")
+	local shopPanel = buildPanel(gui, "Shop", "🛒 Shop", UIKit.Rainbow, "Crystals", "Crystal Shop", "💎 Кристали дають боси, завдання, колекція та Rebirth")
 
 	ClientState.OnDataChanged(refresh)
 	ClientState.OnCurrencyChanged(refresh)

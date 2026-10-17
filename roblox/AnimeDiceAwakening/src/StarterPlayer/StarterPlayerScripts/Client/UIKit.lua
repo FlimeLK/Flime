@@ -13,9 +13,9 @@ local player = Players.LocalPlayer
 local UIKit = {}
 
 UIKit.Colors = {
-	Background = Color3.fromRGB(24, 18, 44),
-	Panel = Color3.fromRGB(44, 32, 82),
-	PanelLight = Color3.fromRGB(72, 58, 128),
+	Background = Color3.fromRGB(22, 22, 28),
+	Panel = Color3.fromRGB(40, 40, 50),
+	PanelLight = Color3.fromRGB(78, 78, 96),
 	Outline = Color3.fromRGB(18, 10, 32),
 	Accent = Color3.fromRGB(255, 90, 200),
 	Accent2 = Color3.fromRGB(80, 190, 255),
@@ -291,7 +291,50 @@ function UIKit.SetBadge(button, value)
 	end
 end
 
--- Вікно по центру екрана з кольоровою шапкою. Повертає panel, content.
+-- Веселковий градієнт для особливих шапок (як у магазинах симуляторів)
+UIKit.Rainbow = ColorSequence.new({
+	ColorSequenceKeypoint.new(0, Color3.fromRGB(255, 170, 40)),
+	ColorSequenceKeypoint.new(0.2, Color3.fromRGB(255, 60, 120)),
+	ColorSequenceKeypoint.new(0.4, Color3.fromRGB(150, 60, 255)),
+	ColorSequenceKeypoint.new(0.6, Color3.fromRGB(50, 120, 255)),
+	ColorSequenceKeypoint.new(0.8, Color3.fromRGB(40, 230, 220)),
+	ColorSequenceKeypoint.new(1, Color3.fromRGB(80, 230, 70)),
+})
+
+-- Горизонтальний градієнт кольору шапки: світліший ліворуч, насиченіший праворуч
+local function headerSequence(color)
+	if typeof(color) == "ColorSequence" then
+		return color
+	end
+	return ColorSequence.new(color:Lerp(Color3.new(1, 1, 1), 0.25), color:Lerp(Color3.new(0, 0, 0), 0.15))
+end
+
+-- Діагональні смуги поверх шапки (замість "шахівниці" з картинки)
+local function addStripes(parent)
+	local holder = UIKit.Create("Frame", {
+		Name = "Stripes",
+		Size = UDim2.fromScale(1, 1),
+		BackgroundTransparency = 1,
+		ClipsDescendants = true,
+		Parent = parent,
+	})
+	for i = 0, 24 do
+		UIKit.Create("Frame", {
+			AnchorPoint = Vector2.new(0.5, 0.5),
+			Position = UDim2.new(0, i * 40, 0.5, 0),
+			Size = UDim2.new(0, 14, 2.5, 0),
+			Rotation = 30,
+			BackgroundColor3 = Color3.new(1, 1, 1),
+			BackgroundTransparency = 0.9,
+			BorderSizePixel = 0,
+			Parent = holder,
+		})
+	end
+	return holder
+end
+
+-- Вікно по центру екрана: темне тіло, яскрава шапка з емодзі й великим червоним X.
+-- color — Color3 або ColorSequence (наприклад, UIKit.Rainbow). Повертає panel, content.
 function UIKit.Panel(gui, name, title, color)
 	color = color or UIKit.Colors.Accent
 	local panel = UIKit.Create("Frame", {
@@ -304,77 +347,91 @@ function UIKit.Panel(gui, name, title, color)
 		ZIndex = 10,
 		Parent = gui,
 	})
-	UIKit.Corner(panel, 22)
-	UIKit.Stroke(panel, UIKit.Colors.Outline, 5)
+	UIKit.Corner(panel, 18)
+	UIKit.Stroke(panel, UIKit.Colors.Outline, 6)
 	UIKit.AddScale(panel)
 	UIKit.Create("UIGradient", {
-		Color = ColorSequence.new(UIKit.Colors.PanelLight, UIKit.Colors.Background),
+		Color = ColorSequence.new(Color3.fromRGB(62, 62, 74), Color3.fromRGB(34, 34, 42)),
 		Rotation = 90,
 		Parent = panel,
 	})
 
-	-- Кольорова шапка
+	-- Яскрава шапка
 	local header = UIKit.Create("Frame", {
 		Name = "Header",
-		Size = UDim2.new(1, 0, 0, 60),
-		BackgroundColor3 = color,
+		Size = UDim2.new(1, 0, 0, 64),
+		BackgroundColor3 = Color3.new(1, 1, 1),
+		ClipsDescendants = true,
 		Parent = panel,
 	})
-	UIKit.Corner(header, 22)
-	-- Нижні кути шапки прямі: прикриваємо їх смужкою того ж кольору
-	UIKit.Create("Frame", {
-		Position = UDim2.new(0, 0, 1, -22),
-		Size = UDim2.new(1, 0, 0, 22),
-		BackgroundColor3 = color,
+	UIKit.Corner(header, 18)
+	UIKit.Create("UIGradient", { Color = headerSequence(color), Parent = header })
+	addStripes(header)
+	-- Нижні кути шапки прямі
+	local filler = UIKit.Create("Frame", {
+		Position = UDim2.new(0, 0, 1, -20),
+		Size = UDim2.new(1, 0, 0, 20),
+		BackgroundColor3 = Color3.new(1, 1, 1),
+		BorderSizePixel = 0,
+		ZIndex = 0,
+		Parent = header,
+	})
+	UIKit.Create("UIGradient", { Color = headerSequence(color), Parent = filler })
+	local shine = UIKit.Create("Frame", {
+		Position = UDim2.fromOffset(0, 0),
+		Size = UDim2.new(1, 0, 0.45, 0),
+		BackgroundColor3 = Color3.new(1, 1, 1),
+		BackgroundTransparency = 0.82,
 		BorderSizePixel = 0,
 		Parent = header,
 	})
-	local shine = UIKit.Create("Frame", {
-		Position = UDim2.fromOffset(10, 5),
-		Size = UDim2.new(1, -20, 0, 20),
-		BackgroundColor3 = Color3.new(1, 1, 1),
-		BackgroundTransparency = 0.8,
-		Parent = header,
+	UIKit.Create("UIGradient", {
+		Transparency = NumberSequence.new(0.3, 1),
+		Rotation = 90,
+		Parent = shine,
 	})
-	UIKit.Corner(shine, 10)
 	UIKit.Create("Frame", {
 		Name = "Divider",
-		Position = UDim2.new(0, 0, 1, 0),
-		Size = UDim2.new(1, 0, 0, 4),
+		Position = UDim2.new(0, 0, 0, 64),
+		Size = UDim2.new(1, 0, 0, 5),
 		BackgroundColor3 = UIKit.Colors.Outline,
 		BorderSizePixel = 0,
-		Parent = header,
+		Parent = panel,
 	})
 
 	UIKit.Label({
 		Name = "Title",
-		Position = UDim2.fromOffset(22, 6),
-		Size = UDim2.new(1, -100, 0, 48),
+		Position = UDim2.fromOffset(22, 4),
+		Size = UDim2.new(1, -110, 0, 56),
 		Font = UIKit.Font,
-		TextSize = 34,
+		TextSize = 40,
 		TextXAlignment = Enum.TextXAlignment.Left,
 		Text = title,
-		Outline = 3,
+		Outline = 3.5,
 		Parent = header,
 	})
 
-	UIKit.Button({
+	-- Великий червоний X у правому куті
+	local close = UIKit.Button({
 		Name = "Close",
-		AnchorPoint = Vector2.new(1, 0.5),
-		Position = UDim2.new(1, -10, 0.5, 0),
-		Size = UDim2.fromOffset(46, 46),
-		BackgroundColor3 = UIKit.Colors.Danger,
-		Text = "✕",
-		TextSize = 26,
-		Parent = header,
+		AnchorPoint = Vector2.new(1, 0),
+		Position = UDim2.new(1, 0, 0, 0),
+		Size = UDim2.fromOffset(78, 64),
+		BackgroundColor3 = Color3.fromRGB(235, 45, 55),
+		Text = "X",
+		TextSize = 46,
+		Parent = panel,
 	}, function()
 		panel.Visible = false
 	end)
+	close.UICorner.CornerRadius = UDim.new(0, 18)
+	close.Outline.UICorner.CornerRadius = UDim.new(0, 18)
+	close.TextOutline.Thickness = 3.5
 
 	local content = UIKit.Create("Frame", {
 		Name = "Content",
-		Position = UDim2.fromOffset(18, 76),
-		Size = UDim2.new(1, -36, 1, -90),
+		Position = UDim2.fromOffset(18, 82),
+		Size = UDim2.new(1, -36, 1, -96),
 		BackgroundTransparency = 1,
 		Parent = panel,
 	})
@@ -382,11 +439,67 @@ function UIKit.Panel(gui, name, title, color)
 	-- Поява вікна з легким "стрибком"
 	panel:GetPropertyChangedSignal("Visible"):Connect(function()
 		if panel.Visible then
-			panel.Position = UDim2.new(0.5, 0, 0.5, 24)
-			TweenService:Create(panel, TweenInfo.new(0.22, Enum.EasingStyle.Back, Enum.EasingDirection.Out), { Position = UDim2.fromScale(0.5, 0.5) }):Play()
+			panel.Position = UDim2.new(0.5, 0, 0.5, 30)
+			TweenService:Create(panel, TweenInfo.new(0.25, Enum.EasingStyle.Back, Enum.EasingDirection.Out), { Position = UDim2.fromScale(0.5, 0.5) }):Play()
 		end
 	end)
 	return panel, content
+end
+
+-- Картка всередині вікна: темна, з товстою кольоровою рамкою й легким світінням зверху.
+function UIKit.Card(props, color)
+	color = color or UIKit.Colors.Accent2
+	local defaults = { BackgroundColor3 = Color3.fromRGB(26, 26, 32) }
+	for key, value in props do
+		if key ~= "ClassName" then
+			defaults[key] = value
+		end
+	end
+	local card = UIKit.Create(props.ClassName or "Frame", defaults)
+	UIKit.Corner(card, 14)
+	UIKit.Stroke(card, color, 4)
+	local glow = UIKit.Create("Frame", {
+		Name = "Glow",
+		Size = UDim2.new(1, 0, 0.6, 0),
+		BackgroundColor3 = color,
+		BackgroundTransparency = 0.6,
+		BorderSizePixel = 0,
+		Parent = card,
+	})
+	UIKit.Corner(glow, 14)
+	UIKit.Create("UIGradient", { Transparency = NumberSequence.new(0.35, 1), Rotation = 90, Parent = glow })
+	return card
+end
+
+-- Розділювач секції: — Gamepasses —
+function UIKit.Divider(parent, text, order)
+	local frame = UIKit.Create("Frame", {
+		LayoutOrder = order or 0,
+		Size = UDim2.new(1, -12, 0, 40),
+		BackgroundTransparency = 1,
+		Parent = parent,
+	})
+	for side = 0, 1 do
+		UIKit.Create("Frame", {
+			AnchorPoint = Vector2.new(side, 0.5),
+			Position = UDim2.new(side, 0, 0.5, 0),
+			Size = UDim2.new(0.3, 0, 0, 3),
+			BackgroundColor3 = Color3.fromRGB(220, 220, 230),
+			BorderSizePixel = 0,
+			Parent = frame,
+		})
+	end
+	UIKit.Label({
+		AnchorPoint = Vector2.new(0.5, 0.5),
+		Position = UDim2.fromScale(0.5, 0.5),
+		Size = UDim2.new(0.38, 0, 1, 0),
+		Font = UIKit.Font,
+		TextSize = 28,
+		Text = text,
+		Outline = 3,
+		Parent = frame,
+	})
+	return frame
 end
 
 -- Спливаючі повідомлення

@@ -39,6 +39,38 @@ function GameMath.GetChances(dice, playerLuck)
 	return chances
 end
 
+-- Шанс випасти саме цьому герою з кубика (0..1) — для напису "1 in 52K".
+function GameMath.GetHeroChance(dice, heroId, playerLuck)
+	local heroDef = HeroConfig.Heroes[heroId]
+	if not heroDef then
+		return 0
+	end
+	local weights, total = GameMath.GetRarityWeights(dice, playerLuck)
+	if total <= 0 then
+		return 0
+	end
+	local heroWeight, rarityTotal = 0, 0
+	for _, other in HeroConfig.ByRarity[heroDef.rarity] or {} do
+		local weight = if dice.element and other.element == dice.element then dice.elementBonus else 1
+		rarityTotal += weight
+		if other.id == heroId then
+			heroWeight = weight
+		end
+	end
+	if rarityTotal <= 0 then
+		return 0
+	end
+	return weights[heroDef.rarity] / total * heroWeight / rarityTotal
+end
+
+-- 0.000019 -> "1 in 52.6K"
+function GameMath.FormatOdds(chance)
+	if chance <= 0 then
+		return "1 in ∞"
+	end
+	return "1 in " .. GameMath.FormatNumber(math.max(1, math.floor(1 / chance + 0.5)))
+end
+
 function GameMath.GetIncomeMultiplier(incomeLevel)
 	return 1 + (incomeLevel or 0) * EconomyConfig.IncomeUpgrade.bonusPerLevel
 end

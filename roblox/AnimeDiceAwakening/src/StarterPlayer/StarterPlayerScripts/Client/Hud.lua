@@ -10,6 +10,7 @@
 --
 -- Інші модулі змінюють поведінку кнопок через Hud.SetAction і читають їх через Hud.Get.
 
+local Lighting = game:GetService("Lighting")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local TweenService = game:GetService("TweenService")
 
@@ -53,6 +54,12 @@ Hud.Colors = COLORS
 
 local updateHint = function() end
 
+-- Розмиття світу позаду відкритого вікна (лише на екрані цього гравця)
+local blur = Instance.new("BlurEffect")
+blur.Name = "PanelBlur"
+blur.Size = 0
+blur.Parent = Lighting
+
 local function anyPanelOpen()
 	for _, panel in panels do
 		if panel.Visible then
@@ -67,6 +74,11 @@ function Hud.RegisterPanel(name, panel)
 	-- Підказка навчання ховається, поки відкрите будь-яке вікно
 	panel:GetPropertyChangedSignal("Visible"):Connect(function()
 		updateHint()
+		local open = false
+		for _, other in panels do
+			open = open or other.Visible
+		end
+		TweenService:Create(blur, TweenInfo.new(0.2), { Size = if open then 14 else 0 }):Play()
 	end)
 end
 

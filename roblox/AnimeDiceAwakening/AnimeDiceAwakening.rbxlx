@@ -1070,6 +1070,38 @@ function GameMath.GetChances(dice, playerLuck)
 	return chances
 end
 
+-- Шанс випасти саме цьому герою з кубика (0..1) — для напису "1 in 52K".
+function GameMath.GetHeroChance(dice, heroId, playerLuck)
+	local heroDef = HeroConfig.Heroes[heroId]
+	if not heroDef then
+		return 0
+	end
+	local weights, total = GameMath.GetRarityWeights(dice, playerLuck)
+	if total <= 0 then
+		return 0
+	end
+	local heroWeight, rarityTotal = 0, 0
+	for _, other in HeroConfig.ByRarity[heroDef.rarity] or {} do
+		local weight = if dice.element and other.element == dice.element then dice.elementBonus else 1
+		rarityTotal += weight
+		if other.id == heroId then
+			heroWeight = weight
+		end
+	end
+	if rarityTotal <= 0 then
+		return 0
+	end
+	return weights[heroDef.rarity] / total * heroWeight / rarityTotal
+end
+
+-- 0.000019 -> "1 in 52.6K"
+function GameMath.FormatOdds(chance)
+	if chance <= 0 then
+		return "1 in ∞"
+	end
+	return "1 in " .. GameMath.FormatNumber(math.max(1, math.floor(1 / chance + 0.5)))
+end
+
 function GameMath.GetIncomeMultiplier(incomeLevel)
 	return 1 + (incomeLevel or 0) * EconomyConfig.IncomeUpgrade.bonusPerLevel
 end
@@ -5393,6 +5425,7 @@ return FollowerController
 --
 -- Інші модулі змінюють поведінку кнопок через Hud.SetAction і читають їх через Hud.Get.
 
+local Lighting = game:GetService("Lighting")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local TweenService = game:GetService("TweenService")
 
@@ -5436,6 +5469,12 @@ Hud.Colors = COLORS
 
 local updateHint = function() end
 
+-- Розмиття світу позаду відкритого вікна (лише на екрані цього гравця)
+local blur = Instance.new("BlurEffect")
+blur.Name = "PanelBlur"
+blur.Size = 0
+blur.Parent = Lighting
+
 local function anyPanelOpen()
 	for _, panel in panels do
 		if panel.Visible then
@@ -5450,6 +5489,11 @@ function Hud.RegisterPanel(name, panel)
 	-- Підказка навчання ховається, поки відкрите будь-яке вікно
 	panel:GetPropertyChangedSignal("Visible"):Connect(function()
 		updateHint()
+		local open = false
+		for _, other in panels do
+			open = open or other.Visible
+		end
+		TweenService:Create(blur, TweenInfo.new(0.2), { Size = if open then 14 else 0 }):Play()
 	end)
 end
 
@@ -6909,6 +6953,7 @@ local EconomyConfig = require(Config:WaitForChild("EconomyConfig"))
 local HeroConfig = require(Config:WaitForChild("HeroConfig"))
 local RarityConfig = require(Config:WaitForChild("RarityConfig"))
 local GameMath = require(Shared:WaitForChild("GameMath"))
+local HeroModelBuilder = require(Shared:WaitForChild("HeroModelBuilder"))
 
 local Client = script.Parent
 local UIKit = require(Client:WaitForChild("UIKit"))
@@ -6926,15 +6971,20 @@ local skipRequested = false
 local ui: { [string]: any } = {} -- посилання на елементи інтерфейсу
 
 ---------------------------------------------------------------------
--- Анімація кидка
+-- Показ кидка: герої швидко змінюють один одного (як у слот-машині),
+-- сповільнюються й зупиняються на тому, якого вже вибрав сервер.
+-- Над героєм — шанс "1 in 52K", під ним — ім'я та рідкість, позаду — промені.
 ---------------------------------------------------------------------
+
+local RAY_COUNT = 16
+local rng = Random.new()
 
 local function buildOverlay(gui)
 	local overlay = UIKit.Create("TextButton", {
 		Name = "RollOverlay",
 		Size = UDim2.fromScale(1, 1),
-		BackgroundColor3 = Color3.new(0, 0, 0),
-		BackgroundTransparency = 0.35,
+		BackgroundColor3 = Color3.fromRGB(8, 18, 70),
+		BackgroundTransparency = 0.18,
 		AutoButtonColor = false,
 		Text = "",
 		Visible = false,
@@ -6944,12 +6994,18 @@ local function buildOverlay(gui)
 	overlay.Activated:Connect(function()
 		skipRequested = true
 	end)
+	UIKit.Create("UIGradient", {
+		Color = ColorSequence.new(Color3.fromRGB(70, 120, 255), Color3.fromRGB(10, 20, 90)),
+		Rotation = 90,
+		Parent = overlay,
+	})
 
 	local flash = UIKit.Create("Frame", {
 		Name = "Flash",
 		Size = UDim2.fromScale(1, 1),
 		BackgroundColor3 = Color3.new(1, 1, 1),
 		BackgroundTransparency = 1,
+		ZIndex = 5,
 		Parent = overlay,
 	})
 
@@ -6957,134 +7013,264 @@ local function buildOverlay(gui)
 		Name = "Stage",
 		AnchorPoint = Vector2.new(0.5, 0.5),
 		Position = UDim2.fromScale(0.5, 0.5),
-		Size = UDim2.fromOffset(460, 440),
+		Size = UDim2.fromOffset(900, 640),
 		BackgroundTransparency = 1,
 		Parent = overlay,
 	})
 	UIKit.AddScale(stage)
 
-	-- Промені за карткою (два квадрати, що обертаються)
-	local rays = {}
-	for i = 1, 2 do
+	-- Промені від центру
+	local rays = UIKit.Create("Frame", {
+		Name = "Rays",
+		AnchorPoint = Vector2.new(0.5, 0.5),
+		Position = UDim2.fromScale(0.5, 0.4),
+		Size = UDim2.fromOffset(10, 10),
+		BackgroundTransparency = 1,
+		Parent = stage,
+	})
+	-- Кожен промінь — смуга через центр (GUI обертається навколо свого центру),
+	-- яскрава посередині й прозора на кінцях: виходить "сонце" з RAY_COUNT променів.
+	local rayParts = {}
+	for i = 1, RAY_COUNT / 2 do
 		local ray = UIKit.Create("Frame", {
 			AnchorPoint = Vector2.new(0.5, 0.5),
-			Position = UDim2.fromScale(0.5, 0.45),
-			Size = UDim2.fromOffset(300, 300),
-			BackgroundTransparency = 0.55,
-			Rotation = i * 45,
-			Visible = false,
+			Position = UDim2.fromScale(0.5, 0.5),
+			Size = UDim2.fromOffset(if i % 2 == 0 then 70 else 40, 1150),
+			Rotation = i * (360 / RAY_COUNT),
+			BackgroundColor3 = Color3.new(1, 1, 1),
+			BorderSizePixel = 0,
+			Parent = rays,
+		})
+		UIKit.Create("UIGradient", {
+			Transparency = NumberSequence.new({
+				NumberSequenceKeypoint.new(0, 1),
+				NumberSequenceKeypoint.new(0.5, 0.35),
+				NumberSequenceKeypoint.new(1, 1),
+			}),
+			Rotation = 90,
+			Parent = ray,
+		})
+		rayParts[i] = ray
+	end
+
+	-- Кольорове сяйво позаду героя
+	local glow = UIKit.Create("Frame", {
+		Name = "Glow",
+		AnchorPoint = Vector2.new(0.5, 0.5),
+		Position = UDim2.fromScale(0.5, 0.4),
+		Size = UDim2.fromOffset(380, 380),
+		BackgroundColor3 = Color3.new(1, 1, 1),
+		BackgroundTransparency = 0.45,
+		Parent = stage,
+	})
+	UIKit.Create("UICorner", { CornerRadius = UDim.new(0.5, 0), Parent = glow })
+	UIKit.Create("UIGradient", {
+		Transparency = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0), NumberSequenceKeypoint.new(0.7, 0.6), NumberSequenceKeypoint.new(1, 1) }),
+		Rotation = 90,
+		Parent = glow,
+	})
+
+	-- Сам герой — справжня 3D-модель у ViewportFrame
+	local holder = UIKit.Create("Frame", {
+		Name = "Holder",
+		AnchorPoint = Vector2.new(0.5, 0.5),
+		Position = UDim2.fromScale(0.5, 0.4),
+		Size = UDim2.fromOffset(340, 340),
+		BackgroundTransparency = 1,
+		Parent = stage,
+	})
+	local pop = UIKit.Create("UIScale", { Parent = holder })
+	local viewport = UIKit.Create("ViewportFrame", {
+		Size = UDim2.fromScale(1, 1),
+		BackgroundTransparency = 1,
+		Ambient = Color3.fromRGB(190, 190, 210),
+		LightColor = Color3.new(1, 1, 1),
+		LightDirection = Vector3.new(-0.4, -1, 0.6),
+		Parent = holder,
+	})
+	local camera = Instance.new("Camera")
+	camera.FieldOfView = 40
+	camera.Parent = viewport
+	viewport.CurrentCamera = camera
+
+	-- Білі "леза" з боків
+	local glints = {}
+	for side = -1, 1, 2 do
+		local glint = UIKit.Create("Frame", {
+			AnchorPoint = Vector2.new(0.5, 0.5),
+			Position = UDim2.new(0.5, side * 300, 0.4, 0),
+			Size = UDim2.fromOffset(170, 14),
+			BackgroundColor3 = Color3.new(1, 1, 1),
 			Parent = stage,
 		})
-		UIKit.Corner(ray, 30)
-		rays[i] = ray
-	end
-
-	local die = UIKit.Create("Frame", {
-		Name = "Die",
-		AnchorPoint = Vector2.new(0.5, 0.5),
-		Position = UDim2.fromScale(0.5, 0.42),
-		Size = UDim2.fromOffset(170, 170),
-		BackgroundColor3 = Color3.new(1, 1, 1),
-		Parent = stage,
-	})
-	UIKit.Corner(die, 28)
-	local dieStroke = UIKit.Stroke(die, Color3.fromRGB(30, 20, 50), 6)
-	local dieLabel = UIKit.Label({
-		Size = UDim2.fromScale(1, 1),
-		Font = UIKit.Font,
-		TextSize = 110,
-		TextColor3 = Color3.fromRGB(40, 30, 70),
-		Text = "?",
-		Parent = die,
-	})
-
-	local card = UIKit.Create("Frame", {
-		Name = "Card",
-		AnchorPoint = Vector2.new(0.5, 0.5),
-		Position = UDim2.fromScale(0.5, 0.45),
-		Size = UDim2.fromOffset(420, 270),
-		BackgroundColor3 = UIKit.Colors.Panel,
-		Visible = false,
-		Parent = stage,
-	})
-	UIKit.Corner(card, 20)
-	local cardStroke = UIKit.Stroke(card, Color3.new(1, 1, 1), 4)
-	local cardPop = UIKit.Create("UIScale", { Parent = card })
-
-	local function cardLabel(name, y, height, size, font)
-		return UIKit.Label({
-			Name = name,
-			Position = UDim2.fromOffset(12, y),
-			Size = UDim2.new(1, -24, 0, height),
-			Font = font or UIKit.BodyFont,
-			TextSize = size,
-			Text = "",
-			Parent = card,
+		UIKit.Create("UICorner", { CornerRadius = UDim.new(1, 0), Parent = glint })
+		UIKit.Create("UIGradient", {
+			Transparency = NumberSequence.new(if side < 0 then 0.9 else 0, if side < 0 then 0 else 0.9),
+			Parent = glint,
 		})
+		glints[side] = glint
 	end
-	local rarityLabel = cardLabel("Rarity", 10, 32, 28, UIKit.Font)
-	local nameLabel = cardLabel("HeroName", 42, 44, 34, UIKit.Font)
-	local typeLabel = cardLabel("Type", 88, 24, 18)
-	local statsLabel = cardLabel("Stats", 114, 24, 18)
-	local abilityLabel = cardLabel("Ability", 142, 60, 16)
-	abilityLabel.TextColor3 = UIKit.Colors.SubText
-	local badgeLabel = cardLabel("Badges", 210, 40, 24, UIKit.Font)
-	badgeLabel.TextColor3 = UIKit.Colors.Gold
+
+	-- "1 in 52K" — нахилений, великий
+	local odds = UIKit.Label({
+		Name = "Odds",
+		AnchorPoint = Vector2.new(0.5, 0.5),
+		Position = UDim2.fromScale(0.5, 0.1),
+		Size = UDim2.fromOffset(520, 90),
+		Rotation = -10,
+		Font = UIKit.Font,
+		TextSize = 72,
+		RichText = true,
+		Text = "",
+		Outline = 5,
+		Parent = stage,
+	})
+	odds.TextOutline.Color = Color3.fromRGB(10, 20, 70)
+
+	local name = UIKit.Label({
+		Name = "HeroName",
+		AnchorPoint = Vector2.new(0.5, 0.5),
+		Position = UDim2.fromScale(0.5, 0.67),
+		Size = UDim2.fromOffset(880, 90),
+		Font = UIKit.Font,
+		TextSize = 76,
+		Text = "",
+		Outline = 6,
+		Parent = stage,
+	})
+	local rarity = UIKit.Label({
+		Name = "Rarity",
+		AnchorPoint = Vector2.new(0.5, 0.5),
+		Position = UDim2.fromScale(0.5, 0.77),
+		Size = UDim2.fromOffset(800, 44),
+		Font = UIKit.Font,
+		TextSize = 38,
+		RichText = true,
+		Text = "",
+		Outline = 4,
+		Parent = stage,
+	})
+
+	-- Кругла кнопка AUTO внизу (як у грі на скриншоті)
+	local auto = UIKit.Create("TextButton", {
+		Name = "Auto",
+		AnchorPoint = Vector2.new(0.5, 1),
+		Position = UDim2.new(0.5, 0, 1, -12),
+		Size = UDim2.fromOffset(100, 100),
+		BackgroundColor3 = Color3.fromRGB(16, 22, 48),
+		AutoButtonColor = true,
+		Font = UIKit.Font,
+		TextSize = 26,
+		TextColor3 = Color3.new(1, 1, 1),
+		Text = "🔄\nAUTO",
+		ZIndex = 6,
+		Parent = overlay,
+	})
+	UIKit.Create("UICorner", { CornerRadius = UDim.new(1, 0), Parent = auto })
+	UIKit.Stroke(auto, Color3.fromRGB(70, 110, 220), 4)
+	UIKit.TextOutline(auto, 2.5)
+	UIKit.AddScale(auto)
+	auto.Activated:Connect(function()
+		if ui.toggleAuto then
+			ui.toggleAuto()
+		end
+	end)
 
 	local hint = UIKit.Label({
-		AnchorPoint = Vector2.new(0.5, 1),
-		Position = UDim2.fromScale(0.5, 1),
-		Size = UDim2.fromOffset(440, 30),
+		AnchorPoint = Vector2.new(0, 1),
+		Position = UDim2.new(0, 16, 1, -14),
+		Size = UDim2.fromOffset(300, 30),
+		TextXAlignment = Enum.TextXAlignment.Left,
 		TextColor3 = UIKit.Colors.SubText,
+		TextSize = 18,
 		Text = "Натисни, щоб пропустити",
-		Parent = stage,
+		ZIndex = 6,
+		Parent = overlay,
 	})
 
 	ui.overlay = {
 		root = overlay,
 		flash = flash,
 		rays = rays,
-		die = die,
-		dieStroke = dieStroke,
-		dieLabel = dieLabel,
-		card = card,
-		cardStroke = cardStroke,
-		cardPop = cardPop,
-		rarityLabel = rarityLabel,
-		nameLabel = nameLabel,
-		typeLabel = typeLabel,
-		statsLabel = statsLabel,
-		abilityLabel = abilityLabel,
-		badgeLabel = badgeLabel,
+		rayParts = rayParts,
+		glow = glow,
+		holder = holder,
+		pop = pop,
+		viewport = viewport,
+		camera = camera,
+		model = nil,
+		glints = glints,
+		odds = odds,
+		name = name,
+		rarity = rarity,
+		auto = auto,
 		hint = hint,
 	}
+
+	-- Повільне обертання променів і героя
+	game:GetService("RunService").RenderStepped:Connect(function(dt)
+		if not overlay.Visible then
+			return
+		end
+		rays.Rotation = (rays.Rotation + dt * 18) % 360
+		local o = ui.overlay
+		if o.model then
+			o.model:PivotTo(CFrame.Angles(0, math.sin(os.clock() * 1.6) * 0.45, 0))
+		end
+	end)
 end
 
-local function fillCard(result, heroDef, rarityInfo)
+local function oddsText(chance)
+	local number = string.sub(GameMath.FormatOdds(chance), 6)
+	return ('<font color="#FFFFFF">1 in </font><font color="#55B8FF">%s</font>'):format(number)
+end
+
+-- Показати героя у ViewportFrame
+local function showHero(heroDef, awakened)
 	local o = ui.overlay
-	o.rarityLabel.Text = result.rarity
-	o.rarityLabel.TextColor3 = rarityInfo.color
-	o.nameLabel.Text = heroDef.name
-	o.nameLabel.TextColor3 = rarityInfo.color:Lerp(Color3.new(1, 1, 1), 0.4)
-	o.typeLabel.Text = ("%s %s • %s"):format(HeroConfig.ElementIcons[heroDef.element] or "", heroDef.element, heroDef.archetype)
-	o.statsLabel.Text = ("⚔️ %s   ⏱ %.1f/s   🪙 +%s/s"):format(
-		GameMath.FormatNumber(heroDef.damage),
-		heroDef.attackSpeed,
-		GameMath.FormatNumber(heroDef.income)
-	)
-	o.abilityLabel.Text = ("✦ %s: %s"):format(heroDef.ability.name, heroDef.ability.description)
-	local badges = {}
-	if result.isNew then
-		table.insert(badges, "🆕 NEW!")
+	if o.model then
+		o.model:Destroy()
+		o.model = nil
 	end
-	if result.pity then
-		table.insert(badges, "🎯 Гарантія!")
+	local model = HeroModelBuilder.Build(heroDef, 1, "", awakened)
+	local nameplate = model:FindFirstChild("Nameplate")
+	if nameplate then
+		nameplate:Destroy()
 	end
-	if result.free then
-		table.insert(badges, "🎁 Безкоштовно")
+	model.Parent = o.viewport
+	o.model = model
+	local s = heroDef.look.height or 1
+	o.camera.CFrame = CFrame.lookAt(Vector3.new(0, 3.6 * s, -17 * s), Vector3.new(0, 3.4 * s, 0))
+end
+
+local function setDisplay(heroDef, chance)
+	local o = ui.overlay
+	local color = RarityConfig.GetColor(heroDef.rarity)
+	showHero(heroDef, false)
+	o.odds.Text = oddsText(chance)
+	o.name.Text = heroDef.name
+	o.rarity.Text = heroDef.rarity
+	o.rarity.TextColor3 = color
+	o.glow.BackgroundColor3 = color
+	for _, ray in o.rayParts do
+		ray.BackgroundColor3 = color:Lerp(Color3.new(1, 1, 1), 0.5)
 	end
-	o.badgeLabel.Text = table.concat(badges, "   ")
-	o.cardStroke.Color = rarityInfo.color
+end
+
+-- Випадковий герой для "прокрутки" (з тими ж вагами, що й справжній кидок)
+local function randomHero(dice, luck)
+	local weights, total = GameMath.GetRarityWeights(dice, luck)
+	local roll = rng:NextNumber() * total
+	local rarityName = "Common"
+	for _, name in RarityConfig.Order do
+		roll -= weights[name]
+		if roll <= 0 and weights[name] > 0 then
+			rarityName = name
+			break
+		end
+	end
+	local pool = HeroConfig.ByRarity[rarityName]
+	return pool[rng:NextInteger(1, #pool)]
 end
 
 local function waitOrSkip(seconds)
@@ -7114,54 +7300,72 @@ local function playReveal(result)
 
 	local o = ui.overlay
 	local effects = ClientState.GetSetting("effects")
-	local dice = DiceConfig.Dice[selectedDice]
+	local dice = DiceConfig.Dice[selectedDice] or DiceConfig.Dice.Basic
+	local data = ClientState.Data
+	local luck = if data then GameMath.GetLuck(data, workspace:GetServerTimeNow()) else 1
 	skipRequested = false
 	o.root.Visible = true
-	o.card.Visible = false
-	o.die.Visible = true
-	o.die.BackgroundColor3 = dice and dice.color or Color3.new(1, 1, 1)
-	o.dieStroke.Color = Color3.fromRGB(30, 20, 50)
-	for _, ray in o.rays do
-		ray.Visible = false
+	o.rays.Visible = false
+	for _, glint in o.glints do
+		glint.Visible = false
 	end
 
-	-- 1. Кубик крутиться. Для Legendary+ довше й змінює колір — інтрига.
+	-- 1. Прокрутка: герої змінюються дедалі повільніше. Для Legendary+ — довше (інтрига).
 	local rare = rarityInfo.rank >= 4
-	local spinTime = if rare then 1.8 else 1.0
-	local start = os.clock()
-	while os.clock() - start < spinTime and not skipRequested do
-		o.die.Rotation = (o.die.Rotation + 24) % 360
-		o.dieLabel.Text = tostring(math.random(1, 6))
-		if rare and os.clock() - start > spinTime * 0.5 then
-			o.die.BackgroundColor3 = rarityInfo.color
-			o.dieStroke.Color = Color3.new(1, 1, 1)
+	local steps = if rare then 13 else 8
+	local delay = 0.06
+	for _ = 1, steps do
+		if skipRequested then
+			break
 		end
-		task.wait(0.05)
+		local candidate = randomHero(dice, luck)
+		setDisplay(candidate, GameMath.GetHeroChance(dice, candidate.id, luck))
+		o.pop.Scale = 1.08
+		TweenService:Create(o.pop, TweenInfo.new(0.08), { Scale = 1 }):Play()
+		task.wait(delay)
+		delay *= 1.2
 	end
 	skipRequested = false
-	o.die.Rotation = 0
-	o.die.Visible = false
 
-	-- 2. Показ картки героя
-	fillCard(result, heroDef, rarityInfo)
-	o.card.Visible = true
-	o.cardPop.Scale = 0.3
-	TweenService:Create(o.cardPop, TweenInfo.new(0.35, Enum.EasingStyle.Back, Enum.EasingDirection.Out), { Scale = 1 }):Play()
+	-- 2. Справжній результат
+	setDisplay(heroDef, GameMath.GetHeroChance(dice, heroDef.id, luck))
+	o.pop.Scale = 0.45
+	TweenService:Create(o.pop, TweenInfo.new(0.4, Enum.EasingStyle.Back, Enum.EasingDirection.Out), { Scale = 1.1 }):Play()
 
-	if effects and rarityInfo.rank >= 3 then
-		for _, ray in o.rays do
-			ray.BackgroundColor3 = rarityInfo.color
-			ray.Visible = true
-			TweenService:Create(ray, TweenInfo.new(3, Enum.EasingStyle.Linear), { Rotation = ray.Rotation + 180 }):Play()
-		end
+	local badges = {}
+	if result.isNew then
+		table.insert(badges, "🆕 NEW!")
 	end
-	if effects and rare then
-		o.flash.BackgroundTransparency = 0.1
-		TweenService:Create(o.flash, TweenInfo.new(0.6), { BackgroundTransparency = 1 }):Play()
+	if result.pity then
+		table.insert(badges, "🎯 Гарантія!")
+	end
+	if result.free then
+		table.insert(badges, "🎁 FREE")
+	end
+	-- Позначки в тому ж рядку, що й рідкість, золотим кольором
+	if #badges > 0 then
+		o.rarity.Text = heroDef.rarity .. '   <font color="#FFCD3C">' .. table.concat(badges, "   ") .. "</font>"
+	end
+
+	if effects then
+		o.rays.Visible = rarityInfo.rank >= 2
+		for side, glint in o.glints do
+			glint.Visible = true
+			glint.Position = UDim2.new(0.5, side * 460, 0.4, 0)
+			TweenService:Create(glint, TweenInfo.new(0.35, Enum.EasingStyle.Quart), { Position = UDim2.new(0.5, side * 300, 0.4, 0) }):Play()
+		end
+		if rare then
+			o.flash.BackgroundTransparency = 0.1
+			TweenService:Create(o.flash, TweenInfo.new(0.7), { BackgroundTransparency = 1 }):Play()
+		end
 	end
 
 	waitOrSkip(if autoRolling then 1.0 else 2.5)
 	o.root.Visible = false
+	if o.model then
+		o.model:Destroy()
+		o.model = nil
+	end
 end
 
 ---------------------------------------------------------------------
@@ -7280,6 +7484,9 @@ function refreshButtons()
 	end
 
 	local autoUnlocked = data ~= nil and data.tutorial.completed
+	if ui.overlay then
+		ui.overlay.auto.BackgroundColor3 = if autoRolling then Color3.fromRGB(30, 140, 60) else Color3.fromRGB(16, 22, 48)
+	end
 	local autoButtons = { ui.autoButton, Hud.Get("Auto") }
 	for _, button in autoButtons do
 		if not autoUnlocked then
@@ -7445,6 +7652,7 @@ function RollUI.Init(gui)
 		task.spawn(doRoll)
 	end)
 	Hud.SetAction("Auto", toggleAuto)
+	ui.toggleAuto = toggleAuto
 	refreshInfo()
 	refreshButtons()
 	ClientState.OnDataChanged(function()
@@ -7834,9 +8042,9 @@ local player = Players.LocalPlayer
 local UIKit = {}
 
 UIKit.Colors = {
-	Background = Color3.fromRGB(24, 18, 44),
-	Panel = Color3.fromRGB(44, 32, 82),
-	PanelLight = Color3.fromRGB(72, 58, 128),
+	Background = Color3.fromRGB(22, 22, 28),
+	Panel = Color3.fromRGB(40, 40, 50),
+	PanelLight = Color3.fromRGB(78, 78, 96),
 	Outline = Color3.fromRGB(18, 10, 32),
 	Accent = Color3.fromRGB(255, 90, 200),
 	Accent2 = Color3.fromRGB(80, 190, 255),
@@ -8112,7 +8320,50 @@ function UIKit.SetBadge(button, value)
 	end
 end
 
--- Вікно по центру екрана з кольоровою шапкою. Повертає panel, content.
+-- Веселковий градієнт для особливих шапок (як у магазинах симуляторів)
+UIKit.Rainbow = ColorSequence.new({
+	ColorSequenceKeypoint.new(0, Color3.fromRGB(255, 170, 40)),
+	ColorSequenceKeypoint.new(0.2, Color3.fromRGB(255, 60, 120)),
+	ColorSequenceKeypoint.new(0.4, Color3.fromRGB(150, 60, 255)),
+	ColorSequenceKeypoint.new(0.6, Color3.fromRGB(50, 120, 255)),
+	ColorSequenceKeypoint.new(0.8, Color3.fromRGB(40, 230, 220)),
+	ColorSequenceKeypoint.new(1, Color3.fromRGB(80, 230, 70)),
+})
+
+-- Горизонтальний градієнт кольору шапки: світліший ліворуч, насиченіший праворуч
+local function headerSequence(color)
+	if typeof(color) == "ColorSequence" then
+		return color
+	end
+	return ColorSequence.new(color:Lerp(Color3.new(1, 1, 1), 0.25), color:Lerp(Color3.new(0, 0, 0), 0.15))
+end
+
+-- Діагональні смуги поверх шапки (замість "шахівниці" з картинки)
+local function addStripes(parent)
+	local holder = UIKit.Create("Frame", {
+		Name = "Stripes",
+		Size = UDim2.fromScale(1, 1),
+		BackgroundTransparency = 1,
+		ClipsDescendants = true,
+		Parent = parent,
+	})
+	for i = 0, 24 do
+		UIKit.Create("Frame", {
+			AnchorPoint = Vector2.new(0.5, 0.5),
+			Position = UDim2.new(0, i * 40, 0.5, 0),
+			Size = UDim2.new(0, 14, 2.5, 0),
+			Rotation = 30,
+			BackgroundColor3 = Color3.new(1, 1, 1),
+			BackgroundTransparency = 0.9,
+			BorderSizePixel = 0,
+			Parent = holder,
+		})
+	end
+	return holder
+end
+
+-- Вікно по центру екрана: темне тіло, яскрава шапка з емодзі й великим червоним X.
+-- color — Color3 або ColorSequence (наприклад, UIKit.Rainbow). Повертає panel, content.
 function UIKit.Panel(gui, name, title, color)
 	color = color or UIKit.Colors.Accent
 	local panel = UIKit.Create("Frame", {
@@ -8125,77 +8376,91 @@ function UIKit.Panel(gui, name, title, color)
 		ZIndex = 10,
 		Parent = gui,
 	})
-	UIKit.Corner(panel, 22)
-	UIKit.Stroke(panel, UIKit.Colors.Outline, 5)
+	UIKit.Corner(panel, 18)
+	UIKit.Stroke(panel, UIKit.Colors.Outline, 6)
 	UIKit.AddScale(panel)
 	UIKit.Create("UIGradient", {
-		Color = ColorSequence.new(UIKit.Colors.PanelLight, UIKit.Colors.Background),
+		Color = ColorSequence.new(Color3.fromRGB(62, 62, 74), Color3.fromRGB(34, 34, 42)),
 		Rotation = 90,
 		Parent = panel,
 	})
 
-	-- Кольорова шапка
+	-- Яскрава шапка
 	local header = UIKit.Create("Frame", {
 		Name = "Header",
-		Size = UDim2.new(1, 0, 0, 60),
-		BackgroundColor3 = color,
+		Size = UDim2.new(1, 0, 0, 64),
+		BackgroundColor3 = Color3.new(1, 1, 1),
+		ClipsDescendants = true,
 		Parent = panel,
 	})
-	UIKit.Corner(header, 22)
-	-- Нижні кути шапки прямі: прикриваємо їх смужкою того ж кольору
-	UIKit.Create("Frame", {
-		Position = UDim2.new(0, 0, 1, -22),
-		Size = UDim2.new(1, 0, 0, 22),
-		BackgroundColor3 = color,
+	UIKit.Corner(header, 18)
+	UIKit.Create("UIGradient", { Color = headerSequence(color), Parent = header })
+	addStripes(header)
+	-- Нижні кути шапки прямі
+	local filler = UIKit.Create("Frame", {
+		Position = UDim2.new(0, 0, 1, -20),
+		Size = UDim2.new(1, 0, 0, 20),
+		BackgroundColor3 = Color3.new(1, 1, 1),
+		BorderSizePixel = 0,
+		ZIndex = 0,
+		Parent = header,
+	})
+	UIKit.Create("UIGradient", { Color = headerSequence(color), Parent = filler })
+	local shine = UIKit.Create("Frame", {
+		Position = UDim2.fromOffset(0, 0),
+		Size = UDim2.new(1, 0, 0.45, 0),
+		BackgroundColor3 = Color3.new(1, 1, 1),
+		BackgroundTransparency = 0.82,
 		BorderSizePixel = 0,
 		Parent = header,
 	})
-	local shine = UIKit.Create("Frame", {
-		Position = UDim2.fromOffset(10, 5),
-		Size = UDim2.new(1, -20, 0, 20),
-		BackgroundColor3 = Color3.new(1, 1, 1),
-		BackgroundTransparency = 0.8,
-		Parent = header,
+	UIKit.Create("UIGradient", {
+		Transparency = NumberSequence.new(0.3, 1),
+		Rotation = 90,
+		Parent = shine,
 	})
-	UIKit.Corner(shine, 10)
 	UIKit.Create("Frame", {
 		Name = "Divider",
-		Position = UDim2.new(0, 0, 1, 0),
-		Size = UDim2.new(1, 0, 0, 4),
+		Position = UDim2.new(0, 0, 0, 64),
+		Size = UDim2.new(1, 0, 0, 5),
 		BackgroundColor3 = UIKit.Colors.Outline,
 		BorderSizePixel = 0,
-		Parent = header,
+		Parent = panel,
 	})
 
 	UIKit.Label({
 		Name = "Title",
-		Position = UDim2.fromOffset(22, 6),
-		Size = UDim2.new(1, -100, 0, 48),
+		Position = UDim2.fromOffset(22, 4),
+		Size = UDim2.new(1, -110, 0, 56),
 		Font = UIKit.Font,
-		TextSize = 34,
+		TextSize = 40,
 		TextXAlignment = Enum.TextXAlignment.Left,
 		Text = title,
-		Outline = 3,
+		Outline = 3.5,
 		Parent = header,
 	})
 
-	UIKit.Button({
+	-- Великий червоний X у правому куті
+	local close = UIKit.Button({
 		Name = "Close",
-		AnchorPoint = Vector2.new(1, 0.5),
-		Position = UDim2.new(1, -10, 0.5, 0),
-		Size = UDim2.fromOffset(46, 46),
-		BackgroundColor3 = UIKit.Colors.Danger,
-		Text = "✕",
-		TextSize = 26,
-		Parent = header,
+		AnchorPoint = Vector2.new(1, 0),
+		Position = UDim2.new(1, 0, 0, 0),
+		Size = UDim2.fromOffset(78, 64),
+		BackgroundColor3 = Color3.fromRGB(235, 45, 55),
+		Text = "X",
+		TextSize = 46,
+		Parent = panel,
 	}, function()
 		panel.Visible = false
 	end)
+	close.UICorner.CornerRadius = UDim.new(0, 18)
+	close.Outline.UICorner.CornerRadius = UDim.new(0, 18)
+	close.TextOutline.Thickness = 3.5
 
 	local content = UIKit.Create("Frame", {
 		Name = "Content",
-		Position = UDim2.fromOffset(18, 76),
-		Size = UDim2.new(1, -36, 1, -90),
+		Position = UDim2.fromOffset(18, 82),
+		Size = UDim2.new(1, -36, 1, -96),
 		BackgroundTransparency = 1,
 		Parent = panel,
 	})
@@ -8203,11 +8468,67 @@ function UIKit.Panel(gui, name, title, color)
 	-- Поява вікна з легким "стрибком"
 	panel:GetPropertyChangedSignal("Visible"):Connect(function()
 		if panel.Visible then
-			panel.Position = UDim2.new(0.5, 0, 0.5, 24)
-			TweenService:Create(panel, TweenInfo.new(0.22, Enum.EasingStyle.Back, Enum.EasingDirection.Out), { Position = UDim2.fromScale(0.5, 0.5) }):Play()
+			panel.Position = UDim2.new(0.5, 0, 0.5, 30)
+			TweenService:Create(panel, TweenInfo.new(0.25, Enum.EasingStyle.Back, Enum.EasingDirection.Out), { Position = UDim2.fromScale(0.5, 0.5) }):Play()
 		end
 	end)
 	return panel, content
+end
+
+-- Картка всередині вікна: темна, з товстою кольоровою рамкою й легким світінням зверху.
+function UIKit.Card(props, color)
+	color = color or UIKit.Colors.Accent2
+	local defaults = { BackgroundColor3 = Color3.fromRGB(26, 26, 32) }
+	for key, value in props do
+		if key ~= "ClassName" then
+			defaults[key] = value
+		end
+	end
+	local card = UIKit.Create(props.ClassName or "Frame", defaults)
+	UIKit.Corner(card, 14)
+	UIKit.Stroke(card, color, 4)
+	local glow = UIKit.Create("Frame", {
+		Name = "Glow",
+		Size = UDim2.new(1, 0, 0.6, 0),
+		BackgroundColor3 = color,
+		BackgroundTransparency = 0.6,
+		BorderSizePixel = 0,
+		Parent = card,
+	})
+	UIKit.Corner(glow, 14)
+	UIKit.Create("UIGradient", { Transparency = NumberSequence.new(0.35, 1), Rotation = 90, Parent = glow })
+	return card
+end
+
+-- Розділювач секції: — Gamepasses —
+function UIKit.Divider(parent, text, order)
+	local frame = UIKit.Create("Frame", {
+		LayoutOrder = order or 0,
+		Size = UDim2.new(1, -12, 0, 40),
+		BackgroundTransparency = 1,
+		Parent = parent,
+	})
+	for side = 0, 1 do
+		UIKit.Create("Frame", {
+			AnchorPoint = Vector2.new(side, 0.5),
+			Position = UDim2.new(side, 0, 0.5, 0),
+			Size = UDim2.new(0.3, 0, 0, 3),
+			BackgroundColor3 = Color3.fromRGB(220, 220, 230),
+			BorderSizePixel = 0,
+			Parent = frame,
+		})
+	end
+	UIKit.Label({
+		AnchorPoint = Vector2.new(0.5, 0.5),
+		Position = UDim2.fromScale(0.5, 0.5),
+		Size = UDim2.new(0.38, 0, 1, 0),
+		Font = UIKit.Font,
+		TextSize = 28,
+		Text = text,
+		Outline = 3,
+		Parent = frame,
+	})
+	return frame
 end
 
 -- Спливаючі повідомлення
@@ -8314,6 +8635,7 @@ return UIKit
             <string name="Source"><![CDATA[-- UpgradesUI: покращення бази за Coins і магазин за Crystals (зілля, більша сумка).
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local TweenService = game:GetService("TweenService")
 
 local Shared = ReplicatedStorage:WaitForChild("Shared")
 local Config = Shared:WaitForChild("Config")
@@ -8418,66 +8740,72 @@ local function refresh()
 	Hud.SetBadge("Upgrades", affordableUpgrades)
 end
 
-local function buildRow(list, order, entry)
-	local row = UIKit.Create("Frame", {
-		LayoutOrder = order,
-		Size = UDim2.new(1, -12, 0, 88),
-		BackgroundColor3 = UIKit.Colors.Background,
-		BackgroundTransparency = 0.2,
-		Parent = list,
-	})
-	UIKit.Corner(row, 16)
-	UIKit.Stroke(row, UIKit.Colors.Outline, 3)
+-- Колір рамки картки для кожного товару
+local CARD_COLORS = {
+	Slots = Color3.fromRGB(70, 140, 255),
+	Income = Color3.fromRGB(255, 185, 40),
+	LuckPotion = Color3.fromRGB(70, 210, 90),
+	CoinPotion = Color3.fromRGB(255, 185, 40),
+	BigBag = Color3.fromRGB(170, 90, 255),
+}
 
-	-- Квадратна іконка ліворуч (перший символ назви — емодзі)
+-- Картка товару: велика іконка, кольорова назва, опис і зелена кнопка ціни
+local function buildCard(grid, order, entry)
+	local color = CARD_COLORS[entry.id] or UIKit.Colors.Accent2
+	local card = UIKit.Card({ LayoutOrder = order, Parent = grid }, color)
+
 	local icon, name = string.match(entry.title, "^(%S+)%s+(.+)$")
-	local iconBox = UIKit.Label({
-		Position = UDim2.fromOffset(10, 10),
-		Size = UDim2.fromOffset(68, 68),
-		BackgroundColor3 = if entry.currency == "Crystals" then UIKit.Colors.Accent2 else UIKit.Colors.Success,
-		BackgroundTransparency = 0,
+	local iconLabel = UIKit.Label({
+		AnchorPoint = Vector2.new(0.5, 0),
+		Position = UDim2.new(0.5, 0, 0, 8),
+		Size = UDim2.fromOffset(100, 84),
 		TextScaled = true,
 		Text = icon or "⭐",
 		Outline = 0,
-		Parent = row,
+		Parent = card,
 	})
-	UIKit.Corner(iconBox, 14)
-	UIKit.Stroke(iconBox, UIKit.Colors.Outline, 3)
-	UIKit.Shade(iconBox, 0.3)
+	-- Іконка м'яко "плаває"
+	TweenService:Create(iconLabel, TweenInfo.new(1.2, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut, -1, true), {
+		Position = UDim2.new(0.5, 0, 0, 2),
+	}):Play()
 
-	UIKit.Label({
-		Position = UDim2.fromOffset(92, 8),
-		Size = UDim2.new(1, -300, 0, 34),
+	local title = UIKit.Label({
+		Position = UDim2.fromOffset(8, 92),
+		Size = UDim2.new(1, -16, 0, 34),
 		Font = UIKit.Font,
-		TextSize = 26,
-		TextXAlignment = Enum.TextXAlignment.Left,
+		TextScaled = true,
+		TextColor3 = color:Lerp(Color3.new(1, 1, 1), 0.25),
 		Text = name or entry.title,
-		Outline = 2.5,
-		Parent = row,
+		Outline = 3,
+		Parent = card,
 	})
+	UIKit.Create("UITextSizeConstraint", { MaxTextSize = 30, Parent = title })
 	local description = UIKit.Label({
-		Position = UDim2.fromOffset(92, 44),
-		Size = UDim2.new(1, -300, 0, 38),
-		TextSize = 15,
-		TextColor3 = UIKit.Colors.SubText,
-		TextXAlignment = Enum.TextXAlignment.Left,
-		Parent = row,
+		Position = UDim2.fromOffset(10, 126),
+		Size = UDim2.new(1, -20, 0, 52),
+		Font = UIKit.Font,
+		TextScaled = true,
+		Outline = 1.5,
+		Parent = card,
 	})
+	UIKit.Create("UITextSizeConstraint", { MaxTextSize = 17, Parent = description })
 	local button = UIKit.Button({
-		AnchorPoint = Vector2.new(1, 0.5),
-		Position = UDim2.new(1, -14, 0.5, 0),
-		Size = UDim2.fromOffset(190, 60),
-		TextSize = 24,
-		Parent = row,
+		AnchorPoint = Vector2.new(0.5, 1),
+		Position = UDim2.new(0.5, 0, 1, -10),
+		Size = UDim2.new(1, -30, 0, 48),
+		BackgroundColor3 = UIKit.Colors.Success,
+		TextSize = 28,
+		Parent = card,
 	}, function()
 		local result = ClientState.Request(entry.remote, entry.id)
 		UIKit.Toast(result.message or "", if result.ok then "success" else "error")
 	end)
+	button.TextOutline.Thickness = 3
 	rows[entry.id] = { description = description, button = button }
 end
 
--- Вікно зі списком покращень однієї валюти
-local function buildPanel(gui, panelName, title, color, currency, hint)
+-- Вікно з сіткою карток однієї валюти
+local function buildPanel(gui, panelName, title, color, currency, sectionTitle, hint)
 	local newPanel, content = UIKit.Panel(gui, panelName, title, color)
 	Hud.RegisterPanel(panelName, newPanel)
 	local list = UIKit.Create("ScrollingFrame", {
@@ -8490,28 +8818,47 @@ local function buildPanel(gui, panelName, title, color, currency, hint)
 		ScrollingDirection = Enum.ScrollingDirection.Y,
 		Parent = content,
 	})
-	UIKit.Create("UIListLayout", { Padding = UDim.new(0, 10), SortOrder = Enum.SortOrder.LayoutOrder, Parent = list })
-	UIKit.Create("UIPadding", { PaddingTop = UDim.new(0, 4), PaddingLeft = UDim.new(0, 4), Parent = list })
+	UIKit.Create("UIListLayout", {
+		Padding = UDim.new(0, 8),
+		HorizontalAlignment = Enum.HorizontalAlignment.Center,
+		SortOrder = Enum.SortOrder.LayoutOrder,
+		Parent = list,
+	})
+	UIKit.Divider(list, sectionTitle, 1)
 	UIKit.Label({
-		LayoutOrder = 0,
-		Size = UDim2.new(1, -12, 0, 26),
-		TextSize = 16,
+		LayoutOrder = 2,
+		Size = UDim2.new(1, -12, 0, 22),
+		TextSize = 15,
 		TextColor3 = UIKit.Colors.SubText,
-		TextXAlignment = Enum.TextXAlignment.Left,
 		Text = hint,
 		Parent = list,
 	})
+	local grid = UIKit.Create("Frame", {
+		LayoutOrder = 3,
+		Size = UDim2.new(1, -12, 0, 0),
+		AutomaticSize = Enum.AutomaticSize.Y,
+		BackgroundTransparency = 1,
+		Parent = list,
+	})
+	UIKit.Create("UIGridLayout", {
+		CellSize = UDim2.fromOffset(230, 240),
+		CellPadding = UDim2.fromOffset(12, 12),
+		HorizontalAlignment = Enum.HorizontalAlignment.Center,
+		SortOrder = Enum.SortOrder.LayoutOrder,
+		Parent = grid,
+	})
+	UIKit.Create("UIPadding", { PaddingTop = UDim.new(0, 6), PaddingBottom = UDim.new(0, 6), Parent = grid })
 	for index, entry in ENTRIES do
 		if entry.currency == currency then
-			buildRow(list, index, entry)
+			buildCard(grid, index, entry)
 		end
 	end
 	return newPanel
 end
 
 function UpgradesUI.Init(gui)
-	local upgradesPanel = buildPanel(gui, "Upgrades", "⬆️ Upgrades", Color3.fromRGB(70, 205, 100), "Coins", "Покращення бази за 🪙 Coins")
-	local shopPanel = buildPanel(gui, "Shop", "💎 Crystal Shop", Color3.fromRGB(60, 205, 85), "Crystals", "💎 Кристали дають боси, завдання, колекція та Rebirth")
+	local upgradesPanel = buildPanel(gui, "Upgrades", "⬆️ Upgrades", Color3.fromRGB(70, 205, 100), "Coins", "Base", "Покращення бази за 🪙 Coins")
+	local shopPanel = buildPanel(gui, "Shop", "🛒 Shop", UIKit.Rainbow, "Crystals", "Crystal Shop", "💎 Кристали дають боси, завдання, колекція та Rebirth")
 
 	ClientState.OnDataChanged(refresh)
 	ClientState.OnCurrencyChanged(refresh)

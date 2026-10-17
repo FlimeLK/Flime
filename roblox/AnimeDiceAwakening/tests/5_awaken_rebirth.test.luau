@@ -115,6 +115,21 @@ local p2 = Sim.newPlayer(801, "Awakener")
 local d2 = DataService.LoadPlayer(p2)
 check(d2.rebirths == 1 and d2.heroes[a].awakened == true, "rebirth and awakening saved")
 
+-- "1 in N" odds: per-hero chances of each dice sum to 1
+local DiceConfig = R(Shared.Config.DiceConfig)
+for diceId, dice in DiceConfig.Dice do
+	for _, luck in { 1, 2.5 } do
+		local sum = 0
+		for _, heroDef in HeroConfig.List do
+			sum += GameMath.GetHeroChance(dice, heroDef.id, luck)
+		end
+		check(math.abs(sum - 1) < 1e-9, ("hero chances sum to 1 for %s (luck %.1f): %.6f"):format(diceId, luck, sum))
+	end
+end
+check(GameMath.GetHeroChance(DiceConfig.Dice.Tidal, "marisol_tidecaller", 1) > GameMath.GetHeroChance(DiceConfig.Dice.Tidal, "seren_starblade", 1), "tidal favours water legendary")
+check(GameMath.FormatOdds(1 / 52000) == "1 in 52K", "odds format: " .. GameMath.FormatOdds(1 / 52000))
+check(GameMath.FormatOdds(0) == "1 in ∞", "zero odds")
+
 print(("awaken/rebirth passed=%d failed=%d"):format(passed, failed))
 if failed > 0 then
 	error("tests failed")
