@@ -225,7 +225,7 @@ local store = {}
 function store:UpdateAsync(key, fn)
 	if G.datastoreFail > 0 then
 		G.datastoreFail -= 1
-		error("Simulated DataStore outage")
+		error(G.datastoreFailMessage or "Simulated DataStore outage")
 	end
 	local new = fn(deepCopy(G.datastore[key]))
 	if new ~= nil then

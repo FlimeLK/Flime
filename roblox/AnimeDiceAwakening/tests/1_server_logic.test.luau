@@ -264,6 +264,27 @@ check(G.kicked[p1c] ~= nil, "player kicked on load failure")
 check(G.datastore["player_101"].coins == snapshot.coins, "existing data untouched")
 G.datastoreFail = 0
 
+-- Studio without API access: no pointless retries, temporary data that is never saved
+G.isStudio = true
+G.datastoreFail = 100
+G.datastoreFailMessage = "403: Cannot write to DataStore from studio if API access is not enabled."
+local p1d = Sim.newPlayer(103, "StudioTester")
+local co3 = coroutine.create(function()
+	return DataService.LoadPlayer(p1d)
+end)
+local okd, d3 = coroutine.resume(co3)
+while coroutine.status(co3) == "suspended" do
+	okd, d3 = coroutine.resume(co3)
+end
+check(okd and d3 ~= nil and G.kicked[p1d] == nil, "studio: temporary data instead of kick")
+check(G.datastoreFail == 99, "studio: no retries on API-access error (" .. G.datastoreFail .. " left)")
+G.datastoreFail = 0
+G.datastoreFailMessage = nil
+p1d.Parent = nil
+DataService.ReleasePlayer(p1d)
+check(G.datastore["player_103"] == nil, "studio: temporary data never saved")
+G.isStudio = false
+
 -- Offline income
 local p2 = Sim.newPlayer(202, "Bob")
 local d = DataService.LoadPlayer(p2)

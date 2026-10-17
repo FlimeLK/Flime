@@ -248,6 +248,11 @@ local function createLeaderstats(player, data)
 	leaderstats.Parent = player
 end
 
+-- Помилка "Studio Access to API Services вимкнено" (403) — повтор нічого не змінить
+local function isStudioAccessError(err)
+	return RunService:IsStudio() and string.find(tostring(err), "API access is not enabled", 1, true) ~= nil
+end
+
 -- Завантажує дані гравця. Повертає таблицю даних або nil (гравця відключено / він вийшов).
 function DataService.LoadPlayer(player)
 	local key = KEY_PREFIX .. player.UserId
@@ -269,7 +274,8 @@ function DataService.LoadPlayer(player)
 			else
 				errors += 1
 				warn(("[DataService] Не вдалося завантажити %s (спроба %d): %s"):format(player.Name, errors, tostring(result)))
-				if errors >= MAX_ATTEMPTS then
+				-- У Studio без дозволу на API повтори марні: одразу переходимо на тимчасові дані
+				if errors >= MAX_ATTEMPTS or isStudioAccessError(result) then
 					break
 				end
 				task.wait(math.min(2 ^ errors, 8))
