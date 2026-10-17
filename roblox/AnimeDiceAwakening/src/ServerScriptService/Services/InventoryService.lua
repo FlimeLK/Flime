@@ -4,6 +4,7 @@
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Shared = ReplicatedStorage:WaitForChild("Shared")
+local CombatConfig = require(Shared.Config.CombatConfig)
 local EconomyConfig = require(Shared.Config.EconomyConfig)
 local HeroConfig = require(Shared.Config.HeroConfig)
 local RarityConfig = require(Shared.Config.RarityConfig)
@@ -64,18 +65,27 @@ end
 -- Обробники дій з одним героєм: (player, data, uid, hero, heroDef) -> ok, message
 local heroActions = {}
 
-function heroActions.Place(player, data, uid, hero)
+local function removeFromTeam(data, uid)
+	for i = 1, CombatConfig.TeamSize do
+		if data.team[i] == uid then
+			data.team[i] = ""
+			return true
+		end
+	end
+	return false
+end
+
+-- Один герой — або на базі, або в команді: Place сам забирає героя з команди.
+function heroActions.Place(player, data, uid)
 	if findSlot(data, uid) then
 		return false, "Герой уже на базі"
 	end
-	if hero.inTeam then
-		return false, "Герой у бойовій команді"
-	end
 	for i = 1, data.slotCount do
 		if data.slots[i] == "" then
+			local fromTeam = removeFromTeam(data, uid)
 			data.slots[i] = uid
 			completeTutorial(player, data)
-			return true, "Героя поставлено на базу"
+			return true, if fromTeam then "Героя переведено з команди на базу" else "Героя поставлено на базу"
 		end
 	end
 	return false, "Немає вільних слотів. Купи слот в Upgrades!"
@@ -102,7 +112,7 @@ function heroActions.Sell(player, data, uid, hero, heroDef)
 	if findSlot(data, uid) then
 		return false, "Спершу зніми героя з бази"
 	end
-	if hero.inTeam then
+	if GameMath.IsInTeam(data, uid) then
 		return false, "Спершу прибери героя з команди"
 	end
 	local price = GameMath.GetSellPrice(heroDef, hero.level)
@@ -119,14 +129,14 @@ function heroActions.Merge(_player, data, uid, hero, heroDef)
 	end
 	local fodderUid, fodderLevel = nil, math.huge
 	for otherUid, other in data.heroes do
-		if otherUid ~= uid and other.id == hero.id and not other.locked and not other.inTeam and not findSlot(data, otherUid) then
+		if otherUid ~= uid and other.id == hero.id and not other.locked and not GameMath.IsInTeam(data, otherUid) and not findSlot(data, otherUid) then
 			if other.level < fodderLevel then
 				fodderUid, fodderLevel = otherUid, other.level
 			end
 		end
 	end
 	if not fodderUid then
-		return false, "Потрібен вільний незаблокований дублікат цього героя"
+		return false, "Потрібен дублікат цього героя: не заблокований, не на базі й не в команді"
 	end
 	data.heroes[fodderUid] = nil
 	hero.level += 1
@@ -137,12 +147,12 @@ local function equipBest(player, data)
 	local list = {}
 	for uid, hero in data.heroes do
 		local heroDef = HeroConfig.Heroes[hero.id]
-		if heroDef and not hero.inTeam then
+		if heroDef and not GameMath.IsInTeam(data, uid) then
 			table.insert(list, { uid = uid, income = GameMath.GetHeroIncome(heroDef, hero.level, data.incomeLevel) })
 		end
 	end
 	if #list == 0 then
-		return false, "У тебе ще немає героїв"
+		return false, "Немає вільних героїв (герої з команди не враховуються)"
 	end
 	table.sort(list, function(a, b)
 		if a.income ~= b.income then

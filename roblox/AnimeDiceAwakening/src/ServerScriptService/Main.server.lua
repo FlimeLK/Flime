@@ -15,6 +15,9 @@ local RollService = require(Services.RollService)
 local IncomeService = require(Services.IncomeService)
 local UpgradeService = require(Services.UpgradeService)
 local SettingsService = require(Services.SettingsService)
+local TeamService = require(Services.TeamService)
+local CombatService = require(Services.CombatService)
+local WorldService = require(Services.WorldService)
 
 DataService.Init()
 PlotService.Init()
@@ -23,8 +26,14 @@ RollService.Init()
 IncomeService.Init()
 UpgradeService.Init()
 SettingsService.Init()
+TeamService.Init()
+CombatService.Init()
+WorldService.Init() -- після PlotService: підключає портали лобі
 
 local function onPlayerAdded(player)
+	WorldService.SetupPlayer(player)
+	CombatService.SetupPlayer(player)
+
 	-- 1. Видаємо базу (миттєво, щоб гравець одразу з'явився на ній)
 	if not PlotService.AssignPlot(player) then
 		player:Kick("Сервер заповнений. Спробуй інший сервер.")
@@ -38,9 +47,10 @@ local function onPlayerAdded(player)
 	end
 
 	-- 3. Офлайн-дохід, герої на базі, перша синхронізація з клієнтом
+	--    (MarkChanged також оновлює атрибут команди TeamData)
 	IncomeService.GrantOfflineIncome(player)
 	PlotService.RefreshPlot(player)
-	DataService.Sync(player)
+	DataService.MarkChanged(player)
 	print(("[Main] %s завантажений: %d монет"):format(player.Name, data.coins))
 end
 
@@ -51,6 +61,7 @@ for _, player in Players:GetPlayers() do
 end
 
 Players.PlayerRemoving:Connect(function(player)
+	CombatService.RemovePlayer(player)
 	PlotService.ReleasePlot(player)
 	DataService.ReleasePlayer(player)
 end)

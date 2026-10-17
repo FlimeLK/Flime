@@ -6,6 +6,7 @@ local Config = script.Parent:WaitForChild("Config")
 local RarityConfig = require(Config:WaitForChild("RarityConfig"))
 local EconomyConfig = require(Config:WaitForChild("EconomyConfig"))
 local HeroConfig = require(Config:WaitForChild("HeroConfig"))
+local CombatConfig = require(Config:WaitForChild("CombatConfig"))
 
 local GameMath = {}
 
@@ -80,6 +81,45 @@ function GameMath.GetTotalIncome(data)
 		local heroDef = hero and HeroConfig.Heroes[hero.id]
 		if heroDef then
 			total += GameMath.GetHeroIncome(heroDef, hero.level, data.incomeLevel)
+		end
+	end
+	return total
+end
+
+-- Шкода героя за секунду.
+function GameMath.GetHeroDps(heroDef, level)
+	return GameMath.GetHeroDamage(heroDef, level) * heroDef.attackSpeed
+end
+
+-- Чи входить герой до бойової команди.
+function GameMath.IsInTeam(data, uid)
+	for i = 1, CombatConfig.TeamSize do
+		if data.team[i] == uid then
+			return true
+		end
+	end
+	return false
+end
+
+-- Чи стоїть герой на базі.
+function GameMath.IsOnBase(data, uid)
+	for i = 1, data.slotCount do
+		if data.slots[i] == uid then
+			return true
+		end
+	end
+	return false
+end
+
+-- Сумарна шкода команди за секунду.
+function GameMath.GetTeamDps(data)
+	local total = 0
+	for i = 1, CombatConfig.TeamSize do
+		local uid = data.team[i]
+		local hero = uid and uid ~= "" and data.heroes[uid]
+		local heroDef = hero and HeroConfig.Heroes[hero.id]
+		if heroDef then
+			total += GameMath.GetHeroDps(heroDef, hero.level)
 		end
 	end
 	return total

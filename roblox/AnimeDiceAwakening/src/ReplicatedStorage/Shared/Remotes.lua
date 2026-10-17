@@ -13,9 +13,13 @@ local DEFINITIONS = {
 	InventoryAction = "RemoteFunction", -- (action, uid) -> { ok, message }
 	BuyUpgrade = "RemoteFunction", -- (upgradeId) -> { ok, message }
 	SetSetting = "RemoteFunction", -- (key, value) -> { ok }
+	TeamAction = "RemoteFunction", -- (action, uid) -> { ok, message }
+	CombatAction = "RemoteFunction", -- (action) -> { ok, message }
+	Travel = "RemoteFunction", -- (worldId) -> { ok, message }
 	-- Сервер -> клієнт
 	DataSync = "RemoteEvent", -- повні дані гравця
 	Notify = "RemoteEvent", -- (text, kind) спливаюче повідомлення
+	CombatFx = "RemoteEvent", -- список атак для ефектів: { userId, slot, enemyId, damage }
 }
 
 local folder

@@ -83,7 +83,7 @@ local function countDuplicates(data, uid, heroId)
 	local count = 0
 	local placed = getPlacedSet(data)
 	for otherUid, other in data.heroes do
-		if otherUid ~= uid and other.id == heroId and not other.locked and not placed[otherUid] then
+		if otherUid ~= uid and other.id == heroId and not other.locked and not placed[otherUid] and not GameMath.IsInTeam(data, otherUid) then
 			count += 1
 		end
 	end
@@ -139,6 +139,7 @@ local function makeCard(entry, placed, order)
 	})
 	local icons = (HeroConfig.ElementIcons[entry.def.element] or "")
 		.. (if placed[entry.uid] then " 🏠" else "")
+		.. (if GameMath.IsInTeam(ClientState.Data, entry.uid) then " ⚔️" else "")
 		.. (if entry.hero.locked then " 🔒" else "")
 	UIKit.Label({
 		Position = UDim2.fromOffset(4, 66),
@@ -187,7 +188,7 @@ local function refreshDetails(data, placed)
 	local duplicates = countDuplicates(data, selectedUid, hero.id)
 	ui.mergeButton.Text = ("⬆️ Merge (%d)"):format(duplicates)
 	ui.mergeButton.BackgroundColor3 = if duplicates > 0 and hero.level < rarityInfo.maxLevel then UIKit.Colors.Accent else UIKit.Colors.Disabled
-	local canSell = not hero.locked and not isPlaced
+	local canSell = not hero.locked and not isPlaced and not GameMath.IsInTeam(data, selectedUid)
 	ui.sellButton.Text = "💰 Sell " .. GameMath.FormatNumber(GameMath.GetSellPrice(heroDef, hero.level))
 	ui.sellButton.BackgroundColor3 = if canSell then UIKit.Colors.Gold:Lerp(UIKit.Colors.Danger, 0.3) else UIKit.Colors.Disabled
 end

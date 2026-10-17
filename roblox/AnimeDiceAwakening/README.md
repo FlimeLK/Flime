@@ -1,10 +1,11 @@
-# Anime Dice: Awakening — етап 1
+# Anime Dice: Awakening — етапи 1–2
 
-Аніме-симулятор для Roblox: кидаєш кубик → отримуєш героя → ставиш його на базу → герої заробляють монети → купуєш покращення й сильніші кубики.
+Аніме-симулятор для Roblox: кидаєш кубик → отримуєш героя → ставиш його на базу або в бойову команду → герої заробляють монети й б'ються → купуєш покращення й сильніші кубики.
 
-Цей етап уже працює повністю:
+Готово:
 
-**Вхід у гру → видача бази → кидок кубика → отримання героя → інвентар → розміщення героя → нарахування монет → збереження прогресу.**
+- **Етап 1:** вхід у гру → видача бази → кидок кубика → отримання героя → інвентар → розміщення героя → нарахування монет → збереження прогресу.
+- **Етап 2:** бойова команда з 3 героїв → герої йдуть за гравцем → портал у **Ninja Village** → вибір ворога → автоатака (шкоду рахує сервер) → 3 види ворогів і бос **Oni Warlord Kurogane** з помітними атаками → нагороди в Coins і Crystals.
 
 ---
 
@@ -13,8 +14,8 @@
 | Етап | Що з'явиться | Статус |
 |---|---|---|
 | **1. Основний цикл** | Бази, 5 кубиків, 6 рідкостей, 22 герої, шанси в UI, удача, гарантія (pity), анімація з пропуском, Auto Roll після навчання, інвентар (сортування, Lock, Merge, Sell, Equip Best), дохід і офлайн-дохід, покращення, налаштування, DataStore | ✅ готово |
-| 2. Бої | Team з 3 героїв (герой або на базі, або в команді), герої йдуть за гравцем і б'ють ворога, світ «Ninja Village», 3 вороги + бос, Crystals за боса | далі |
-| 3. Прогрес | Завдання (Quests), колекція героїв з нагородами, відкриття зон | |
+| **2. Бої** | Team з 3 героїв (герой або на базі, або в команді), герої йдуть за гравцем і б'ють вибраного ворога, світ «Ninja Village», 3 вороги + бос, Crystals за боса | ✅ готово |
+| 3. Прогрес | Завдання (Quests), колекція героїв з нагородами, відкриття зон | далі |
 | 4. Світи | Pirate Island, Demon Night City, Magic Academy, Sky Arena, портали | |
 | 5. Пробудження | Awakened-форми, Rebirth, складні еволюції | |
 | 6. Поліровка | Звуки, частинки, бусти удачі, баланс | |
@@ -24,7 +25,7 @@
 ## 2. Структура Explorer
 
 ```
-Workspace                 ← лобі та ділянки будуються кодом під час запуску
+Workspace                 ← лобі, ділянки та світи будуються кодом під час запуску
 ReplicatedStorage
 └─ Shared                       (Folder)
    ├─ Config                    (Folder)
@@ -32,21 +33,29 @@ ReplicatedStorage
    │  ├─ DiceConfig             (ModuleScript)  кубики, ціни, ваги, удача
    │  ├─ HeroConfig             (ModuleScript)  усі герої
    │  ├─ EconomyConfig          (ModuleScript)  баланс: слоти, дохід, гарантія
-   │  └─ WorldConfig            (ModuleScript)  світи (етап 2+)
+   │  ├─ WorldConfig            (ModuleScript)  світи
+   │  ├─ CombatConfig           (ModuleScript)  🆕 команда, дальність атаки
+   │  └─ EnemyConfig            (ModuleScript)  🆕 вороги, бос, точки появи
    ├─ GameMath                  (ModuleScript)  формули для сервера й клієнта
+   ├─ HeroModelBuilder          (ModuleScript)  🔁 модель героя з Part (тепер тут!)
    └─ Remotes                   (ModuleScript)  список RemoteEvent/RemoteFunction
 ServerScriptService
 ├─ Main                         (Script)        запуск сервера
 └─ Services                     (Folder)
    ├─ DataService               (ModuleScript)  DataStore, автозбереження, замок сесії
    ├─ PlotService               (ModuleScript)  лобі, ділянки, герої на слотах
-   ├─ HeroModelBuilder          (ModuleScript)  модель героя з Part
    ├─ RollService               (ModuleScript)  кидки (результат — на сервері)
    ├─ InventoryService          (ModuleScript)  Place/Remove/Lock/Sell/Merge/Equip Best
    ├─ IncomeService             (ModuleScript)  монети щосекунди + офлайн
    ├─ UpgradeService            (ModuleScript)  покупка слотів і доходу
    ├─ SettingsService           (ModuleScript)  налаштування гравця
-   └─ RateLimiter               (ModuleScript)  обмеження частоти запитів
+   ├─ RateLimiter               (ModuleScript)  обмеження частоти запитів
+   ├─ BuildUtil                 (ModuleScript)  🆕 Part, написи, портали
+   ├─ TeamService               (ModuleScript)  🆕 бойова команда
+   ├─ EnemyModelBuilder         (ModuleScript)  🆕 моделі ворогів
+   ├─ EnemyService              (ModuleScript)  🆕 вороги, нагороди, атаки боса
+   ├─ CombatService             (ModuleScript)  🆕 вибір цілі й автоатака
+   └─ WorldService              (ModuleScript)  🆕 Ninja Village, портали, подорожі
 StarterPlayer
 └─ StarterPlayerScripts
    ├─ ClientMain                (LocalScript)   запуск інтерфейсу
@@ -58,8 +67,15 @@ StarterPlayer
       ├─ InventoryUI            (ModuleScript)  інвентар
       ├─ UpgradesUI             (ModuleScript)  покращення
       ├─ SettingsUI             (ModuleScript)  налаштування
-      └─ WorldEffects           (ModuleScript)  вмикання/вимикання аур
+      ├─ WorldEffects           (ModuleScript)  вмикання/вимикання аур
+      ├─ EnemyRegistry          (ModuleScript)  🆕 пошук ворогів на клієнті
+      ├─ FollowerController     (ModuleScript)  🆕 герої йдуть за гравцем
+      ├─ CombatUI               (ModuleScript)  🆕 ціль, смуга боса, цифри шкоди
+      ├─ TeamUI                 (ModuleScript)  🆕 вікно Team
+      └─ WorldsUI               (ModuleScript)  🆕 вікно Worlds
 ```
+
+🆕 — нове на етапі 2, 🔁 — перенесено.
 
 Папку `ReplicatedStorage.Remotes` створювати **не потрібно** — сервер створює її сам.
 
@@ -99,17 +115,24 @@ StarterPlayer
 
 1. **ReplicatedStorage**
    - Folder `Shared`
-     - Folder `Config` → у ньому 5 ModuleScript: `RarityConfig`, `DiceConfig`, `HeroConfig`, `EconomyConfig`, `WorldConfig` — код з `src/ReplicatedStorage/Shared/Config/*.lua`
-     - ModuleScript `GameMath` ← `src/ReplicatedStorage/Shared/GameMath.lua`
-     - ModuleScript `Remotes` ← `src/ReplicatedStorage/Shared/Remotes.lua`
+     - Folder `Config` → 7 ModuleScript з `src/ReplicatedStorage/Shared/Config/*.lua`
+     - ModuleScript `GameMath`, `HeroModelBuilder`, `Remotes` ← `src/ReplicatedStorage/Shared/*.lua`
 2. **ServerScriptService**
    - Script `Main` ← `src/ServerScriptService/Main.server.lua`
-   - Folder `Services` → 9 ModuleScript з `src/ServerScriptService/Services/*.lua`
+   - Folder `Services` → 14 ModuleScript з `src/ServerScriptService/Services/*.lua`
 3. **StarterPlayer → StarterPlayerScripts**
    - LocalScript `ClientMain` ← `src/StarterPlayer/StarterPlayerScripts/ClientMain.client.lua`
-   - Folder `Client` → 8 ModuleScript з `src/StarterPlayer/StarterPlayerScripts/Client/*.lua`
+   - Folder `Client` → 13 ModuleScript з `src/StarterPlayer/StarterPlayerScripts/Client/*.lua`
 
 Звір свій Explorer зі схемою з розділу 2 — кожна назва має збігатися літера в літеру.
+
+#### Оновлення з етапу 1 до етапу 2 (якщо ставив вручну)
+
+1. **Перенеси** `HeroModelBuilder` з `ServerScriptService/Services` у `ReplicatedStorage/Shared` (перетягни мишею в Explorer) і заміни його код.
+2. **Створи нові** ModuleScript (позначені 🆕 у розділі 2): 2 у `Config`, 6 у `Services`, 5 у `Client`.
+3. **Заміни код повністю** у змінених скриптах: `WorldConfig`, `GameMath`, `Remotes`, `Main`, `DataService`, `InventoryService`, `PlotService`, `Hud`, `InventoryUI`, `ClientMain`.
+
+Прогрес гравців з етапу 1 зберігається: нові поля (команда, статистика) додаються автоматично.
 
 ### Спосіб C — Rojo (для тих, хто працює у VS Code)
 
@@ -151,6 +174,27 @@ rojo build -o AnimeDiceAwakening.rbxlx   # перезібрати готовий
 
 > Швидко отримати рідкісного героя для перевірки ефектів: у `DiceConfig` тимчасово постав `Legendary = 100000` у кубика Basic. Не забудь повернути!
 
+### Перевірка етапу 2 — бої
+
+| # | Дія | Що має статися |
+|---|---|---|
+| 1 | Зроби 5+ кидків | Жовта підказка: «Збери команду в Team і вирушай у Worlds → Ninja Village». |
+| 2 | **⚔️ Team** → натисни на героя | Він займає слот команди і стає поруч із тобою (трохи менший, з написом ⚔️ шкода). Якщо він стояв на базі — зникає зі слота бази. |
+| 3 | **⭐ Best Team** | У команду стають 3 найсильніші герої, яких немає на базі. Видно «Шкода команди: N/s». |
+| 4 | Пробіжись | Герої йдуть за тобою: двоє по боках, один позаду, злегка підстрибуючи. |
+| 5 | **🌍 Worlds → Ninja Village → Travel** (або зайди в зелений портал у лобі) | Переносить до червоних воріт torii. Видно будинки, сакури, 6 ворогів і великого червоного боса на кам'яній арені вдалині. Праворуч кнопки 🎯 Target / ✖ Stop / 🏠 Lobby. |
+| 6 | Натисни на **Bandit Genin** (мишею або пальцем) | Зверху — смуга «🎯 Bandit Genin» зі здоров'ям. Герої повертаються до нього, летять кольорові снаряди, над ворогом — жовті цифри шкоди. |
+| 7 | Відійди далеко | У смузі цілі: «— підійди ближче!». Атаки припиняються. |
+| 8 | Добий ворога | Вибух, повідомлення «Переможено Bandit Genin! +12 🪙». Через 8 с ворог з'являється знову. |
+| 9 | **🎯 Target** | Автоматично вибирається найближчий ворог. |
+| 10 | Підійди до боса | Зверху велика смуга «👹 Oni Warlord Kurogane». Кожні 5 с: «⚠️ Ground Slam!» (червоне коло навколо боса) або «⚠️ Shuriken Rain!» (коло під тобою). Не вийшов — втрачаєш здоров'я. |
+| 11 | Перемож боса (потрібна команда з Epic/Legendary) | «+1500 🪙 +25 💎», кристали видно зверху та в списку гравців. Бос повертається через 90 с. |
+| 12 | Загинь від боса або натисни **🏠 Lobby** | Повертаєшся на свою базу. |
+| 13 | Inventory: спробуй продати героя з команди | «Спершу прибери героя з команди». На картці героя з команди значок ⚔️. |
+| 14 | Stop → Play | Команда збереглась. |
+
+> Для швидкої перевірки боса: у `EnemyConfig` тимчасово зменш `health` боса до `300`.
+
 ---
 
 ## 6. Перевірка з двома гравцями (**Start Server**)
@@ -169,6 +213,10 @@ rojo build -o AnimeDiceAwakening.rbxlx   # перезібрати готовий
 | Ефекти | Player1 вимикає ефекти — у Player2 аури лишаються. |
 | Вихід | Закрий вікно Player2 → у Server-вікні ділянка стає «Вільна ділянка», герої зникають. |
 | Збереження | Натисни **Cleanup** у Test і запусти знову — у кожного гравця свій прогрес. |
+| Супутники | Обидва гравці в Ninja Village: кожен бачить героїв **обох** гравців, вони йдуть кожен за своїм господарем. |
+| Спільний бій | Обидва б'ють одного ворога — обидва отримують нагороду (якщо зняли хоча б 3% його здоров'я). |
+| Атаки боса | Shuriken Rain з'являється під **кожним** гравцем поруч із босом. |
+| Різні світи | Player1 у лобі, Player2 у Ninja Village: у Player1 немає кнопок бою, у Player2 — є; смуга боса видна лише Player2. |
 
 Помилки сервера дивись в Output **вікна Server**, помилки інтерфейсу — в Output вікна клієнта.
 
@@ -181,6 +229,8 @@ rojo build -o AnimeDiceAwakening.rbxlx   # перезібрати готовий
 - **Кидок** (`RollService`): перевіряє тип аргументу, чи існує кубик, чи він відкритий, чи вистачає монет, чи не заповнений інвентар; ліміт частоти + пауза 0.5 с між кидками. Рідкість і героя вибирає сервер, клієнту надсилається вже готовий результат — анімація лише показує його.
 - **Інвентар** (`InventoryService`): тільки дозволені дії, `uid` — рядок до 24 символів, герой має належати саме цьому гравцеві, заблокованого/поставленого не можна продати, герой не може бути одночасно на базі й у команді.
 - **Покращення / налаштування**: білий список назв і типів значень.
+- **Бій** (`CombatService`, `EnemyService`): клієнт лише вибирає ціль. Сервер перевіряє, що ворог живий, у тому ж світі й не далі 120 studs, а шкоду рахує сам за рівнем героя та швидкістю атаки, лише коли гравець не далі 45 studs. Нагорода — тільки тим, хто зняв ≥ 3% здоров'я ворога. Супутників малює кожен клієнт сам, але на шкоду це не впливає.
+- **Команда** (`TeamService`): герой або на базі, або в команді — сервер сам переносить його між ними; продати чи «злити» героя з команди не можна.
 - **RateLimiter** — «відро з жетонами» для кожного RemoteFunction: спам кнопками не перевантажує сервер.
 - `Remotes.Handle` обгортає кожен обробник у `pcall` — помилка в коді не «підвішує» клієнта.
 
@@ -203,6 +253,8 @@ rojo build -o AnimeDiceAwakening.rbxlx   # перезібрати готовий
 | Стартові монети, ціни слотів і доходу, гарантію, офлайн-дохід | `Config/EconomyConfig` |
 | Кольори рідкостей, ціни продажу, макс. рівень, автоблокування | `Config/RarityConfig` |
 | Додати героя | `Config/HeroConfig` — скопіюй блок і дай **новий унікальний** `id` |
+| Здоров'я й нагороди ворогів, атаки боса, точки появи | `Config/EnemyConfig` |
+| Розмір команди, дальність атаки, поріг нагороди | `Config/CombatConfig` |
 
 ⚠️ Ніколи не видаляй і не перейменовуй `id` героя після того, як гравці його отримали — він зберігається в їхньому прогресі.
 
@@ -227,7 +279,7 @@ rojo build -o AnimeDiceAwakening.rbxlx   # перезібрати готовий
 
 ## 10. Автотести (необов'язково)
 
-У папці `tests/` — симуляція серверної логіки без Roblox Studio: 3000 кидків (перевірка гарантії), інвентар, покращення, збереження, замок сесії, збій DataStore, офлайн-дохід, зламані дані.
+У папці `tests/` — симуляція серверної логіки без Roblox Studio: 3000 кидків (перевірка гарантії), інвентар, покращення, збереження, замок сесії, збій DataStore, офлайн-дохід, зламані дані; команда (база ↔ команда), вибір цілі, дальність атаки, шкода за формулою, швидкість атаки, нагороди, поріг внеску, кристали боса.
 
 ```bash
 # потрібен luau CLI: https://github.com/luau-lang/luau/releases
@@ -236,6 +288,6 @@ python3 tests/run_tests.py path/to/luau
 
 ---
 
-## Наступний крок — етап 2
+## Наступний крок — етап 3
 
-Бойова команда з 3 героїв (герой або на базі, або в команді), слідування за гравцем, автоатака вибраного ворога з перевіркою шкоди на сервері, перший світ **Ninja Village** через портал, 3 звичайні вороги та бос із помітними атаками й нагородою в Crystals.
+Вікно **Quests** із завданнями (кидки, перемоги, бос) і нагородами в Coins/Crystals, **колекція героїв** з бонусами за відкриття, **зони** всередині Ninja Village, що відкриваються за прогресом, і перші покупки за Crystals.

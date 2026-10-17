@@ -29,7 +29,7 @@ InstanceMT.__index = function(self, key)
 			return child
 		end
 	end
-	if key == "Changed" or key == "Destroying" or key == "OnClientEvent" or key == "CharacterAdded" then
+	if key == "Changed" or key == "Destroying" or key == "OnClientEvent" or key == "CharacterAdded" or key == "MouseClick" or key == "Touched" then
 		local sig = { Connect = function() return { Disconnect = function() end } end }
 		props[key] = sig
 		return sig
@@ -92,6 +92,26 @@ function methods.IsA(self, c)
 end
 function methods.FireClient(self, player, ...)
 	table.insert(G.fired, { remote = self.Name, player = player, args = { ... } })
+end
+function methods.FireAllClients(self, ...)
+	table.insert(G.fired, { remote = self.Name, args = { ... } })
+end
+function methods.FindFirstChildOfClass(self, className)
+	for _, child in rawget(self, "__children") do
+		if child.ClassName == className then
+			return child
+		end
+	end
+	return nil
+end
+function methods.PivotTo(self, cframe)
+	rawget(self, "__props").__pivot = cframe
+end
+function methods.GetPivot(self)
+	return rawget(self, "__props").__pivot
+end
+function methods.TakeDamage(self, amount)
+	self.Health -= amount
 end
 function methods.Kick(self, msg)
 	G.kicked[self] = msg
@@ -222,6 +242,7 @@ local services = {
 	DataStoreService = { GetDataStore = function() return store end },
 	HttpService = { GenerateGUID = function() return "guid" end },
 	CollectionService = { AddTag = function() end },
+	TweenService = { Create = function() return { Play = function() end } end },
 }
 function services.Players:GetPlayers()
 	return G.players or {}
@@ -242,8 +263,54 @@ env.game = game
 env.workspace = workspace
 env.Instance = { new = function(c) return newInstance(c) end }
 env.Color3 = Color3
-env.Vector3 = anyValue
-env.CFrame = anyValue
+-- Спрощені Vector3 / CFrame (лише переміщення, без поворотів) — досить для логіки бою
+local Vec3MT = {}
+Vec3MT.__index = function(v, key)
+	if key == "Magnitude" then
+		return math.sqrt(v.X * v.X + v.Y * v.Y + v.Z * v.Z)
+	end
+	return nil
+end
+local function vec3(x, y, z)
+	return setmetatable({ X = x or 0, Y = y or 0, Z = z or 0 }, Vec3MT)
+end
+Vec3MT.__add = function(a, b)
+	return vec3(a.X + b.X, a.Y + b.Y, a.Z + b.Z)
+end
+Vec3MT.__sub = function(a, b)
+	return vec3(a.X - b.X, a.Y - b.Y, a.Z - b.Z)
+end
+Vec3MT.__mul = function(a, b)
+	if type(a) == "number" then
+		return vec3(b.X * a, b.Y * a, b.Z * a)
+	elseif type(b) == "number" then
+		return vec3(a.X * b, a.Y * b, a.Z * b)
+	end
+	return vec3(a.X * b.X, a.Y * b.Y, a.Z * b.Z)
+end
+local CFrameMT = {}
+CFrameMT.__index = CFrameMT
+local function cframe(position)
+	return setmetatable({ Position = position }, CFrameMT)
+end
+CFrameMT.__mul = function(a, b)
+	return cframe(a.Position + b.Position)
+end
+env.Vector3 = { new = vec3, zero = vec3(0, 0, 0) }
+env.CFrame = {
+	new = function(x, y, z)
+		if type(x) == "table" then
+			return cframe(x)
+		end
+		return cframe(vec3(x, y, z))
+	end,
+	Angles = function()
+		return cframe(vec3(0, 0, 0))
+	end,
+	lookAt = function(position)
+		return cframe(position)
+	end,
+}
 env.Enum = anyValue
 env.UDim2 = anyValue
 env.UDim = anyValue
@@ -261,19 +328,21 @@ end
 local RS = services.ReplicatedStorage
 local shared = folder(RS, "Shared")
 local config = folder(shared, "Config")
-for _, n in { "RarityConfig", "DiceConfig", "HeroConfig", "EconomyConfig", "WorldConfig" } do
+for _, n in { "RarityConfig", "DiceConfig", "HeroConfig", "EconomyConfig", "WorldConfig", "CombatConfig", "EnemyConfig" } do
 	makeModule(config, n, ROOT .. "ReplicatedStorage/Shared/Config/" .. n .. ".lua")
 end
 makeModule(shared, "GameMath", ROOT .. "ReplicatedStorage/Shared/GameMath.lua")
 makeModule(shared, "Remotes", ROOT .. "ReplicatedStorage/Shared/Remotes.lua")
 
 local servicesFolder = folder(services.ServerScriptService, "Services")
-for _, n in { "RateLimiter", "DataService", "InventoryService", "RollService", "IncomeService", "UpgradeService", "SettingsService" } do
+for _, n in { "RateLimiter", "DataService", "InventoryService", "RollService", "IncomeService", "UpgradeService", "SettingsService", "TeamService", "EnemyService", "CombatService" } do
 	makeModule(servicesFolder, n, ROOT .. "ServerScriptService/Services/" .. n .. ".lua")
 end
 -- PlotService / HeroModelBuilder are visual: stub them
 local plotStub = makeModule(servicesFolder, "PlotService", "")
-cache[plotStub] = { RefreshPlot = function() end, AssignPlot = function() return true end, ReleasePlot = function() end }
+cache[plotStub] = { RefreshPlot = function() end, AssignPlot = function() return true end, ReleasePlot = function() end, TeleportHome = function() end }
+local enemyModelStub = makeModule(servicesFolder, "EnemyModelBuilder", "")
+cache[enemyModelStub] = { Build = function() return newInstance("Model") end }
 
 G.Sim = {
 	require = mockRequire,
@@ -287,5 +356,20 @@ G.Sim = {
 		return p
 	end,
 	game = game,
+	Vector3 = env.Vector3,
+	CFrame = env.CFrame,
+	newInstance = newInstance,
+	-- Персонаж-заглушка: Model з HumanoidRootPart і Humanoid
+	giveCharacter = function(player, position)
+		local character = newInstance("Model", player.Name)
+		local root = newInstance("Part", "HumanoidRootPart")
+		rawget(root, "__props").Position = position
+		root.Parent = character
+		local humanoid = newInstance("Humanoid", "Humanoid")
+		rawget(humanoid, "__props").Health = 100
+		humanoid.Parent = character
+		rawget(player, "__props").Character = character
+		return root, humanoid
+	end,
 }
 

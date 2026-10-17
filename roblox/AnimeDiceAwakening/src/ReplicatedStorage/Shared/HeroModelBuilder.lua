@@ -1,18 +1,18 @@
 -- HeroModelBuilder: будує просту модель героя з Part (без платних моделей).
 -- Модель будується навколо точки (0,0,0) — це "ноги" героя,
 -- тому її легко поставити на слот через model:PivotTo(...).
+-- Використовують і сервер (герої на базі), і клієнт (герої-супутники в бою).
 
 local CollectionService = game:GetService("CollectionService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Shared = ReplicatedStorage:WaitForChild("Shared")
-local HeroConfig = require(Shared.Config.HeroConfig)
-local RarityConfig = require(Shared.Config.RarityConfig)
-local GameMath = require(Shared.GameMath)
+local HeroConfig = require(Shared:WaitForChild("Config"):WaitForChild("HeroConfig"))
+local RarityConfig = require(Shared.Config:WaitForChild("RarityConfig"))
 
 local HeroModelBuilder = {}
 
--- Тег для клієнта: ефекти з цим тегом вимикаються в налаштуваннях.
+-- Тег: ефекти з цим тегом вимикаються в налаштуваннях клієнта.
 HeroModelBuilder.AURA_TAG = "HeroAura"
 
 local function addPart(model, name, size, cframe, color, material, shape)
@@ -26,6 +26,7 @@ local function addPart(model, name, size, cframe, color, material, shape)
 	part.Anchored = true
 	part.CanCollide = false
 	part.CanTouch = false
+	part.CanQuery = false -- кліки проходять крізь героя до ворога
 	part.TopSurface = Enum.SurfaceType.Smooth
 	part.BottomSurface = Enum.SurfaceType.Smooth
 	part.Parent = model
@@ -63,7 +64,7 @@ local ACCESSORIES = {
 	end,
 }
 
-local function addNameplate(model, head, heroDef, level, income)
+local function addNameplate(model, head, heroDef, level, infoText)
 	local billboard = Instance.new("BillboardGui")
 	billboard.Name = "Nameplate"
 	billboard.Size = UDim2.fromOffset(220, 56)
@@ -88,7 +89,7 @@ local function addNameplate(model, head, heroDef, level, income)
 	infoLabel.BackgroundTransparency = 1
 	infoLabel.Font = Enum.Font.GothamBold
 	infoLabel.TextScaled = true
-	infoLabel.Text = ("%s • Lv %d • +%s/s"):format(heroDef.rarity, level, GameMath.FormatNumber(income))
+	infoLabel.Text = ("%s • Lv %d • %s"):format(heroDef.rarity, level, infoText)
 	infoLabel.TextColor3 = Color3.new(1, 1, 1)
 	infoLabel.TextStrokeTransparency = 0.4
 	infoLabel.Parent = billboard
@@ -122,7 +123,8 @@ local function addAura(model, torso, rarity)
 	end
 end
 
-function HeroModelBuilder.Build(heroDef, level, income)
+-- infoText — другий рядок над героєм, напр. "+5/s" на базі або "⚔️ 40" у бою.
+function HeroModelBuilder.Build(heroDef, level, infoText)
 	local model = Instance.new("Model")
 	model.Name = heroDef.id
 
@@ -146,7 +148,7 @@ function HeroModelBuilder.Build(heroDef, level, income)
 		accessory(model, s, accent, shoulder)
 	end
 
-	addNameplate(model, head, heroDef, level, income)
+	addNameplate(model, head, heroDef, level, infoText)
 	addAura(model, torso, heroDef.rarity)
 
 	model.PrimaryPart = torso

@@ -15,6 +15,7 @@ local RunService = game:GetService("RunService")
 
 local Shared = ReplicatedStorage:WaitForChild("Shared")
 local EconomyConfig = require(Shared.Config.EconomyConfig)
+local CombatConfig = require(Shared.Config.CombatConfig)
 local HeroConfig = require(Shared.Config.HeroConfig)
 local Remotes = require(Shared.Remotes)
 
@@ -46,6 +47,7 @@ end
 -- [Player] = { data, canSave, releasing, saving, incomeRemainder }
 local profiles = {}
 local pendingSync = {}
+local changedCallbacks = {}
 
 local function makeTemplate()
 	return {
@@ -56,12 +58,14 @@ local function makeTemplate()
 		nextHeroId = 1,
 		slots = table.create(EconomyConfig.MaxSlots, ""), -- uid героя або ""
 		slotCount = EconomyConfig.StartSlots,
+		team = table.create(CombatConfig.TeamSize, ""), -- бойова команда: uid героя або ""
 		incomeLevel = 0,
 		pity = {}, -- [rarity] = кидків без цієї рідкості
 		totalRolls = 0,
 		discovered = {}, -- [heroId] = true (колекція)
 		tutorial = { freeRollUsed = false, completed = false },
 		settings = { sound = true, effects = true, skipAnimations = false },
+		stats = { enemiesDefeated = 0, bossesDefeated = 0 },
 		lastSeen = 0,
 	}
 end
@@ -104,6 +108,16 @@ local function sanitize(data)
 		local hero = type(uid) == "string" and data.heroes[uid]
 		if i > data.slotCount or not hero or seen[uid] or not HeroConfig.Heroes[hero.id] then
 			data.slots[i] = ""
+		else
+			seen[uid] = true
+		end
+	end
+	-- Один герой — або на базі, або в команді. Якщо обидва, база має пріоритет.
+	for i = 1, CombatConfig.TeamSize do
+		local uid = data.team[i]
+		local hero = type(uid) == "string" and data.heroes[uid]
+		if not hero or seen[uid] or not HeroConfig.Heroes[hero.id] then
+			data.team[i] = ""
 		else
 			seen[uid] = true
 		end
@@ -322,6 +336,21 @@ function DataService.AddCoins(player, amount)
 	return true
 end
 
+function DataService.AddCrystals(player, amount)
+	local profile = DataService.GetProfile(player)
+	amount = math.floor(tonumber(amount) or 0)
+	if not profile or amount <= 0 then
+		return false
+	end
+	profile.data.crystals += amount
+	local leaderstats = player:FindFirstChild("leaderstats")
+	local crystals = leaderstats and leaderstats:FindFirstChild("Crystals")
+	if crystals then
+		crystals.Value = profile.data.crystals
+	end
+	return true
+end
+
 -- Списує монети, лише якщо їх вистачає. Повертає true/false.
 function DataService.SpendCoins(player, amount)
 	local profile = DataService.GetProfile(player)
@@ -333,7 +362,13 @@ function DataService.SpendCoins(player, amount)
 	return true
 end
 
--- Надіслати клієнту повні дані (наприкінці кадру, щоб не слати їх кілька разів поспіль).
+-- callback(player, data) — викликається після кожної зміни даних гравця.
+function DataService.OnChanged(callback)
+	table.insert(changedCallbacks, callback)
+end
+
+-- Дані змінились: наприкінці кадру надіслати їх клієнту та повідомити інші сервіси
+-- (один раз, навіть якщо змін було кілька).
 function DataService.MarkChanged(player)
 	if pendingSync[player] then
 		return
@@ -341,7 +376,14 @@ function DataService.MarkChanged(player)
 	pendingSync[player] = true
 	task.defer(function()
 		pendingSync[player] = nil
+		local profile = DataService.GetProfile(player)
+		if not profile then
+			return
+		end
 		DataService.Sync(player)
+		for _, callback in changedCallbacks do
+			task.spawn(callback, player, profile.data)
+		end
 	end)
 end
 

@@ -5,6 +5,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Shared = ReplicatedStorage:WaitForChild("Shared")
 local GameMath = require(Shared:WaitForChild("GameMath"))
+local CombatConfig = require(Shared:WaitForChild("Config"):WaitForChild("CombatConfig"))
 
 local Client = script.Parent
 local UIKit = require(Client:WaitForChild("UIKit"))
@@ -159,18 +160,31 @@ local function buildTutorialHint(gui)
 	UIKit.Corner(hint, 12)
 	UIKit.AddScale(hint)
 
+	local function teamIsEmpty(data)
+		for i = 1, CombatConfig.TeamSize do
+			if data.team[i] ~= "" then
+				return false
+			end
+		end
+		return true
+	end
+
 	updateHint = function()
 		local data = ClientState.Data
-		if not data or data.tutorial.completed then
-			hint.Visible = false
-			return
+		local text = nil
+		if not data then
+			text = nil
+		elseif not data.tutorial.freeRollUsed then
+			text = "👉 Натисни 🎲 Roll і зроби перший БЕЗКОШТОВНИЙ кидок!"
+		elseif not data.tutorial.completed then
+			text = "👉 Відкрий 🎒 Inventory, вибери героя і натисни Place"
+		elseif teamIsEmpty(data) and data.totalRolls >= 5 and data.stats.enemiesDefeated == 0 then
+			text = "⚔️ Збери команду в Team і вирушай у 🌍 Worlds → Ninja Village"
 		end
-		if not data.tutorial.freeRollUsed then
-			hint.Text = "👉 Натисни 🎲 Roll і зроби перший БЕЗКОШТОВНИЙ кидок!"
-		else
-			hint.Text = "👉 Відкрий 🎒 Inventory, вибери героя і натисни Place"
+		if text then
+			hint.Text = text
 		end
-		hint.Visible = not anyPanelOpen()
+		hint.Visible = text ~= nil and not anyPanelOpen()
 	end
 	ClientState.OnDataChanged(function()
 		updateHint()
@@ -179,9 +193,7 @@ end
 
 -- Вікна, які з'являться на наступних етапах
 local COMING_SOON = {
-	Team = "Команда з 3 героїв, що б'ються поруч із тобою.\nЗ'явиться на етапі 2 разом з першим світом.",
-	Quests = "Завдання з нагородами в Coins і Crystals.\nЗ'являться на етапі 3.",
-	Worlds = "Ninja Village • Pirate Island • Demon Night City\nMagic Academy • Sky Arena\n\nПерший світ відкриється на етапі 2.",
+	Quests = "Завдання з нагородами в Coins і Crystals,\nколекція героїв і відкриття зон.\nЗ'являться на етапі 3.",
 }
 
 local function buildComingSoon(gui)

@@ -19,6 +19,35 @@
         </Properties>
         <Item class="ModuleScript" referent="4">
           <Properties>
+            <string name="Name">CombatConfig</string>
+            <string name="Source"><![CDATA[-- CombatConfig: налаштування бою та бойової команди.
+
+local CombatConfig = {
+	TeamSize = 3, -- героїв у бойовій команді
+
+	AttackRange = 45, -- макс. відстань (studs) від гравця до ворога, щоб команда атакувала
+	TargetSelectRange = 120, -- з якої відстані можна вибрати ворога кліком або кнопкою 🎯
+	TickSeconds = 0.1, -- як часто сервер рахує атаки
+
+	-- Частка здоров'я ворога, яку треба зняти, щоб отримати нагороду
+	-- (захист від "один раз клікнув — забрав нагороду боса").
+	MinContributionShare = 0.03,
+
+	-- Де стоять герої відносно гравця: X — вбік, Z — назад
+	FollowerOffsets = {
+		Vector3.new(-5, 0, 4),
+		Vector3.new(5, 0, 4),
+		Vector3.new(0, 0, 8),
+	},
+	FollowerScale = 0.8, -- герої-супутники трохи менші за героїв на базі
+}
+
+return CombatConfig
+]]></string>
+          </Properties>
+        </Item>
+        <Item class="ModuleScript" referent="5">
+          <Properties>
             <string name="Name">DiceConfig</string>
             <string name="Source"><![CDATA[-- DiceConfig: усі кубики гри.
 -- price         — ціна одного кидка в Coins
@@ -102,7 +131,7 @@ return DiceConfig
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="5">
+        <Item class="ModuleScript" referent="6">
           <Properties>
             <string name="Name">EconomyConfig</string>
             <string name="Source"><![CDATA[-- EconomyConfig: ціни, бонуси та ліміти. Усі числа балансу — тут.
@@ -151,7 +180,91 @@ return EconomyConfig
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="6">
+        <Item class="ModuleScript" referent="7">
+          <Properties>
+            <string name="Name">EnemyConfig</string>
+            <string name="Source"><![CDATA[-- EnemyConfig: вороги, боси та де вони з'являються у кожному світі.
+-- health   — запас здоров'я
+-- coins    — нагорода в Coins кожному, хто допоміг перемогти
+-- crystals — нагорода в Crystals (лише боси)
+-- respawn  — через скільки секунд ворог з'явиться знову
+-- style    — зовнішній вигляд простої моделі з Part
+
+local EnemyConfig = {}
+
+EnemyConfig.Enemies = {
+	bandit_genin = {
+		name = "Bandit Genin",
+		health = 80,
+		coins = 12,
+		crystals = 0,
+		respawn = 8,
+		scale = 1,
+		style = "Genin",
+		body = Color3.fromRGB(90, 85, 75),
+		accent = Color3.fromRGB(200, 60, 60),
+	},
+	shadow_puppet = {
+		name = "Shadow Puppet",
+		health = 240,
+		coins = 32,
+		crystals = 0,
+		respawn = 10,
+		scale = 1.1,
+		style = "Puppet",
+		body = Color3.fromRGB(35, 25, 50),
+		accent = Color3.fromRGB(170, 80, 255),
+	},
+	rogue_ronin = {
+		name = "Rogue Ronin",
+		health = 650,
+		coins = 85,
+		crystals = 0,
+		respawn = 14,
+		scale = 1.25,
+		style = "Ronin",
+		body = Color3.fromRGB(60, 70, 110),
+		accent = Color3.fromRGB(230, 230, 240),
+	},
+	oni_kurogane = {
+		name = "Oni Warlord Kurogane",
+		health = 6000,
+		coins = 1500,
+		crystals = 25,
+		respawn = 90,
+		scale = 2.6,
+		style = "Oni",
+		body = Color3.fromRGB(180, 40, 40),
+		accent = Color3.fromRGB(255, 200, 60),
+		isBoss = true,
+		attackInterval = 5, -- секунд між атаками
+		attacks = {
+			-- Удар по землі навколо боса: червоне коло, потім шкода всім усередині
+			GroundSlam = { displayName = "Ground Slam", telegraph = 1.6, radius = 20, damage = 35 },
+			-- Дощ сюрикенів: кола під кожним гравцем поруч, треба відбігти
+			ShurikenRain = { displayName = "Shuriken Rain", telegraph = 1.3, radius = 9, damage = 25 },
+		},
+	},
+}
+
+-- Точки появи. offset — відносно центру світу (Y = 0 — рівень землі).
+EnemyConfig.WorldSpawns = {
+	NinjaVillage = {
+		{ enemy = "bandit_genin", offset = Vector3.new(-22, 0, -65) },
+		{ enemy = "bandit_genin", offset = Vector3.new(22, 0, -65) },
+		{ enemy = "shadow_puppet", offset = Vector3.new(-38, 0, -15) },
+		{ enemy = "shadow_puppet", offset = Vector3.new(38, 0, -15) },
+		{ enemy = "rogue_ronin", offset = Vector3.new(-32, 0, 35) },
+		{ enemy = "rogue_ronin", offset = Vector3.new(32, 0, 35) },
+		{ enemy = "oni_kurogane", offset = Vector3.new(0, 0, 92) },
+	},
+}
+
+return EnemyConfig
+]]></string>
+          </Properties>
+        </Item>
+        <Item class="ModuleScript" referent="8">
           <Properties>
             <string name="Name">HeroConfig</string>
             <string name="Source"><![CDATA[-- HeroConfig: усі герої гри (оригінальні персонажі).
@@ -502,7 +615,7 @@ return HeroConfig
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="7">
+        <Item class="ModuleScript" referent="9">
           <Properties>
             <string name="Name">RarityConfig</string>
             <string name="Source"><![CDATA[-- RarityConfig: рідкості героїв.
@@ -594,11 +707,12 @@ return RarityConfig
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="8">
+        <Item class="ModuleScript" referent="10">
           <Properties>
             <string name="Name">WorldConfig</string>
-            <string name="Source"><![CDATA[-- WorldConfig: світи гри. На етапі 1 портали в лобі декоративні,
--- бої та вороги з'являться на етапі 2 (спершу лише "Ninja Village").
+            <string name="Source"><![CDATA[-- WorldConfig: світи гри.
+-- available — чи можна вже потрапити у світ
+-- center    — де світ збудовано (далеко від лобі, у повітрі)
 
 local WorldConfig = {}
 
@@ -608,30 +722,36 @@ WorldConfig.Worlds = {
 	NinjaVillage = {
 		displayName = "Ninja Village",
 		localName = "Село ніндзя",
+		description = "Бандити, тіньові ляльки, ронін і бос Oni Warlord Kurogane.",
 		color = Color3.fromRGB(90, 230, 140),
-		available = false, -- стане true на етапі 2
+		available = true,
+		center = Vector3.new(1500, 200, 0),
 	},
 	PirateIsland = {
 		displayName = "Pirate Island",
 		localName = "Острів піратів",
+		description = "Скоро",
 		color = Color3.fromRGB(40, 150, 255),
 		available = false,
 	},
 	DemonCity = {
 		displayName = "Demon Night City",
 		localName = "Нічне місто демонів",
+		description = "Скоро",
 		color = Color3.fromRGB(150, 60, 220),
 		available = false,
 	},
 	MagicAcademy = {
 		displayName = "Magic Academy",
 		localName = "Академія магії",
+		description = "Скоро",
 		color = Color3.fromRGB(255, 120, 200),
 		available = false,
 	},
 	SkyArena = {
 		displayName = "Sky Arena",
 		localName = "Небесна арена",
+		description = "Скоро",
 		color = Color3.fromRGB(255, 230, 120),
 		available = false,
 	},
@@ -642,7 +762,7 @@ return WorldConfig
           </Properties>
         </Item>
       </Item>
-      <Item class="ModuleScript" referent="9">
+      <Item class="ModuleScript" referent="11">
         <Properties>
           <string name="Name">GameMath</string>
           <string name="Source"><![CDATA[-- GameMath: формули балансу, спільні для сервера й клієнта.
@@ -653,6 +773,7 @@ local Config = script.Parent:WaitForChild("Config")
 local RarityConfig = require(Config:WaitForChild("RarityConfig"))
 local EconomyConfig = require(Config:WaitForChild("EconomyConfig"))
 local HeroConfig = require(Config:WaitForChild("HeroConfig"))
+local CombatConfig = require(Config:WaitForChild("CombatConfig"))
 
 local GameMath = {}
 
@@ -732,6 +853,45 @@ function GameMath.GetTotalIncome(data)
 	return total
 end
 
+-- Шкода героя за секунду.
+function GameMath.GetHeroDps(heroDef, level)
+	return GameMath.GetHeroDamage(heroDef, level) * heroDef.attackSpeed
+end
+
+-- Чи входить герой до бойової команди.
+function GameMath.IsInTeam(data, uid)
+	for i = 1, CombatConfig.TeamSize do
+		if data.team[i] == uid then
+			return true
+		end
+	end
+	return false
+end
+
+-- Чи стоїть герой на базі.
+function GameMath.IsOnBase(data, uid)
+	for i = 1, data.slotCount do
+		if data.slots[i] == uid then
+			return true
+		end
+	end
+	return false
+end
+
+-- Сумарна шкода команди за секунду.
+function GameMath.GetTeamDps(data)
+	local total = 0
+	for i = 1, CombatConfig.TeamSize do
+		local uid = data.team[i]
+		local hero = uid and uid ~= "" and data.heroes[uid]
+		local heroDef = hero and HeroConfig.Heroes[hero.id]
+		if heroDef then
+			total += GameMath.GetHeroDps(heroDef, hero.level)
+		end
+	end
+	return total
+end
+
 -- Скільки кидків лишилось до гарантії кожного рівня.
 function GameMath.GetPityRemaining(data)
 	local result = {}
@@ -777,7 +937,172 @@ return GameMath
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="10">
+      <Item class="ModuleScript" referent="12">
+        <Properties>
+          <string name="Name">HeroModelBuilder</string>
+          <string name="Source"><![CDATA[-- HeroModelBuilder: будує просту модель героя з Part (без платних моделей).
+-- Модель будується навколо точки (0,0,0) — це "ноги" героя,
+-- тому її легко поставити на слот через model:PivotTo(...).
+-- Використовують і сервер (герої на базі), і клієнт (герої-супутники в бою).
+
+local CollectionService = game:GetService("CollectionService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+local Shared = ReplicatedStorage:WaitForChild("Shared")
+local HeroConfig = require(Shared:WaitForChild("Config"):WaitForChild("HeroConfig"))
+local RarityConfig = require(Shared.Config:WaitForChild("RarityConfig"))
+
+local HeroModelBuilder = {}
+
+-- Тег: ефекти з цим тегом вимикаються в налаштуваннях клієнта.
+HeroModelBuilder.AURA_TAG = "HeroAura"
+
+local function addPart(model, name, size, cframe, color, material, shape)
+	local part = Instance.new("Part")
+	part.Name = name
+	part.Size = size
+	part.CFrame = cframe
+	part.Color = color
+	part.Material = material or Enum.Material.SmoothPlastic
+	part.Shape = shape or Enum.PartType.Block
+	part.Anchored = true
+	part.CanCollide = false
+	part.CanTouch = false
+	part.CanQuery = false -- кліки проходять крізь героя до ворога
+	part.TopSurface = Enum.SurfaceType.Smooth
+	part.BottomSurface = Enum.SurfaceType.Smooth
+	part.Parent = model
+	return part
+end
+
+-- Зброя / аксесуар залежно від класу героя.
+local ACCESSORIES = {
+	Ninja = function(model, s, accent, top)
+		addPart(model, "Scarf", Vector3.new(2.3, 0.45, 1.4) * s, CFrame.new(0, top - 0.2 * s, 0), accent, Enum.Material.Neon)
+		addPart(model, "ScarfTail", Vector3.new(0.5, 1.6, 0.15) * s, CFrame.new(0.6 * s, top - 1.1 * s, 0.75 * s) * CFrame.Angles(0.3, 0, 0), accent, Enum.Material.Neon)
+		addPart(model, "Kunai", Vector3.new(0.2, 1.2, 0.2) * s, CFrame.new(1.45 * s, top - 1.8 * s, -0.3 * s) * CFrame.Angles(0, 0, 0.4), Color3.fromRGB(180, 180, 190), Enum.Material.Metal)
+	end,
+	Swordsman = function(model, s, accent, top)
+		addPart(model, "Hilt", Vector3.new(0.3, 0.9, 0.3) * s, CFrame.new(1.5 * s, top - 2.2 * s, -0.4 * s), Color3.fromRGB(50, 40, 40))
+		addPart(model, "Blade", Vector3.new(0.18, 4, 0.5) * s, CFrame.new(1.5 * s, top + 0.25 * s, -0.4 * s), accent, Enum.Material.Neon)
+	end,
+	["Demon Hunter"] = function(model, s, accent, top)
+		addPart(model, "Blade", Vector3.new(0.18, 3.6, 0.45) * s, CFrame.new(-1.5 * s, top - 1 * s, -0.3 * s) * CFrame.Angles(0, 0, -0.25), accent, Enum.Material.Neon)
+		addPart(model, "Lantern", Vector3.new(0.6, 0.6, 0.6) * s, CFrame.new(1.5 * s, top - 2.4 * s, -0.3 * s), accent, Enum.Material.Neon, Enum.PartType.Ball)
+	end,
+	Pirate = function(model, s, accent, top)
+		addPart(model, "HatBrim", Vector3.new(2.6, 0.2, 2.2) * s, CFrame.new(0, top + 1.8 * s, 0), Color3.fromRGB(30, 25, 25))
+		addPart(model, "HatTop", Vector3.new(1.7, 0.7, 1.5) * s, CFrame.new(0, top + 2.25 * s, 0), Color3.fromRGB(30, 25, 25))
+		addPart(model, "Cutlass", Vector3.new(0.18, 2.6, 0.5) * s, CFrame.new(1.5 * s, top - 1.6 * s, -0.4 * s) * CFrame.Angles(0, 0, 0.2), accent, Enum.Material.Metal)
+	end,
+	Mage = function(model, s, accent, top)
+		addPart(model, "Staff", Vector3.new(0.25, 5, 0.25) * s, CFrame.new(1.5 * s, top - 1.5 * s, -0.3 * s), Color3.fromRGB(110, 70, 40), Enum.Material.Wood)
+		addPart(model, "Orb", Vector3.new(0.9, 0.9, 0.9) * s, CFrame.new(1.5 * s, top + 1.2 * s, -0.3 * s), accent, Enum.Material.Neon, Enum.PartType.Ball)
+	end,
+	["Space Warrior"] = function(model, s, accent, top)
+		addPart(model, "ShoulderL", Vector3.new(0.9, 0.5, 1.4) * s, CFrame.new(-1.4 * s, top - 0.15 * s, 0), accent, Enum.Material.Neon)
+		addPart(model, "ShoulderR", Vector3.new(0.9, 0.5, 1.4) * s, CFrame.new(1.4 * s, top - 0.15 * s, 0), accent, Enum.Material.Neon)
+		addPart(model, "Visor", Vector3.new(1.4, 0.35, 0.3) * s, CFrame.new(0, top + 0.85 * s, -0.75 * s), accent, Enum.Material.Neon)
+	end,
+}
+
+local function addNameplate(model, head, heroDef, level, infoText)
+	local billboard = Instance.new("BillboardGui")
+	billboard.Name = "Nameplate"
+	billboard.Size = UDim2.fromOffset(220, 56)
+	billboard.StudsOffset = Vector3.new(0, 3, 0)
+	billboard.MaxDistance = 90
+	billboard.Adornee = head
+	billboard.Parent = model
+
+	local nameLabel = Instance.new("TextLabel")
+	nameLabel.Size = UDim2.new(1, 0, 0.55, 0)
+	nameLabel.BackgroundTransparency = 1
+	nameLabel.Font = Enum.Font.FredokaOne
+	nameLabel.TextScaled = true
+	nameLabel.Text = heroDef.name
+	nameLabel.TextColor3 = RarityConfig.GetColor(heroDef.rarity)
+	nameLabel.TextStrokeTransparency = 0.3
+	nameLabel.Parent = billboard
+
+	local infoLabel = Instance.new("TextLabel")
+	infoLabel.Position = UDim2.fromScale(0, 0.55)
+	infoLabel.Size = UDim2.new(1, 0, 0.45, 0)
+	infoLabel.BackgroundTransparency = 1
+	infoLabel.Font = Enum.Font.GothamBold
+	infoLabel.TextScaled = true
+	infoLabel.Text = ("%s • Lv %d • %s"):format(heroDef.rarity, level, infoText)
+	infoLabel.TextColor3 = Color3.new(1, 1, 1)
+	infoLabel.TextStrokeTransparency = 0.4
+	infoLabel.Parent = billboard
+end
+
+local function addAura(model, torso, rarity)
+	local info = RarityConfig.Info[rarity]
+	if info.aura then
+		local emitter = Instance.new("ParticleEmitter")
+		emitter.Name = "Aura"
+		emitter.Color = ColorSequence.new(info.color)
+		emitter.LightEmission = 1
+		emitter.Size = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0.7), NumberSequenceKeypoint.new(1, 0) })
+		emitter.Transparency = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0.2), NumberSequenceKeypoint.new(1, 1) })
+		emitter.Lifetime = NumberRange.new(0.8, 1.4)
+		emitter.Speed = NumberRange.new(1, 3)
+		emitter.SpreadAngle = Vector2.new(180, 180)
+		emitter.Acceleration = Vector3.new(0, 3, 0)
+		emitter.Rate = 8 * info.rank
+		emitter.Parent = torso
+		CollectionService:AddTag(emitter, HeroModelBuilder.AURA_TAG)
+	end
+	if info.light then
+		local light = Instance.new("PointLight")
+		light.Name = "AuraLight"
+		light.Color = info.color
+		light.Range = 12
+		light.Brightness = 2
+		light.Parent = torso
+		CollectionService:AddTag(light, HeroModelBuilder.AURA_TAG)
+	end
+end
+
+-- infoText — другий рядок над героєм, напр. "+5/s" на базі або "⚔️ 40" у бою.
+function HeroModelBuilder.Build(heroDef, level, infoText)
+	local model = Instance.new("Model")
+	model.Name = heroDef.id
+
+	local s = heroDef.look.height or 1
+	local accent = HeroConfig.ElementColors[heroDef.element] or Color3.new(1, 1, 1)
+	local legHeight = 2 * s
+	local torsoHeight = 2.2 * s
+	local shoulder = legHeight + torsoHeight -- висота плечей
+
+	addPart(model, "Legs", Vector3.new(1.8, legHeight, 1) * Vector3.new(s, 1, s), CFrame.new(0, legHeight / 2, 0), heroDef.look.body:Lerp(Color3.new(0, 0, 0), 0.35))
+	local torso = addPart(model, "Torso", Vector3.new(2.2 * s, torsoHeight, 1.2 * s), CFrame.new(0, legHeight + torsoHeight / 2, 0), heroDef.look.body)
+	addPart(model, "Belt", Vector3.new(2.3 * s, 0.3 * s, 1.3 * s), CFrame.new(0, legHeight + 0.2 * s, 0), accent, Enum.Material.Neon)
+	local head = addPart(model, "Head", Vector3.new(1.7, 1.7, 1.7) * s, CFrame.new(0, shoulder + 0.85 * s, 0), heroDef.look.skin, Enum.Material.SmoothPlastic, Enum.PartType.Ball)
+	addPart(model, "Hair", Vector3.new(1.85 * s, 0.7 * s, 1.85 * s), CFrame.new(0, shoulder + 1.45 * s, 0.1 * s), heroDef.look.hair)
+	-- Очі дивляться в бік -Z (до гравця, що стоїть перед базою)
+	addPart(model, "EyeL", Vector3.new(0.25, 0.35, 0.1) * s, CFrame.new(-0.35 * s, shoulder + 0.95 * s, -0.8 * s), Color3.fromRGB(30, 30, 40))
+	addPart(model, "EyeR", Vector3.new(0.25, 0.35, 0.1) * s, CFrame.new(0.35 * s, shoulder + 0.95 * s, -0.8 * s), Color3.fromRGB(30, 30, 40))
+
+	local accessory = ACCESSORIES[heroDef.archetype]
+	if accessory then
+		accessory(model, s, accent, shoulder)
+	end
+
+	addNameplate(model, head, heroDef, level, infoText)
+	addAura(model, torso, heroDef.rarity)
+
+	model.PrimaryPart = torso
+	model.WorldPivot = CFrame.new() -- точка опори = ноги
+	return model
+end
+
+return HeroModelBuilder
+]]></string>
+        </Properties>
+      </Item>
+      <Item class="ModuleScript" referent="13">
         <Properties>
           <string name="Name">Remotes</string>
           <string name="Source"><![CDATA[-- Remotes: єдиний список усіх RemoteEvent / RemoteFunction гри.
@@ -795,9 +1120,13 @@ local DEFINITIONS = {
 	InventoryAction = "RemoteFunction", -- (action, uid) -> { ok, message }
 	BuyUpgrade = "RemoteFunction", -- (upgradeId) -> { ok, message }
 	SetSetting = "RemoteFunction", -- (key, value) -> { ok }
+	TeamAction = "RemoteFunction", -- (action, uid) -> { ok, message }
+	CombatAction = "RemoteFunction", -- (action) -> { ok, message }
+	Travel = "RemoteFunction", -- (worldId) -> { ok, message }
 	-- Сервер -> клієнт
 	DataSync = "RemoteEvent", -- повні дані гравця
 	Notify = "RemoteEvent", -- (text, kind) спливаюче повідомлення
+	CombatFx = "RemoteEvent", -- список атак для ефектів: { userId, slot, enemyId, damage }
 }
 
 local folder
@@ -851,11 +1180,11 @@ return Remotes
       </Item>
     </Item>
   </Item>
-  <Item class="ServerScriptService" referent="11">
+  <Item class="ServerScriptService" referent="14">
     <Properties>
       <string name="Name">ServerScriptService</string>
     </Properties>
-    <Item class="Script" referent="12">
+    <Item class="Script" referent="15">
       <Properties>
         <string name="Name">Main</string>
         <token name="RunContext">0</token>
@@ -876,6 +1205,9 @@ local RollService = require(Services.RollService)
 local IncomeService = require(Services.IncomeService)
 local UpgradeService = require(Services.UpgradeService)
 local SettingsService = require(Services.SettingsService)
+local TeamService = require(Services.TeamService)
+local CombatService = require(Services.CombatService)
+local WorldService = require(Services.WorldService)
 
 DataService.Init()
 PlotService.Init()
@@ -884,8 +1216,14 @@ RollService.Init()
 IncomeService.Init()
 UpgradeService.Init()
 SettingsService.Init()
+TeamService.Init()
+CombatService.Init()
+WorldService.Init() -- після PlotService: підключає портали лобі
 
 local function onPlayerAdded(player)
+	WorldService.SetupPlayer(player)
+	CombatService.SetupPlayer(player)
+
 	-- 1. Видаємо базу (миттєво, щоб гравець одразу з'явився на ній)
 	if not PlotService.AssignPlot(player) then
 		player:Kick("Сервер заповнений. Спробуй інший сервер.")
@@ -899,9 +1237,10 @@ local function onPlayerAdded(player)
 	end
 
 	-- 3. Офлайн-дохід, герої на базі, перша синхронізація з клієнтом
+	--    (MarkChanged також оновлює атрибут команди TeamData)
 	IncomeService.GrantOfflineIncome(player)
 	PlotService.RefreshPlot(player)
-	DataService.Sync(player)
+	DataService.MarkChanged(player)
 	print(("[Main] %s завантажений: %d монет"):format(player.Name, data.coins))
 end
 
@@ -912,6 +1251,7 @@ for _, player in Players:GetPlayers() do
 end
 
 Players.PlayerRemoving:Connect(function(player)
+	CombatService.RemovePlayer(player)
 	PlotService.ReleasePlot(player)
 	DataService.ReleasePlayer(player)
 end)
@@ -920,11 +1260,300 @@ print("[Main] Anime Dice: Awakening — сервер запущено")
 ]]></string>
       </Properties>
     </Item>
-    <Item class="Folder" referent="13">
+    <Item class="Folder" referent="16">
       <Properties>
         <string name="Name">Services</string>
       </Properties>
-      <Item class="ModuleScript" referent="14">
+      <Item class="ModuleScript" referent="17">
+        <Properties>
+          <string name="Name">BuildUtil</string>
+          <string name="Source"><![CDATA[-- BuildUtil: спільні функції для будівництва карти з простих Part.
+
+local BuildUtil = {}
+
+-- Створює закріплений Part з властивостями props і кладе його в parent.
+function BuildUtil.Part(props, parent)
+	local part = Instance.new(props.ClassName or "Part")
+	part.Anchored = true
+	part.TopSurface = Enum.SurfaceType.Smooth
+	part.BottomSurface = Enum.SurfaceType.Smooth
+	for key, value in props do
+		if key ~= "ClassName" then
+			part[key] = value
+		end
+	end
+	part.Parent = parent
+	return part
+end
+
+-- Напис на грані деталі. Повертає TextLabel, щоб потім змінювати текст.
+function BuildUtil.SurfaceText(part, face, text, textColor)
+	local gui = Instance.new("SurfaceGui")
+	gui.Name = "Gui"
+	gui.Face = face
+	gui.SizingMode = Enum.SurfaceGuiSizingMode.PixelsPerStud
+	gui.PixelsPerStud = 25
+	gui.Parent = part
+	local label = Instance.new("TextLabel")
+	label.Name = "Label"
+	label.Size = UDim2.fromScale(1, 1)
+	label.BackgroundTransparency = 1
+	label.Font = Enum.Font.FredokaOne
+	label.TextScaled = true
+	label.TextColor3 = textColor or Color3.new(1, 1, 1)
+	label.TextStrokeTransparency = 0.5
+	label.Text = text
+	label.Parent = gui
+	return label
+end
+
+-- Арка порталу. cframe — центр основи, передня сторона (-Z) — до гравця.
+-- Повертає модель і світну площину Field (її Touched використовують для телепорту).
+function BuildUtil.Portal(parent, cframe, title, subtitle, color)
+	local model = Instance.new("Model")
+	model.Name = "Portal_" .. title
+	local frameColor = Color3.fromRGB(60, 50, 90)
+	BuildUtil.Part({ Name = "PillarL", Size = Vector3.new(1.5, 12, 1.5), CFrame = cframe * CFrame.new(-5, 6.5, 0), Color = frameColor, Material = Enum.Material.Slate }, model)
+	BuildUtil.Part({ Name = "PillarR", Size = Vector3.new(1.5, 12, 1.5), CFrame = cframe * CFrame.new(5, 6.5, 0), Color = frameColor, Material = Enum.Material.Slate }, model)
+	BuildUtil.Part({ Name = "Top", Size = Vector3.new(12, 1.5, 1.5), CFrame = cframe * CFrame.new(0, 13, 0), Color = frameColor, Material = Enum.Material.Slate }, model)
+	local field = BuildUtil.Part({
+		Name = "Field",
+		Size = Vector3.new(8.5, 11, 0.4),
+		CFrame = cframe * CFrame.new(0, 6.5, 0),
+		Color = color,
+		Material = Enum.Material.Neon,
+		Transparency = 0.35,
+		CanCollide = false,
+	}, model)
+	BuildUtil.SurfaceText(field, Enum.NormalId.Front, title .. "\n" .. subtitle, Color3.new(1, 1, 1))
+	model.Parent = parent
+	return model, field
+end
+
+return BuildUtil
+]]></string>
+        </Properties>
+      </Item>
+      <Item class="ModuleScript" referent="18">
+        <Properties>
+          <string name="Name">CombatService</string>
+          <string name="Source"><![CDATA[-- CombatService: вибір цілі та автоатака бойової команди.
+--
+-- Клієнт лише вибирає ціль (клік по ворогу або кнопка 🎯). Скільки шкоди і коли
+-- завдає кожен герой, рахує сервер: за рівнем героя, швидкістю атаки
+-- та відстанню від гравця до ворога.
+
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+local Shared = ReplicatedStorage:WaitForChild("Shared")
+local CombatConfig = require(Shared.Config.CombatConfig)
+local HeroConfig = require(Shared.Config.HeroConfig)
+local GameMath = require(Shared.GameMath)
+local Remotes = require(Shared.Remotes)
+
+local DataService = require(script.Parent.DataService)
+local EnemyService = require(script.Parent.EnemyService)
+local RateLimiter = require(script.Parent.RateLimiter)
+
+local CombatService = {}
+
+local limiter = RateLimiter.new(6, 3)
+local states = {} -- [Player] = { targetId, cooldowns = {} }
+
+local function getState(player)
+	local state = states[player]
+	if not state then
+		state = { targetId = nil, cooldowns = table.create(CombatConfig.TeamSize, 0) }
+		states[player] = state
+	end
+	return state
+end
+
+local function getRoot(player)
+	local character = player.Character
+	local humanoid = character and character:FindFirstChildOfClass("Humanoid")
+	local root = character and character:FindFirstChild("HumanoidRootPart")
+	if root and humanoid and humanoid.Health > 0 then
+		return root
+	end
+	return nil
+end
+
+local function distanceTo(root, enemy)
+	return (root.Position - enemy.spawnCFrame.Position).Magnitude
+end
+
+function CombatService.ClearTarget(player)
+	local state = states[player]
+	if state then
+		state.targetId = nil
+	end
+	if player.Parent then
+		player:SetAttribute("TargetId", "")
+	end
+end
+
+-- Перевіряє і ставить ціль. Повертає ok, message.
+function CombatService.SetTarget(player, enemyId)
+	local enemy = EnemyService.Get(enemyId)
+	if not enemy or not enemy.alive then
+		return false, "Цей ворог уже переможений"
+	end
+	if player:GetAttribute("World") ~= enemy.world then
+		return false, "Ворог в іншому світі"
+	end
+	local root = getRoot(player)
+	if not root or distanceTo(root, enemy) > CombatConfig.TargetSelectRange then
+		return false, "Ворог надто далеко"
+	end
+	local data = DataService.Get(player)
+	if not data or GameMath.GetTeamDps(data) <= 0 then
+		return false, "Команда порожня! Додай героїв у ⚔️ Team"
+	end
+	getState(player).targetId = enemyId
+	player:SetAttribute("TargetId", enemyId)
+	return true, "Ціль: " .. enemy.def.name
+end
+
+local function targetNearest(player)
+	local root = getRoot(player)
+	if not root then
+		return false, "Персонаж ще не з'явився"
+	end
+	local world = player:GetAttribute("World")
+	local bestId, bestDistance = nil, math.huge
+	for id, enemy in EnemyService.GetAll() do
+		if enemy.alive and enemy.world == world then
+			local distance = distanceTo(root, enemy)
+			if distance < bestDistance and distance <= CombatConfig.TargetSelectRange then
+				bestId, bestDistance = id, distance
+			end
+		end
+	end
+	if not bestId then
+		return false, "Поруч немає ворогів"
+	end
+	return CombatService.SetTarget(player, bestId)
+end
+
+local function onCombatAction(player, action)
+	if typeof(action) ~= "string" then
+		return { ok = false, message = "Невідома дія" }
+	end
+	if not limiter:Check(player) then
+		return { ok = false, message = "Занадто швидко!" }
+	end
+	if action == "TargetNearest" then
+		local ok, message = targetNearest(player)
+		return { ok = ok, message = message }
+	elseif action == "Clear" then
+		CombatService.ClearTarget(player)
+		return { ok = true, message = "Ціль скинуто" }
+	end
+	return { ok = false, message = "Невідома дія" }
+end
+
+-- Один крок бою для одного гравця. Додає події атак у fx.
+local function stepPlayer(player, state, dt, fx)
+	local enemy = EnemyService.Get(state.targetId)
+	if not enemy or not enemy.alive then
+		CombatService.ClearTarget(player)
+		return
+	end
+	local data = DataService.Get(player)
+	local root = getRoot(player)
+	local inRange = data ~= nil
+		and root ~= nil
+		and player:GetAttribute("World") == enemy.world
+		and distanceTo(root, enemy) <= CombatConfig.AttackRange
+
+	for slot = 1, CombatConfig.TeamSize do
+		local uid = data and data.team[slot]
+		local hero = uid and uid ~= "" and data.heroes[uid]
+		local heroDef = hero and HeroConfig.Heroes[hero.id]
+		if not heroDef or not inRange then
+			-- Поза дальністю атаки не "накопичуються"
+			state.cooldowns[slot] = math.max(0, state.cooldowns[slot] - dt)
+		else
+			state.cooldowns[slot] -= dt
+			if state.cooldowns[slot] <= 0 then
+				state.cooldowns[slot] = math.max(state.cooldowns[slot] + 1 / heroDef.attackSpeed, 0)
+				local damage = GameMath.GetHeroDamage(heroDef, hero.level)
+				local killed = EnemyService.ApplyDamage(enemy.id, player, damage)
+				table.insert(fx, { player.UserId, slot, enemy.id, math.floor(damage + 0.5) })
+				if killed then
+					return
+				end
+			end
+		end
+	end
+end
+
+function CombatService.SetupPlayer(player)
+	player:SetAttribute("TargetId", "")
+	player.CharacterAdded:Connect(function()
+		CombatService.ClearTarget(player)
+	end)
+end
+
+function CombatService.RemovePlayer(player)
+	states[player] = nil
+end
+
+function CombatService.Init()
+	Remotes.Handle("CombatAction", onCombatAction)
+
+	EnemyService.OnEnemyClicked(function(player, enemyId)
+		if not limiter:Check(player) then
+			return
+		end
+		local ok, message = CombatService.SetTarget(player, enemyId)
+		if not ok then
+			Remotes.Notify(player, message, "error")
+		end
+	end)
+
+	EnemyService.OnEnemyDied(function(enemyId)
+		for player, state in states do
+			if state.targetId == enemyId then
+				CombatService.ClearTarget(player)
+			end
+		end
+	end)
+
+	local fxEvent = Remotes.Get("CombatFx")
+	task.spawn(function()
+		local last = os.clock()
+		while true do
+			task.wait(CombatConfig.TickSeconds)
+			local now = os.clock()
+			local dt = math.min(now - last, 0.5)
+			last = now
+			local fx = {}
+			for player, state in states do
+				if state.targetId and player.Parent then
+					stepPlayer(player, state, dt, fx)
+				end
+			end
+			if #fx > 0 then
+				fxEvent:FireAllClients(fx)
+			end
+		end
+	end)
+end
+
+-- Для автотестів: один крок бою без таймера.
+CombatService._step = function(player, dt)
+	local fx = {}
+	stepPlayer(player, getState(player), dt, fx)
+	return fx
+end
+
+return CombatService
+]]></string>
+        </Properties>
+      </Item>
+      <Item class="ModuleScript" referent="19">
         <Properties>
           <string name="Name">DataService</string>
           <string name="Source"><![CDATA[-- DataService: завантаження, зберігання та синхронізація даних гравців.
@@ -944,6 +1573,7 @@ local RunService = game:GetService("RunService")
 
 local Shared = ReplicatedStorage:WaitForChild("Shared")
 local EconomyConfig = require(Shared.Config.EconomyConfig)
+local CombatConfig = require(Shared.Config.CombatConfig)
 local HeroConfig = require(Shared.Config.HeroConfig)
 local Remotes = require(Shared.Remotes)
 
@@ -975,6 +1605,7 @@ end
 -- [Player] = { data, canSave, releasing, saving, incomeRemainder }
 local profiles = {}
 local pendingSync = {}
+local changedCallbacks = {}
 
 local function makeTemplate()
 	return {
@@ -985,12 +1616,14 @@ local function makeTemplate()
 		nextHeroId = 1,
 		slots = table.create(EconomyConfig.MaxSlots, ""), -- uid героя або ""
 		slotCount = EconomyConfig.StartSlots,
+		team = table.create(CombatConfig.TeamSize, ""), -- бойова команда: uid героя або ""
 		incomeLevel = 0,
 		pity = {}, -- [rarity] = кидків без цієї рідкості
 		totalRolls = 0,
 		discovered = {}, -- [heroId] = true (колекція)
 		tutorial = { freeRollUsed = false, completed = false },
 		settings = { sound = true, effects = true, skipAnimations = false },
+		stats = { enemiesDefeated = 0, bossesDefeated = 0 },
 		lastSeen = 0,
 	}
 end
@@ -1033,6 +1666,16 @@ local function sanitize(data)
 		local hero = type(uid) == "string" and data.heroes[uid]
 		if i > data.slotCount or not hero or seen[uid] or not HeroConfig.Heroes[hero.id] then
 			data.slots[i] = ""
+		else
+			seen[uid] = true
+		end
+	end
+	-- Один герой — або на базі, або в команді. Якщо обидва, база має пріоритет.
+	for i = 1, CombatConfig.TeamSize do
+		local uid = data.team[i]
+		local hero = type(uid) == "string" and data.heroes[uid]
+		if not hero or seen[uid] or not HeroConfig.Heroes[hero.id] then
+			data.team[i] = ""
 		else
 			seen[uid] = true
 		end
@@ -1251,6 +1894,21 @@ function DataService.AddCoins(player, amount)
 	return true
 end
 
+function DataService.AddCrystals(player, amount)
+	local profile = DataService.GetProfile(player)
+	amount = math.floor(tonumber(amount) or 0)
+	if not profile or amount <= 0 then
+		return false
+	end
+	profile.data.crystals += amount
+	local leaderstats = player:FindFirstChild("leaderstats")
+	local crystals = leaderstats and leaderstats:FindFirstChild("Crystals")
+	if crystals then
+		crystals.Value = profile.data.crystals
+	end
+	return true
+end
+
 -- Списує монети, лише якщо їх вистачає. Повертає true/false.
 function DataService.SpendCoins(player, amount)
 	local profile = DataService.GetProfile(player)
@@ -1262,7 +1920,13 @@ function DataService.SpendCoins(player, amount)
 	return true
 end
 
--- Надіслати клієнту повні дані (наприкінці кадру, щоб не слати їх кілька разів поспіль).
+-- callback(player, data) — викликається після кожної зміни даних гравця.
+function DataService.OnChanged(callback)
+	table.insert(changedCallbacks, callback)
+end
+
+-- Дані змінились: наприкінці кадру надіслати їх клієнту та повідомити інші сервіси
+-- (один раз, навіть якщо змін було кілька).
 function DataService.MarkChanged(player)
 	if pendingSync[player] then
 		return
@@ -1270,7 +1934,14 @@ function DataService.MarkChanged(player)
 	pendingSync[player] = true
 	task.defer(function()
 		pendingSync[player] = nil
+		local profile = DataService.GetProfile(player)
+		if not profile then
+			return
+		end
 		DataService.Sync(player)
+		for _, callback in changedCallbacks do
+			task.spawn(callback, player, profile.data)
+		end
 	end)
 end
 
@@ -1310,25 +1981,13 @@ return DataService
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="15">
+      <Item class="ModuleScript" referent="20">
         <Properties>
-          <string name="Name">HeroModelBuilder</string>
-          <string name="Source"><![CDATA[-- HeroModelBuilder: будує просту модель героя з Part (без платних моделей).
--- Модель будується навколо точки (0,0,0) — це "ноги" героя,
--- тому її легко поставити на слот через model:PivotTo(...).
+          <string name="Name">EnemyModelBuilder</string>
+          <string name="Source"><![CDATA[-- EnemyModelBuilder: прості моделі ворогів з Part + смуга здоров'я над головою.
+-- Модель будується навколо (0,0,0) — це ноги; обличчя дивиться в бік -Z.
 
-local CollectionService = game:GetService("CollectionService")
-local ReplicatedStorage = game:GetService("ReplicatedStorage")
-
-local Shared = ReplicatedStorage:WaitForChild("Shared")
-local HeroConfig = require(Shared.Config.HeroConfig)
-local RarityConfig = require(Shared.Config.RarityConfig)
-local GameMath = require(Shared.GameMath)
-
-local HeroModelBuilder = {}
-
--- Тег для клієнта: ефекти з цим тегом вимикаються в налаштуваннях.
-HeroModelBuilder.AURA_TAG = "HeroAura"
+local EnemyModelBuilder = {}
 
 local function addPart(model, name, size, cframe, color, material, shape)
 	local part = Instance.new("Part")
@@ -1347,133 +2006,402 @@ local function addPart(model, name, size, cframe, color, material, shape)
 	return part
 end
 
--- Зброя / аксесуар залежно від класу героя.
-local ACCESSORIES = {
-	Ninja = function(model, s, accent, top)
-		addPart(model, "Scarf", Vector3.new(2.3, 0.45, 1.4) * s, CFrame.new(0, top - 0.2 * s, 0), accent, Enum.Material.Neon)
-		addPart(model, "ScarfTail", Vector3.new(0.5, 1.6, 0.15) * s, CFrame.new(0.6 * s, top - 1.1 * s, 0.75 * s) * CFrame.Angles(0.3, 0, 0), accent, Enum.Material.Neon)
-		addPart(model, "Kunai", Vector3.new(0.2, 1.2, 0.2) * s, CFrame.new(1.45 * s, top - 1.8 * s, -0.3 * s) * CFrame.Angles(0, 0, 0.4), Color3.fromRGB(180, 180, 190), Enum.Material.Metal)
+-- Додаткові деталі для кожного стилю. s — масштаб, top — висота плечей.
+local STYLES = {
+	Genin = function(model, s, def, top)
+		addPart(model, "Headband", Vector3.new(1.9, 0.35, 1.9) * s, CFrame.new(0, top + 1.1 * s, 0), def.accent)
+		addPart(model, "Mask", Vector3.new(1.5, 0.6, 0.2) * s, CFrame.new(0, top + 0.5 * s, -0.8 * s), Color3.fromRGB(40, 40, 40))
+		addPart(model, "Knife", Vector3.new(0.2, 1.4, 0.3) * s, CFrame.new(1.5 * s, top - 1.6 * s, -0.4 * s), Color3.fromRGB(190, 190, 200), Enum.Material.Metal)
 	end,
-	Swordsman = function(model, s, accent, top)
-		addPart(model, "Hilt", Vector3.new(0.3, 0.9, 0.3) * s, CFrame.new(1.5 * s, top - 2.2 * s, -0.4 * s), Color3.fromRGB(50, 40, 40))
-		addPart(model, "Blade", Vector3.new(0.18, 4, 0.5) * s, CFrame.new(1.5 * s, top + 0.25 * s, -0.4 * s), accent, Enum.Material.Neon)
+	Puppet = function(model, s, def, top)
+		for i = -1, 1, 2 do
+			addPart(model, "String", Vector3.new(0.08, 6, 0.08) * s, CFrame.new(i * 1.1 * s, top + 4 * s, 0), def.accent, Enum.Material.Neon)
+		end
+		addPart(model, "Blade", Vector3.new(0.2, 2.2, 0.6) * s, CFrame.new(-1.5 * s, top - 1.2 * s, -0.3 * s), def.accent, Enum.Material.Neon)
 	end,
-	["Demon Hunter"] = function(model, s, accent, top)
-		addPart(model, "Blade", Vector3.new(0.18, 3.6, 0.45) * s, CFrame.new(-1.5 * s, top - 1 * s, -0.3 * s) * CFrame.Angles(0, 0, -0.25), accent, Enum.Material.Neon)
-		addPart(model, "Lantern", Vector3.new(0.6, 0.6, 0.6) * s, CFrame.new(1.5 * s, top - 2.4 * s, -0.3 * s), accent, Enum.Material.Neon, Enum.PartType.Ball)
+	Ronin = function(model, s, def, top)
+		addPart(model, "Hat", Vector3.new(0.5, 3.2, 3.2) * s, CFrame.new(0, top + 1.9 * s, 0) * CFrame.Angles(0, 0, math.rad(90)), Color3.fromRGB(200, 170, 100), Enum.Material.Fabric, Enum.PartType.Cylinder)
+		addPart(model, "Katana", Vector3.new(0.18, 4, 0.45) * s, CFrame.new(1.5 * s, top - 0.4 * s, -0.4 * s) * CFrame.Angles(0, 0, -0.3), def.accent, Enum.Material.Metal)
 	end,
-	Pirate = function(model, s, accent, top)
-		addPart(model, "HatBrim", Vector3.new(2.6, 0.2, 2.2) * s, CFrame.new(0, top + 1.8 * s, 0), Color3.fromRGB(30, 25, 25))
-		addPart(model, "HatTop", Vector3.new(1.7, 0.7, 1.5) * s, CFrame.new(0, top + 2.25 * s, 0), Color3.fromRGB(30, 25, 25))
-		addPart(model, "Cutlass", Vector3.new(0.18, 2.6, 0.5) * s, CFrame.new(1.5 * s, top - 1.6 * s, -0.4 * s) * CFrame.Angles(0, 0, 0.2), accent, Enum.Material.Metal)
-	end,
-	Mage = function(model, s, accent, top)
-		addPart(model, "Staff", Vector3.new(0.25, 5, 0.25) * s, CFrame.new(1.5 * s, top - 1.5 * s, -0.3 * s), Color3.fromRGB(110, 70, 40), Enum.Material.Wood)
-		addPart(model, "Orb", Vector3.new(0.9, 0.9, 0.9) * s, CFrame.new(1.5 * s, top + 1.2 * s, -0.3 * s), accent, Enum.Material.Neon, Enum.PartType.Ball)
-	end,
-	["Space Warrior"] = function(model, s, accent, top)
-		addPart(model, "ShoulderL", Vector3.new(0.9, 0.5, 1.4) * s, CFrame.new(-1.4 * s, top - 0.15 * s, 0), accent, Enum.Material.Neon)
-		addPart(model, "ShoulderR", Vector3.new(0.9, 0.5, 1.4) * s, CFrame.new(1.4 * s, top - 0.15 * s, 0), accent, Enum.Material.Neon)
-		addPart(model, "Visor", Vector3.new(1.4, 0.35, 0.3) * s, CFrame.new(0, top + 0.85 * s, -0.75 * s), accent, Enum.Material.Neon)
+	Oni = function(model, s, def, top)
+		addPart(model, "HornL", Vector3.new(0.4, 1.2, 0.4) * s, CFrame.new(-0.55 * s, top + 1.9 * s, 0) * CFrame.Angles(0, 0, 0.35), def.accent, Enum.Material.Neon)
+		addPart(model, "HornR", Vector3.new(0.4, 1.2, 0.4) * s, CFrame.new(0.55 * s, top + 1.9 * s, 0) * CFrame.Angles(0, 0, -0.35), def.accent, Enum.Material.Neon)
+		addPart(model, "Club", Vector3.new(0.9, 4.5, 0.9) * s, CFrame.new(1.8 * s, top - 0.8 * s, -0.5 * s) * CFrame.Angles(0.3, 0, -0.2), Color3.fromRGB(60, 40, 30), Enum.Material.Wood)
+		addPart(model, "Belt", Vector3.new(2.4, 0.4, 1.4) * s, CFrame.new(0, top - 2.0 * s, 0), def.accent, Enum.Material.Neon)
+		local light = Instance.new("PointLight")
+		light.Color = def.accent
+		light.Range = 20
+		light.Brightness = 2
+		light.Parent = model:FindFirstChild("Torso")
 	end,
 }
 
-local function addNameplate(model, head, heroDef, level, income)
+local function addHealthBar(model, adornee, def, height)
+	local s = def.scale
 	local billboard = Instance.new("BillboardGui")
-	billboard.Name = "Nameplate"
-	billboard.Size = UDim2.fromOffset(220, 56)
-	billboard.StudsOffset = Vector3.new(0, 3, 0)
-	billboard.MaxDistance = 90
-	billboard.Adornee = head
+	billboard.Name = "HealthBar"
+	billboard.Size = UDim2.fromOffset(if def.isBoss then 260 else 150, if def.isBoss then 46 else 34)
+	billboard.StudsOffsetWorldSpace = Vector3.new(0, height + 1.5 * s, 0)
+	billboard.MaxDistance = if def.isBoss then 250 else 120
+	billboard.Adornee = adornee
 	billboard.Parent = model
 
 	local nameLabel = Instance.new("TextLabel")
-	nameLabel.Size = UDim2.new(1, 0, 0.55, 0)
+	nameLabel.Name = "EnemyName"
+	nameLabel.Size = UDim2.fromScale(1, 0.5)
 	nameLabel.BackgroundTransparency = 1
 	nameLabel.Font = Enum.Font.FredokaOne
 	nameLabel.TextScaled = true
-	nameLabel.Text = heroDef.name
-	nameLabel.TextColor3 = RarityConfig.GetColor(heroDef.rarity)
+	nameLabel.TextColor3 = if def.isBoss then Color3.fromRGB(255, 90, 90) else Color3.new(1, 1, 1)
 	nameLabel.TextStrokeTransparency = 0.3
+	nameLabel.Text = def.name
 	nameLabel.Parent = billboard
 
-	local infoLabel = Instance.new("TextLabel")
-	infoLabel.Position = UDim2.fromScale(0, 0.55)
-	infoLabel.Size = UDim2.new(1, 0, 0.45, 0)
-	infoLabel.BackgroundTransparency = 1
-	infoLabel.Font = Enum.Font.GothamBold
-	infoLabel.TextScaled = true
-	infoLabel.Text = ("%s • Lv %d • +%s/s"):format(heroDef.rarity, level, GameMath.FormatNumber(income))
-	infoLabel.TextColor3 = Color3.new(1, 1, 1)
-	infoLabel.TextStrokeTransparency = 0.4
-	infoLabel.Parent = billboard
+	local back = Instance.new("Frame")
+	back.Name = "Back"
+	back.Position = UDim2.fromScale(0, 0.55)
+	back.Size = UDim2.fromScale(1, 0.4)
+	back.BackgroundColor3 = Color3.fromRGB(30, 20, 30)
+	back.BorderSizePixel = 0
+	back.Parent = billboard
+
+	local fill = Instance.new("Frame")
+	fill.Name = "Fill"
+	fill.Size = UDim2.fromScale(1, 1)
+	fill.BackgroundColor3 = Color3.fromRGB(90, 220, 110)
+	fill.BorderSizePixel = 0
+	fill.Parent = back
+
+	local text = Instance.new("TextLabel")
+	text.Name = "Text"
+	text.Size = UDim2.fromScale(1, 1)
+	text.BackgroundTransparency = 1
+	text.Font = Enum.Font.GothamBold
+	text.TextScaled = true
+	text.TextColor3 = Color3.new(1, 1, 1)
+	text.TextStrokeTransparency = 0.4
+	text.Parent = back
 end
 
-local function addAura(model, torso, rarity)
-	local info = RarityConfig.Info[rarity]
-	if info.aura then
-		local emitter = Instance.new("ParticleEmitter")
-		emitter.Name = "Aura"
-		emitter.Color = ColorSequence.new(info.color)
-		emitter.LightEmission = 1
-		emitter.Size = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0.7), NumberSequenceKeypoint.new(1, 0) })
-		emitter.Transparency = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0.2), NumberSequenceKeypoint.new(1, 1) })
-		emitter.Lifetime = NumberRange.new(0.8, 1.4)
-		emitter.Speed = NumberRange.new(1, 3)
-		emitter.SpreadAngle = Vector2.new(180, 180)
-		emitter.Acceleration = Vector3.new(0, 3, 0)
-		emitter.Rate = 8 * info.rank
-		emitter.Parent = torso
-		CollectionService:AddTag(emitter, HeroModelBuilder.AURA_TAG)
-	end
-	if info.light then
-		local light = Instance.new("PointLight")
-		light.Name = "AuraLight"
-		light.Color = info.color
-		light.Range = 12
-		light.Brightness = 2
-		light.Parent = torso
-		CollectionService:AddTag(light, HeroModelBuilder.AURA_TAG)
-	end
-end
-
-function HeroModelBuilder.Build(heroDef, level, income)
+function EnemyModelBuilder.Build(def)
 	local model = Instance.new("Model")
-	model.Name = heroDef.id
-
-	local s = heroDef.look.height or 1
-	local accent = HeroConfig.ElementColors[heroDef.element] or Color3.new(1, 1, 1)
+	model.Name = def.name
+	local s = def.scale
 	local legHeight = 2 * s
-	local torsoHeight = 2.2 * s
-	local shoulder = legHeight + torsoHeight -- висота плечей
+	local torsoHeight = 2.4 * s
+	local top = legHeight + torsoHeight
 
-	addPart(model, "Legs", Vector3.new(1.8, legHeight, 1) * Vector3.new(s, 1, s), CFrame.new(0, legHeight / 2, 0), heroDef.look.body:Lerp(Color3.new(0, 0, 0), 0.35))
-	local torso = addPart(model, "Torso", Vector3.new(2.2 * s, torsoHeight, 1.2 * s), CFrame.new(0, legHeight + torsoHeight / 2, 0), heroDef.look.body)
-	addPart(model, "Belt", Vector3.new(2.3 * s, 0.3 * s, 1.3 * s), CFrame.new(0, legHeight + 0.2 * s, 0), accent, Enum.Material.Neon)
-	local head = addPart(model, "Head", Vector3.new(1.7, 1.7, 1.7) * s, CFrame.new(0, shoulder + 0.85 * s, 0), heroDef.look.skin, Enum.Material.SmoothPlastic, Enum.PartType.Ball)
-	addPart(model, "Hair", Vector3.new(1.85 * s, 0.7 * s, 1.85 * s), CFrame.new(0, shoulder + 1.45 * s, 0.1 * s), heroDef.look.hair)
-	-- Очі дивляться в бік -Z (до гравця, що стоїть перед базою)
-	addPart(model, "EyeL", Vector3.new(0.25, 0.35, 0.1) * s, CFrame.new(-0.35 * s, shoulder + 0.95 * s, -0.8 * s), Color3.fromRGB(30, 30, 40))
-	addPart(model, "EyeR", Vector3.new(0.25, 0.35, 0.1) * s, CFrame.new(0.35 * s, shoulder + 0.95 * s, -0.8 * s), Color3.fromRGB(30, 30, 40))
+	addPart(model, "Legs", Vector3.new(1.9 * s, legHeight, 1.1 * s), CFrame.new(0, legHeight / 2, 0), def.body:Lerp(Color3.new(0, 0, 0), 0.4))
+	addPart(model, "Torso", Vector3.new(2.4 * s, torsoHeight, 1.3 * s), CFrame.new(0, legHeight + torsoHeight / 2, 0), def.body)
+	addPart(model, "Head", Vector3.new(1.8, 1.8, 1.8) * s, CFrame.new(0, top + 0.9 * s, 0), def.body:Lerp(Color3.new(1, 1, 1), 0.15), Enum.Material.SmoothPlastic, Enum.PartType.Ball)
+	-- Світні очі — видно, куди дивиться ворог
+	addPart(model, "EyeL", Vector3.new(0.3, 0.25, 0.1) * s, CFrame.new(-0.38 * s, top + 1 * s, -0.85 * s), Color3.fromRGB(255, 40, 40), Enum.Material.Neon)
+	addPart(model, "EyeR", Vector3.new(0.3, 0.25, 0.1) * s, CFrame.new(0.38 * s, top + 1 * s, -0.85 * s), Color3.fromRGB(255, 40, 40), Enum.Material.Neon)
 
-	local accessory = ACCESSORIES[heroDef.archetype]
-	if accessory then
-		accessory(model, s, accent, shoulder)
+	local style = STYLES[def.style]
+	if style then
+		style(model, s, def, top)
 	end
 
-	addNameplate(model, head, heroDef, level, income)
-	addAura(model, torso, heroDef.rarity)
+	-- Невидима "зона кліку": так ворога легко вибрати навіть на телефоні
+	local height = top + 1.8 * s
+	local hitbox = addPart(model, "Hitbox", Vector3.new(4 * s, height, 4 * s), CFrame.new(0, height / 2, 0), Color3.new(1, 1, 1))
+	hitbox.Transparency = 1
+	hitbox.CanQuery = true
 
-	model.PrimaryPart = torso
-	model.WorldPivot = CFrame.new() -- точка опори = ноги
+	addHealthBar(model, hitbox, def, height / 2)
+
+	model.PrimaryPart = hitbox
+	model.WorldPivot = CFrame.new()
 	return model
 end
 
-return HeroModelBuilder
+return EnemyModelBuilder
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="16">
+      <Item class="ModuleScript" referent="21">
+        <Properties>
+          <string name="Name">EnemyService</string>
+          <string name="Source"><![CDATA[-- EnemyService: вороги та боси — поява, здоров'я, нагороди, атаки боса.
+-- Шкоду ворогам завдає тільки сервер (через EnemyService.ApplyDamage з CombatService).
+
+local CollectionService = game:GetService("CollectionService")
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local TweenService = game:GetService("TweenService")
+
+local Shared = ReplicatedStorage:WaitForChild("Shared")
+local CombatConfig = require(Shared.Config.CombatConfig)
+local EnemyConfig = require(Shared.Config.EnemyConfig)
+local GameMath = require(Shared.GameMath)
+local Remotes = require(Shared.Remotes)
+
+local DataService = require(script.Parent.DataService)
+local EnemyModelBuilder = require(script.Parent.EnemyModelBuilder)
+
+local EnemyService = {}
+
+-- Тег, за яким клієнт знаходить ворогів (смуга боса, ціль, ефекти).
+EnemyService.TAG = "Enemy"
+
+local enemies = {} -- [enemyId] = state
+local nextId = 0
+local clickCallbacks = {}
+local deathCallbacks = {}
+
+local rng = Random.new()
+
+local function fire(callbacks, ...)
+	for _, callback in callbacks do
+		task.spawn(callback, ...)
+	end
+end
+
+local function updateHealthBar(state)
+	local model = state.model
+	if not model then
+		return
+	end
+	model:SetAttribute("Health", state.health)
+	local bar = model:FindFirstChild("HealthBar")
+	if bar then
+		local ratio = state.health / state.def.health
+		bar.Back.Fill.Size = UDim2.fromScale(ratio, 1)
+		bar.Back.Fill.BackgroundColor3 = Color3.fromRGB(255, 70, 70):Lerp(Color3.fromRGB(90, 220, 110), ratio)
+		bar.Back.Text.Text = GameMath.FormatNumber(math.ceil(state.health)) .. " / " .. GameMath.FormatNumber(state.def.health)
+	end
+end
+
+-- Гравці в тому ж світі, що й ворог, не далі radius.
+local function playersNear(state, radius)
+	local result = {}
+	local origin = state.spawnCFrame.Position
+	for _, player in Players:GetPlayers() do
+		local character = player.Character
+		local root = character and character:FindFirstChild("HumanoidRootPart")
+		local humanoid = character and character:FindFirstChildOfClass("Humanoid")
+		if root and humanoid and humanoid.Health > 0 and player:GetAttribute("World") == state.world then
+			if (root.Position - origin).Magnitude <= radius then
+				table.insert(result, { player = player, root = root, humanoid = humanoid })
+			end
+		end
+	end
+	return result
+end
+
+-- Помітна атака: червоне коло на землі, через `telegraph` секунд — шкода всім усередині.
+local function telegraphAttack(state, center, attack)
+	local marker = Instance.new("Part")
+	marker.Name = "BossAttackMarker"
+	marker.Shape = Enum.PartType.Cylinder
+	marker.Size = Vector3.new(0.3, attack.radius * 2, attack.radius * 2)
+	marker.CFrame = CFrame.new(center + Vector3.new(0, 0.2, 0)) * CFrame.Angles(0, 0, math.rad(90))
+	marker.Anchored = true
+	marker.CanCollide = false
+	marker.CanQuery = false
+	marker.CanTouch = false
+	marker.Material = Enum.Material.Neon
+	marker.Color = Color3.fromRGB(255, 40, 40)
+	marker.Transparency = 0.75
+	marker.Parent = state.parent
+	TweenService:Create(marker, TweenInfo.new(attack.telegraph), { Transparency = 0.25 }):Play()
+
+	task.wait(attack.telegraph)
+	if state.alive then
+		for _, target in playersNear(state, 300) do
+			local offset = target.root.Position - center
+			if Vector3.new(offset.X, 0, offset.Z).Magnitude <= attack.radius and math.abs(offset.Y) < 15 then
+				target.humanoid:TakeDamage(attack.damage)
+			end
+		end
+	end
+	marker.Color = Color3.new(1, 1, 1)
+	TweenService:Create(marker, TweenInfo.new(0.25), { Transparency = 1 }):Play()
+	task.delay(0.3, function()
+		marker:Destroy()
+	end)
+end
+
+local function bossLoop(state)
+	local def = state.def
+	local spawnId = state.spawnId
+	while state.alive and state.spawnId == spawnId do
+		task.wait(def.attackInterval)
+		if not state.alive or state.spawnId ~= spawnId then
+			break
+		end
+		local targets = playersNear(state, 90)
+		if #targets > 0 then
+			local ground = state.spawnCFrame.Position
+			if rng:NextNumber() < 0.5 then
+				local attack = def.attacks.GroundSlam
+				state.model:SetAttribute("Attack", attack.displayName)
+				telegraphAttack(state, ground, attack)
+			else
+				local attack = def.attacks.ShurikenRain
+				state.model:SetAttribute("Attack", attack.displayName)
+				for _, target in targets do
+					local position = Vector3.new(target.root.Position.X, ground.Y, target.root.Position.Z)
+					task.spawn(telegraphAttack, state, position, attack)
+				end
+				task.wait(attack.telegraph + 0.1)
+			end
+			if state.model then
+				state.model:SetAttribute("Attack", "")
+			end
+		end
+	end
+end
+
+local function spawnEnemy(state)
+	state.spawnId += 1
+	state.health = state.def.health
+	state.contributors = {}
+
+	local model = EnemyModelBuilder.Build(state.def)
+	model:SetAttribute("EnemyId", state.id)
+	model:SetAttribute("EnemyName", state.def.name)
+	model:SetAttribute("World", state.world)
+	model:SetAttribute("IsBoss", state.def.isBoss == true)
+	model:SetAttribute("MaxHealth", state.def.health)
+	model:SetAttribute("Attack", "")
+	model:PivotTo(state.spawnCFrame)
+
+	-- Клік або дотик по ворогу — вибір цілі (працює і на ПК, і на телефоні)
+	local click = Instance.new("ClickDetector")
+	click.MaxActivationDistance = CombatConfig.TargetSelectRange
+	click.Parent = model
+	click.MouseClick:Connect(function(player)
+		fire(clickCallbacks, player, state.id)
+	end)
+
+	state.model = model
+	state.alive = true
+	updateHealthBar(state)
+	CollectionService:AddTag(model, EnemyService.TAG)
+	model.Parent = state.parent
+
+	if state.def.isBoss then
+		task.spawn(bossLoop, state)
+	end
+end
+
+local function rewardContributors(state)
+	local def = state.def
+	local minimum = def.health * CombatConfig.MinContributionShare
+	for player, damage in state.contributors do
+		if player.Parent and damage >= minimum then
+			DataService.AddCoins(player, def.coins)
+			DataService.AddCrystals(player, def.crystals)
+			local data = DataService.Get(player)
+			if data then
+				data.stats.enemiesDefeated += 1
+				if def.isBoss then
+					data.stats.bossesDefeated += 1
+				end
+				DataService.MarkChanged(player)
+			end
+			local text = ("Переможено %s! +%s 🪙"):format(def.name, GameMath.FormatNumber(def.coins))
+			if def.crystals > 0 then
+				text ..= (" +%d 💎"):format(def.crystals)
+			end
+			Remotes.Notify(player, text, "success")
+		end
+	end
+end
+
+local function onDeath(state)
+	state.alive = false
+	local model = state.model
+	state.model = nil
+
+	rewardContributors(state)
+	fire(deathCallbacks, state.id)
+
+	if model then
+		-- Лише візуальний вибух: без шкоди та відкидання
+		local explosion = Instance.new("Explosion")
+		explosion.BlastPressure = 0
+		explosion.DestroyJointRadiusPercent = 0
+		explosion.ExplosionType = Enum.ExplosionType.NoCraters
+		explosion.Position = model:GetPivot().Position + Vector3.new(0, 3 * state.def.scale, 0)
+		explosion.Parent = state.parent
+		model:Destroy()
+	end
+
+	task.delay(state.def.respawn, function()
+		if not state.alive then
+			spawnEnemy(state)
+		end
+	end)
+end
+
+-- Створює всіх ворогів світу. worldCFrame — центр світу на рівні землі.
+function EnemyService.SpawnWorldEnemies(worldId, worldCFrame, parent)
+	for _, spawnInfo in EnemyConfig.WorldSpawns[worldId] or {} do
+		local def = EnemyConfig.Enemies[spawnInfo.enemy]
+		assert(def, "Unknown enemy " .. tostring(spawnInfo.enemy))
+		nextId += 1
+		local state = {
+			id = "e" .. nextId,
+			def = def,
+			world = worldId,
+			-- Ворог дивиться в бік входу у світ (-Z)
+			spawnCFrame = worldCFrame * CFrame.new(spawnInfo.offset),
+			parent = parent,
+			health = def.health,
+			alive = false,
+			spawnId = 0,
+			contributors = {},
+			model = nil,
+		}
+		enemies[state.id] = state
+		spawnEnemy(state)
+	end
+end
+
+function EnemyService.Get(enemyId)
+	return enemies[enemyId]
+end
+
+function EnemyService.GetAll()
+	return enemies
+end
+
+-- Завдає шкоди. Повертає true, якщо ворога переможено цим ударом.
+function EnemyService.ApplyDamage(enemyId, player, amount)
+	local state = enemies[enemyId]
+	if not state or not state.alive then
+		return false
+	end
+	amount = math.max(0, tonumber(amount) or 0)
+	local dealt = math.min(amount, state.health)
+	state.health -= dealt
+	state.contributors[player] = (state.contributors[player] or 0) + dealt
+	updateHealthBar(state)
+	if state.health <= 0 then
+		onDeath(state)
+		return true
+	end
+	return false
+end
+
+-- callback(player, enemyId) — гравець клікнув по ворогу
+function EnemyService.OnEnemyClicked(callback)
+	table.insert(clickCallbacks, callback)
+end
+
+-- callback(enemyId) — ворога переможено
+function EnemyService.OnEnemyDied(callback)
+	table.insert(deathCallbacks, callback)
+end
+
+return EnemyService
+]]></string>
+        </Properties>
+      </Item>
+      <Item class="ModuleScript" referent="22">
         <Properties>
           <string name="Name">IncomeService</string>
           <string name="Source"><![CDATA[-- IncomeService: нарахування монет від героїв на базі та офлайн-дохід.
@@ -1534,7 +2462,7 @@ return IncomeService
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="17">
+      <Item class="ModuleScript" referent="23">
         <Properties>
           <string name="Name">InventoryService</string>
           <string name="Source"><![CDATA[-- InventoryService: герої гравця — видача, розміщення на базі, блокування,
@@ -1543,6 +2471,7 @@ return IncomeService
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Shared = ReplicatedStorage:WaitForChild("Shared")
+local CombatConfig = require(Shared.Config.CombatConfig)
 local EconomyConfig = require(Shared.Config.EconomyConfig)
 local HeroConfig = require(Shared.Config.HeroConfig)
 local RarityConfig = require(Shared.Config.RarityConfig)
@@ -1603,18 +2532,27 @@ end
 -- Обробники дій з одним героєм: (player, data, uid, hero, heroDef) -> ok, message
 local heroActions = {}
 
-function heroActions.Place(player, data, uid, hero)
+local function removeFromTeam(data, uid)
+	for i = 1, CombatConfig.TeamSize do
+		if data.team[i] == uid then
+			data.team[i] = ""
+			return true
+		end
+	end
+	return false
+end
+
+-- Один герой — або на базі, або в команді: Place сам забирає героя з команди.
+function heroActions.Place(player, data, uid)
 	if findSlot(data, uid) then
 		return false, "Герой уже на базі"
 	end
-	if hero.inTeam then
-		return false, "Герой у бойовій команді"
-	end
 	for i = 1, data.slotCount do
 		if data.slots[i] == "" then
+			local fromTeam = removeFromTeam(data, uid)
 			data.slots[i] = uid
 			completeTutorial(player, data)
-			return true, "Героя поставлено на базу"
+			return true, if fromTeam then "Героя переведено з команди на базу" else "Героя поставлено на базу"
 		end
 	end
 	return false, "Немає вільних слотів. Купи слот в Upgrades!"
@@ -1641,7 +2579,7 @@ function heroActions.Sell(player, data, uid, hero, heroDef)
 	if findSlot(data, uid) then
 		return false, "Спершу зніми героя з бази"
 	end
-	if hero.inTeam then
+	if GameMath.IsInTeam(data, uid) then
 		return false, "Спершу прибери героя з команди"
 	end
 	local price = GameMath.GetSellPrice(heroDef, hero.level)
@@ -1658,14 +2596,14 @@ function heroActions.Merge(_player, data, uid, hero, heroDef)
 	end
 	local fodderUid, fodderLevel = nil, math.huge
 	for otherUid, other in data.heroes do
-		if otherUid ~= uid and other.id == hero.id and not other.locked and not other.inTeam and not findSlot(data, otherUid) then
+		if otherUid ~= uid and other.id == hero.id and not other.locked and not GameMath.IsInTeam(data, otherUid) and not findSlot(data, otherUid) then
 			if other.level < fodderLevel then
 				fodderUid, fodderLevel = otherUid, other.level
 			end
 		end
 	end
 	if not fodderUid then
-		return false, "Потрібен вільний незаблокований дублікат цього героя"
+		return false, "Потрібен дублікат цього героя: не заблокований, не на базі й не в команді"
 	end
 	data.heroes[fodderUid] = nil
 	hero.level += 1
@@ -1676,12 +2614,12 @@ local function equipBest(player, data)
 	local list = {}
 	for uid, hero in data.heroes do
 		local heroDef = HeroConfig.Heroes[hero.id]
-		if heroDef and not hero.inTeam then
+		if heroDef and not GameMath.IsInTeam(data, uid) then
 			table.insert(list, { uid = uid, income = GameMath.GetHeroIncome(heroDef, hero.level, data.incomeLevel) })
 		end
 	end
 	if #list == 0 then
-		return false, "У тебе ще немає героїв"
+		return false, "Немає вільних героїв (герої з команди не враховуються)"
 	end
 	table.sort(list, function(a, b)
 		if a.income ~= b.income then
@@ -1749,7 +2687,7 @@ return InventoryService
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="18">
+      <Item class="ModuleScript" referent="24">
         <Properties>
           <string name="Name">PlotService</string>
           <string name="Source"><![CDATA[-- PlotService: будує лобі й ділянки, видає кожному гравцеві власну базу,
@@ -1762,9 +2700,10 @@ local EconomyConfig = require(Shared.Config.EconomyConfig)
 local HeroConfig = require(Shared.Config.HeroConfig)
 local WorldConfig = require(Shared.Config.WorldConfig)
 local GameMath = require(Shared.GameMath)
+local HeroModelBuilder = require(Shared.HeroModelBuilder)
 
+local BuildUtil = require(script.Parent.BuildUtil)
 local DataService = require(script.Parent.DataService)
-local HeroModelBuilder = require(script.Parent.HeroModelBuilder)
 
 local PlotService = {}
 
@@ -1782,58 +2721,6 @@ local COLOR_SLOT_LOCKED = Color3.fromRGB(60, 60, 75)
 local plots = {} -- масив ділянок
 local playerPlot = {} -- [Player] = plot
 
-local function makePart(props, parent)
-	local part = Instance.new("Part")
-	part.Anchored = true
-	part.TopSurface = Enum.SurfaceType.Smooth
-	part.BottomSurface = Enum.SurfaceType.Smooth
-	for key, value in props do
-		part[key] = value
-	end
-	part.Parent = parent
-	return part
-end
-
-local function makeSurfaceText(part, face, text, textColor)
-	local gui = Instance.new("SurfaceGui")
-	gui.Name = "Gui"
-	gui.Face = face
-	gui.SizingMode = Enum.SurfaceGuiSizingMode.PixelsPerStud
-	gui.PixelsPerStud = 25
-	gui.Parent = part
-	local label = Instance.new("TextLabel")
-	label.Name = "Label"
-	label.Size = UDim2.fromScale(1, 1)
-	label.BackgroundTransparency = 1
-	label.Font = Enum.Font.FredokaOne
-	label.TextScaled = true
-	label.TextColor3 = textColor or Color3.new(1, 1, 1)
-	label.TextStrokeTransparency = 0.5
-	label.Text = text
-	label.Parent = gui
-	return label
-end
-
-local function buildPortal(parent, cframe, world)
-	local model = Instance.new("Model")
-	model.Name = "Portal_" .. world.displayName
-	local frameColor = Color3.fromRGB(60, 50, 90)
-	makePart({ Name = "PillarL", Size = Vector3.new(1.5, 12, 1.5), CFrame = cframe * CFrame.new(-5, 6.5, 0), Color = frameColor, Material = Enum.Material.Slate }, model)
-	makePart({ Name = "PillarR", Size = Vector3.new(1.5, 12, 1.5), CFrame = cframe * CFrame.new(5, 6.5, 0), Color = frameColor, Material = Enum.Material.Slate }, model)
-	makePart({ Name = "Top", Size = Vector3.new(12, 1.5, 1.5), CFrame = cframe * CFrame.new(0, 13, 0), Color = frameColor, Material = Enum.Material.Slate }, model)
-	local field = makePart({
-		Name = "Field",
-		Size = Vector3.new(8.5, 11, 0.4),
-		CFrame = cframe * CFrame.new(0, 6.5, 0),
-		Color = world.color,
-		Material = Enum.Material.Neon,
-		Transparency = 0.35,
-		CanCollide = false,
-	}, model)
-	makeSurfaceText(field, Enum.NormalId.Front, world.displayName .. "\nСкоро", Color3.new(1, 1, 1))
-	model.Parent = parent
-end
-
 local function buildLobby()
 	local lobby = Instance.new("Model")
 	lobby.Name = "Lobby"
@@ -1846,7 +2733,7 @@ local function buildLobby()
 
 	-- Якщо в місці немає Baseplate (наприклад, порожній шаблон), створюємо землю самі
 	if not workspace:FindFirstChild("Baseplate") then
-		makePart({
+		BuildUtil.Part({
 			Name = "Ground",
 			Size = Vector3.new(600, 2, 600),
 			CFrame = CFrame.new(0, -1, 0),
@@ -1855,7 +2742,7 @@ local function buildLobby()
 		}, lobby)
 	end
 
-	makePart({
+	BuildUtil.Part({
 		Name = "Floor",
 		Size = Vector3.new(LOBBY_SIZE, 1, LOBBY_SIZE),
 		CFrame = CFrame.new(0, 0.5, 0),
@@ -1879,7 +2766,7 @@ local function buildLobby()
 		local angle = math.rad((i - 1) * 360 / PLOT_COUNT)
 		local direction = Vector3.new(math.cos(angle), 0, math.sin(angle))
 		local middle = direction * (LOBBY_SIZE / 2 + pathLength / 2) + Vector3.new(0, 0.4, 0)
-		makePart({
+		BuildUtil.Part({
 			Name = "Path" .. i,
 			Size = Vector3.new(8, 0.8, pathLength + 2),
 			CFrame = CFrame.lookAt(middle, middle + direction),
@@ -1888,11 +2775,14 @@ local function buildLobby()
 		}, lobby)
 	end
 
-	-- Портали у світи стоять між доріжками
+	-- Портали у світи стоять між доріжками. Атрибут WorldId шукає WorldService.
 	for index, worldId in WorldConfig.Order do
+		local world = WorldConfig.Worlds[worldId]
 		local angle = math.rad((index - 0.5) * 360 / PLOT_COUNT)
 		local position = Vector3.new(math.cos(angle), 0, math.sin(angle)) * (LOBBY_SIZE / 2 - 6) + Vector3.new(0, 0.5, 0)
-		buildPortal(lobby, CFrame.lookAt(position, Vector3.new(0, 0.5, 0)), WorldConfig.Worlds[worldId])
+		local subtitle = if world.available then "▶ Вхід" else "Скоро"
+		local _, field = BuildUtil.Portal(lobby, CFrame.lookAt(position, Vector3.new(0, 0.5, 0)), world.displayName, subtitle, world.color)
+		field:SetAttribute("WorldId", worldId)
 	end
 
 	lobby.Parent = workspace
@@ -1909,14 +2799,14 @@ local function buildPlot(index, parent)
 	model:SetAttribute("PlotIndex", index)
 	model:SetAttribute("OwnerUserId", 0)
 
-	makePart({
+	BuildUtil.Part({
 		Name = "Floor",
 		Size = Vector3.new(PLOT_SIZE, 1, PLOT_SIZE),
 		CFrame = center,
 		Color = Color3.fromRGB(110, 200, 120),
 		Material = Enum.Material.Grass,
 	}, model)
-	makePart({
+	BuildUtil.Part({
 		Name = "Border",
 		Size = Vector3.new(PLOT_SIZE + 2, 0.9, PLOT_SIZE + 2),
 		CFrame = center * CFrame.new(0, -0.1, 0),
@@ -1924,14 +2814,14 @@ local function buildPlot(index, parent)
 		Material = Enum.Material.SmoothPlastic,
 	}, model)
 
-	local sign = makePart({
+	local sign = BuildUtil.Part({
 		Name = "Sign",
 		Size = Vector3.new(16, 5, 1),
 		CFrame = center * CFrame.new(0, 4, -PLOT_SIZE / 2 + 2),
 		Color = Color3.fromRGB(70, 50, 110),
 		Material = Enum.Material.SmoothPlastic,
 	}, model)
-	local signLabel = makeSurfaceText(sign, Enum.NormalId.Front, "Вільна ділянка")
+	local signLabel = BuildUtil.SurfaceText(sign, Enum.NormalId.Front, "Вільна ділянка")
 
 	local slotsFolder = Instance.new("Folder")
 	slotsFolder.Name = "Slots"
@@ -1942,7 +2832,7 @@ local function buildPlot(index, parent)
 		local column = (i - 1) % SLOT_COLUMNS
 		local x = (column - (SLOT_COLUMNS - 1) / 2) * SLOT_SPACING
 		local z = 4 + row * SLOT_SPACING
-		local slot = makePart({
+		local slot = BuildUtil.Part({
 			Name = "Slot" .. i,
 			Size = SLOT_SIZE,
 			CFrame = center * CFrame.new(x, 0.5 + SLOT_SIZE.Y / 2, z),
@@ -1950,7 +2840,7 @@ local function buildPlot(index, parent)
 			Material = Enum.Material.SmoothPlastic,
 		}, slotsFolder)
 		slot:SetAttribute("SlotIndex", i)
-		makeSurfaceText(slot, Enum.NormalId.Top, "")
+		BuildUtil.SurfaceText(slot, Enum.NormalId.Top, "")
 		slotParts[i] = slot
 	end
 
@@ -1987,7 +2877,16 @@ function PlotService.GetPlot(player)
 	return playerPlot[player]
 end
 
-local function teleportToPlot(player, character, plot)
+-- Переносить персонажа на його базу (після появи, смерті або з порталу "Lobby").
+function PlotService.TeleportHome(player)
+	local plot = playerPlot[player]
+	local character = player.Character
+	if plot and character and character.Parent then
+		character:PivotTo(plot.spawnCFrame)
+	end
+end
+
+local function onCharacterAdded(player, character, plot)
 	local root = character:WaitForChild("HumanoidRootPart", 10)
 	if not root then
 		return
@@ -2007,10 +2906,10 @@ function PlotService.AssignPlot(player)
 			plot.model:SetAttribute("OwnerUserId", player.UserId)
 			plot.signLabel.Text = "База " .. player.DisplayName
 			plot.characterConnection = player.CharacterAdded:Connect(function(character)
-				teleportToPlot(player, character, plot)
+				onCharacterAdded(player, character, plot)
 			end)
 			if player.Character then
-				task.spawn(teleportToPlot, player, player.Character, plot)
+				task.spawn(onCharacterAdded, player, player.Character, plot)
 			end
 			PlotService.RefreshPlot(player)
 			return true
@@ -2062,7 +2961,7 @@ function PlotService.RefreshPlot(player)
 			if heroDef then
 				slot.Gui.Label.Text = ""
 				local income = GameMath.GetHeroIncome(heroDef, hero.level, data.incomeLevel)
-				local heroModel = HeroModelBuilder.Build(heroDef, hero.level, income)
+				local heroModel = HeroModelBuilder.Build(heroDef, hero.level, "+" .. GameMath.FormatNumber(income) .. "/s")
 				-- Герой стоїть на слоті й дивиться до входу в базу
 				heroModel:PivotTo(slot.CFrame * CFrame.new(0, SLOT_SIZE.Y / 2, 0))
 				heroModel.Parent = plot.heroesFolder
@@ -2075,7 +2974,7 @@ return PlotService
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="19">
+      <Item class="ModuleScript" referent="25">
         <Properties>
           <string name="Name">RateLimiter</string>
           <string name="Source"><![CDATA[-- RateLimiter: обмеження частоти запитів (алгоритм "відро з жетонами").
@@ -2114,7 +3013,7 @@ return RateLimiter
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="20">
+      <Item class="ModuleScript" referent="26">
         <Properties>
           <string name="Name">RollService</string>
           <string name="Source"><![CDATA[-- RollService: кидки кубиків. Результат визначає ТІЛЬКИ сервер;
@@ -2285,7 +3184,7 @@ return RollService
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="21">
+      <Item class="ModuleScript" referent="27">
         <Properties>
           <string name="Name">SettingsService</string>
           <string name="Source"><![CDATA[-- SettingsService: збереження налаштувань гравця (звук, ефекти, пропуск анімацій).
@@ -2331,7 +3230,174 @@ return SettingsService
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="22">
+      <Item class="ModuleScript" referent="28">
+        <Properties>
+          <string name="Name">TeamService</string>
+          <string name="Source"><![CDATA[-- TeamService: бойова команда з 3 героїв.
+-- Один герой — або на базі, або в команді: додаючи героя з бази до команди,
+-- сервер сам знімає його з бази.
+--
+-- Склад команди сервер записує в атрибут гравця "TeamData", щоб усі клієнти
+-- могли намалювати героїв-супутників ("heroId:level;heroId:level;").
+
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+local Shared = ReplicatedStorage:WaitForChild("Shared")
+local CombatConfig = require(Shared.Config.CombatConfig)
+local HeroConfig = require(Shared.Config.HeroConfig)
+local GameMath = require(Shared.GameMath)
+local Remotes = require(Shared.Remotes)
+
+local DataService = require(script.Parent.DataService)
+local PlotService = require(script.Parent.PlotService)
+local RateLimiter = require(script.Parent.RateLimiter)
+
+local TeamService = {}
+
+local limiter = RateLimiter.new(8, 4)
+
+local function findTeamSlot(data, uid)
+	for i = 1, CombatConfig.TeamSize do
+		if data.team[i] == uid then
+			return i
+		end
+	end
+	return nil
+end
+
+local function removeFromBase(data, uid)
+	for i = 1, data.slotCount do
+		if data.slots[i] == uid then
+			data.slots[i] = ""
+			return true
+		end
+	end
+	return false
+end
+
+-- Обробники: (data, uid) -> ok, message, baseChanged
+local actions = {}
+
+function actions.Add(data, uid)
+	if findTeamSlot(data, uid) then
+		return false, "Герой уже в команді"
+	end
+	for i = 1, CombatConfig.TeamSize do
+		if data.team[i] == "" then
+			local fromBase = removeFromBase(data, uid)
+			data.team[i] = uid
+			return true, if fromBase then "Героя знято з бази й додано до команди" else "Героя додано до команди", fromBase
+		end
+	end
+	return false, ("Команда заповнена (%d/%d). Спершу прибери когось"):format(CombatConfig.TeamSize, CombatConfig.TeamSize)
+end
+
+function actions.Remove(data, uid)
+	local slot = findTeamSlot(data, uid)
+	if not slot then
+		return false, "Цього героя немає в команді"
+	end
+	data.team[slot] = ""
+	return true, "Героя прибрано з команди"
+end
+
+-- Найсильніші герої за шкодою, крім тих, що стоять на базі.
+local function bestTeam(data)
+	local list = {}
+	for uid, hero in data.heroes do
+		local heroDef = HeroConfig.Heroes[hero.id]
+		if heroDef and not GameMath.IsOnBase(data, uid) then
+			table.insert(list, { uid = uid, dps = GameMath.GetHeroDps(heroDef, hero.level) })
+		end
+	end
+	if #list == 0 then
+		return false, "Немає вільних героїв (герої на базі не враховуються)"
+	end
+	table.sort(list, function(a, b)
+		if a.dps ~= b.dps then
+			return a.dps > b.dps
+		end
+		return a.uid < b.uid
+	end)
+	for i = 1, CombatConfig.TeamSize do
+		data.team[i] = if list[i] then list[i].uid else ""
+	end
+	return true, "Найсильнішу команду зібрано (герої на базі не враховуються)"
+end
+
+local function clearTeam(data)
+	for i = 1, CombatConfig.TeamSize do
+		data.team[i] = ""
+	end
+	return true, "Команду розпущено"
+end
+
+-- "riku_windstep:3;;seren_starblade:1"
+function TeamService.Encode(data)
+	local parts = {}
+	for i = 1, CombatConfig.TeamSize do
+		local uid = data.team[i]
+		local hero = uid ~= "" and data.heroes[uid]
+		parts[i] = if hero then hero.id .. ":" .. hero.level else ""
+	end
+	return table.concat(parts, ";")
+end
+
+local function onTeamAction(player, action, uid)
+	if typeof(action) ~= "string" then
+		return { ok = false, message = "Невідома дія" }
+	end
+	if not limiter:Check(player) then
+		return { ok = false, message = "Занадто швидко!" }
+	end
+	local data = DataService.Get(player)
+	if not data then
+		return { ok = false, message = "Дані ще завантажуються" }
+	end
+
+	local ok, message, baseChanged
+	if action == "Best" then
+		ok, message = bestTeam(data)
+	elseif action == "Clear" then
+		ok, message = clearTeam(data)
+	elseif actions[action] then
+		if typeof(uid) ~= "string" or #uid > 24 then
+			return { ok = false, message = "Невірний герой" }
+		end
+		local hero = data.heroes[uid]
+		if not hero or not HeroConfig.Heroes[hero.id] then
+			return { ok = false, message = "Героя не знайдено" }
+		end
+		ok, message, baseChanged = actions[action](data, uid)
+	else
+		return { ok = false, message = "Невідома дія" }
+	end
+
+	if ok then
+		DataService.MarkChanged(player)
+		if baseChanged then
+			PlotService.RefreshPlot(player)
+		end
+	end
+	return { ok = ok, message = message }
+end
+
+function TeamService.Init()
+	Remotes.Handle("TeamAction", onTeamAction)
+	-- Після будь-якої зміни даних (рівень героя, продаж, Place) оновлюємо супутників
+	DataService.OnChanged(function(player, data)
+		local encoded = TeamService.Encode(data)
+		if player:GetAttribute("TeamData") ~= encoded then
+			player:SetAttribute("TeamData", encoded)
+		end
+	end)
+end
+
+return TeamService
+]]></string>
+        </Properties>
+      </Item>
+      <Item class="ModuleScript" referent="29">
         <Properties>
           <string name="Name">UpgradeService</string>
           <string name="Source"><![CDATA[-- UpgradeService: покупка покращень бази (слоти та дохід).
@@ -2405,21 +3471,250 @@ return UpgradeService
 ]]></string>
         </Properties>
       </Item>
+      <Item class="ModuleScript" referent="30">
+        <Properties>
+          <string name="Name">WorldService</string>
+          <string name="Source"><![CDATA[-- WorldService: будує світи, переносить гравців через портали та кнопку Worlds.
+-- Поточний світ гравця зберігається в атрибуті "World" ("Lobby" або id світу).
+
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+local Shared = ReplicatedStorage:WaitForChild("Shared")
+local WorldConfig = require(Shared.Config.WorldConfig)
+local Remotes = require(Shared.Remotes)
+
+local BuildUtil = require(script.Parent.BuildUtil)
+local CombatService = require(script.Parent.CombatService)
+local EnemyService = require(script.Parent.EnemyService)
+local PlotService = require(script.Parent.PlotService)
+local RateLimiter = require(script.Parent.RateLimiter)
+
+local WorldService = {}
+
+local LOBBY = "Lobby"
+local WORLD_SIZE = 260
+local PORTAL_COOLDOWN = 2
+
+local limiter = RateLimiter.new(3, 0.5)
+local spawnPoints = {} -- [worldId] = CFrame
+local lastPortalUse = setmetatable({}, { __mode = "k" })
+
+local COLORS = {
+	wood = Color3.fromRGB(150, 105, 70),
+	darkWood = Color3.fromRGB(80, 50, 35),
+	roof = Color3.fromRGB(60, 65, 90),
+	torii = Color3.fromRGB(210, 45, 40),
+	blossom = Color3.fromRGB(255, 170, 205),
+	stone = Color3.fromRGB(150, 150, 160),
+}
+
+local function house(parent, cframe)
+	local model = Instance.new("Model")
+	model.Name = "House"
+	BuildUtil.Part({ Name = "Walls", Size = Vector3.new(18, 10, 14), CFrame = cframe * CFrame.new(0, 5, 0), Color = Color3.fromRGB(235, 220, 190), Material = Enum.Material.WoodPlanks }, model)
+	BuildUtil.Part({ Name = "Frame", Size = Vector3.new(19, 1, 15), CFrame = cframe * CFrame.new(0, 10.5, 0), Color = COLORS.darkWood, Material = Enum.Material.Wood }, model)
+	BuildUtil.Part({ Name = "Roof1", Size = Vector3.new(24, 1.5, 19), CFrame = cframe * CFrame.new(0, 11.75, 0), Color = COLORS.roof, Material = Enum.Material.Slate }, model)
+	BuildUtil.Part({ Name = "Roof2", Size = Vector3.new(16, 1.5, 12), CFrame = cframe * CFrame.new(0, 13.25, 0), Color = COLORS.roof, Material = Enum.Material.Slate }, model)
+	BuildUtil.Part({ Name = "Roof3", Size = Vector3.new(8, 1.5, 6), CFrame = cframe * CFrame.new(0, 14.75, 0), Color = COLORS.roof, Material = Enum.Material.Slate }, model)
+	BuildUtil.Part({ Name = "Door", Size = Vector3.new(4, 7, 0.4), CFrame = cframe * CFrame.new(0, 3.5, -7.1), Color = COLORS.darkWood, Material = Enum.Material.Wood }, model)
+	model.Parent = parent
+end
+
+local function tree(parent, position)
+	local model = Instance.new("Model")
+	model.Name = "SakuraTree"
+	BuildUtil.Part({ Name = "Trunk", Size = Vector3.new(1.6, 9, 1.6), CFrame = CFrame.new(position + Vector3.new(0, 4.5, 0)), Color = COLORS.darkWood, Material = Enum.Material.Wood }, model)
+	BuildUtil.Part({ Name = "Leaves", Shape = Enum.PartType.Ball, Size = Vector3.new(10, 10, 10), CFrame = CFrame.new(position + Vector3.new(0, 11, 0)), Color = COLORS.blossom, Material = Enum.Material.Grass, CanCollide = false }, model)
+	model.Parent = parent
+end
+
+local function torii(parent, cframe)
+	local model = Instance.new("Model")
+	model.Name = "Torii"
+	BuildUtil.Part({ Name = "PillarL", Size = Vector3.new(2, 15, 2), CFrame = cframe * CFrame.new(-8, 7.5, 0), Color = COLORS.torii }, model)
+	BuildUtil.Part({ Name = "PillarR", Size = Vector3.new(2, 15, 2), CFrame = cframe * CFrame.new(8, 7.5, 0), Color = COLORS.torii }, model)
+	BuildUtil.Part({ Name = "Beam", Size = Vector3.new(20, 1.2, 2), CFrame = cframe * CFrame.new(0, 12, 0), Color = COLORS.torii }, model)
+	BuildUtil.Part({ Name = "Top", Size = Vector3.new(24, 1.6, 2.6), CFrame = cframe * CFrame.new(0, 15.5, 0), Color = Color3.fromRGB(30, 25, 25) }, model)
+	model.Parent = parent
+end
+
+local function lantern(parent, position)
+	BuildUtil.Part({ Name = "LanternPost", Size = Vector3.new(1, 5, 1), CFrame = CFrame.new(position + Vector3.new(0, 2.5, 0)), Color = COLORS.stone, Material = Enum.Material.Slate }, parent)
+	local light = BuildUtil.Part({ Name = "Lantern", Size = Vector3.new(2, 2, 2), CFrame = CFrame.new(position + Vector3.new(0, 6, 0)), Color = Color3.fromRGB(255, 170, 70), Material = Enum.Material.Neon }, parent)
+	local pointLight = Instance.new("PointLight")
+	pointLight.Color = light.Color
+	pointLight.Range = 16
+	pointLight.Parent = light
+end
+
+-- "Село ніндзя": вхід (torii) на півдні, будинки, сакури, арена боса на півночі.
+-- center — центр світу на рівні землі; вхід у бік -Z, бос у бік +Z.
+local function buildNinjaVillage(folder, center)
+	local half = WORLD_SIZE / 2
+	BuildUtil.Part({ Name = "Ground", Size = Vector3.new(WORLD_SIZE, 4, WORLD_SIZE), CFrame = center * CFrame.new(0, -2, 0), Color = Color3.fromRGB(105, 175, 95), Material = Enum.Material.Grass }, folder)
+	BuildUtil.Part({ Name = "Road", Size = Vector3.new(12, 0.2, WORLD_SIZE - 20), CFrame = center * CFrame.new(0, 0.1, 0), Color = Color3.fromRGB(205, 185, 150), Material = Enum.Material.Sand }, folder)
+
+	-- Невидимі стіни, щоб не впасти зі світу
+	for _, wall in {
+		{ Vector3.new(WORLD_SIZE, 40, 2), Vector3.new(0, 20, half) },
+		{ Vector3.new(WORLD_SIZE, 40, 2), Vector3.new(0, 20, -half) },
+		{ Vector3.new(2, 40, WORLD_SIZE), Vector3.new(half, 20, 0) },
+		{ Vector3.new(2, 40, WORLD_SIZE), Vector3.new(-half, 20, 0) },
+	} do
+		BuildUtil.Part({ Name = "Wall", Size = wall[1], CFrame = center * CFrame.new(wall[2]), Transparency = 1 }, folder)
+	end
+
+	torii(folder, center * CFrame.new(0, 0, -95))
+	for _, offset in { Vector3.new(-62, 0, -70), Vector3.new(62, 0, -70), Vector3.new(-70, 0, 10), Vector3.new(70, 0, 10), Vector3.new(-60, 0, 60), Vector3.new(60, 0, 60) } do
+		-- Будинки дверима до дороги
+		local position = (center * CFrame.new(offset)).Position
+		local roadPoint = (center * CFrame.new(0, 0, offset.Z)).Position
+		house(folder, CFrame.lookAt(position, roadPoint))
+	end
+	for _, offset in { Vector3.new(-25, 0, -100), Vector3.new(25, 0, -100), Vector3.new(-95, 0, -30), Vector3.new(95, 0, -30), Vector3.new(-100, 0, 40), Vector3.new(100, 0, 40), Vector3.new(-45, 0, 105), Vector3.new(45, 0, 105) } do
+		tree(folder, (center * CFrame.new(offset)).Position)
+	end
+
+	-- Кам'яна арена боса з ліхтарями
+	BuildUtil.Part({ Name = "BossArena", Shape = Enum.PartType.Cylinder, Size = Vector3.new(0.6, 56, 56), CFrame = center * CFrame.new(0, 0.3, 92) * CFrame.Angles(0, 0, math.rad(90)), Color = COLORS.stone, Material = Enum.Material.Slate }, folder)
+	for i = 0, 3 do
+		local angle = math.rad(45 + i * 90)
+		lantern(folder, (center * CFrame.new(math.cos(angle) * 30, 0, 92 + math.sin(angle) * 30)).Position)
+	end
+
+	-- Портал назад у лобі біля входу
+	-- Повернутий написом до села
+	local portalCFrame = center * CFrame.new(0, 0, -118) * CFrame.Angles(0, math.pi, 0)
+	local _, field = BuildUtil.Portal(folder, portalCFrame, "Lobby", "◀ Додому", Color3.fromRGB(255, 120, 200))
+	field:SetAttribute("WorldId", LOBBY)
+
+	-- Гравець з'являється біля torii й дивиться вглиб села (+Z)
+	return center * CFrame.new(0, 4, -105) * CFrame.Angles(0, math.pi, 0)
+end
+
+local BUILDERS = {
+	NinjaVillage = buildNinjaVillage,
+}
+
+-- Переносить гравця у світ (або "Lobby" — на його базу).
+function WorldService.Travel(player, worldId)
+	local character = player.Character
+	if not character or not character:FindFirstChild("HumanoidRootPart") then
+		return false, "Персонаж ще не з'явився"
+	end
+	if worldId == LOBBY then
+		CombatService.ClearTarget(player)
+		player:SetAttribute("World", LOBBY)
+		PlotService.TeleportHome(player)
+		return true, "Ласкаво просимо додому!"
+	end
+	local world = WorldConfig.Worlds[worldId]
+	local spawnPoint = spawnPoints[worldId]
+	if not world or not world.available or not spawnPoint then
+		return false, "Цей світ ще закритий"
+	end
+	CombatService.ClearTarget(player)
+	player:SetAttribute("World", worldId)
+	character:PivotTo(spawnPoint)
+	return true, ("%s! Натисни на ворога або 🎯, щоб команда атакувала"):format(world.displayName)
+end
+
+local function onTravelRequest(player, worldId)
+	if typeof(worldId) ~= "string" or #worldId > 32 then
+		return { ok = false, message = "Невідомий світ" }
+	end
+	if not limiter:Check(player) then
+		return { ok = false, message = "Зачекай трохи перед наступною подорожжю" }
+	end
+	local ok, message = WorldService.Travel(player, worldId)
+	return { ok = ok, message = message }
+end
+
+-- Торкнувся порталу — переносимо (із захистом від повторних спрацювань).
+local function connectPortal(field)
+	field.Touched:Connect(function(hit)
+		local character = hit.Parent
+		local player = character and Players:GetPlayerFromCharacter(character)
+		if not player then
+			return
+		end
+		local now = os.clock()
+		if lastPortalUse[player] and now - lastPortalUse[player] < PORTAL_COOLDOWN then
+			return
+		end
+		lastPortalUse[player] = now
+		local worldId = field:GetAttribute("WorldId")
+		if worldId ~= LOBBY then
+			local world = WorldConfig.Worlds[worldId]
+			if not world or not world.available then
+				Remotes.Notify(player, "Цей світ відкриється в наступних оновленнях", "info")
+				return
+			end
+		end
+		local ok, message = WorldService.Travel(player, worldId)
+		Remotes.Notify(player, message, if ok then "success" else "error")
+	end)
+end
+
+function WorldService.SetupPlayer(player)
+	player:SetAttribute("World", LOBBY)
+	-- Після смерті гравець з'являється на базі (PlotService) — отже, у лобі
+	player.CharacterAdded:Connect(function()
+		player:SetAttribute("World", LOBBY)
+	end)
+end
+
+function WorldService.Init()
+	local worldsFolder = Instance.new("Folder")
+	worldsFolder.Name = "Worlds"
+	worldsFolder.Parent = workspace
+
+	for _, worldId in WorldConfig.Order do
+		local world = WorldConfig.Worlds[worldId]
+		local builder = BUILDERS[worldId]
+		if world.available and builder then
+			local folder = Instance.new("Folder")
+			folder.Name = worldId
+			folder.Parent = worldsFolder
+			local center = CFrame.new(world.center)
+			spawnPoints[worldId] = builder(folder, center)
+			local enemiesFolder = Instance.new("Folder")
+			enemiesFolder.Name = "Enemies"
+			enemiesFolder.Parent = folder
+			EnemyService.SpawnWorldEnemies(worldId, center, enemiesFolder)
+		end
+	end
+
+	-- Усі портали (у лобі та у світах) позначені атрибутом WorldId
+	for _, instance in workspace:GetDescendants() do
+		if instance:IsA("BasePart") and instance:GetAttribute("WorldId") then
+			connectPortal(instance)
+		end
+	end
+
+	Remotes.Handle("Travel", onTravelRequest)
+end
+
+return WorldService
+]]></string>
+        </Properties>
+      </Item>
     </Item>
   </Item>
-  <Item class="StarterPlayer" referent="23">
+  <Item class="StarterPlayer" referent="31">
     <Properties>
       <string name="Name">StarterPlayer</string>
     </Properties>
-    <Item class="StarterPlayerScripts" referent="24">
+    <Item class="StarterPlayerScripts" referent="32">
       <Properties>
         <string name="Name">StarterPlayerScripts</string>
       </Properties>
-      <Item class="Folder" referent="25">
+      <Item class="Folder" referent="33">
         <Properties>
           <string name="Name">Client</string>
         </Properties>
-        <Item class="ModuleScript" referent="26">
+        <Item class="ModuleScript" referent="34">
           <Properties>
             <string name="Name">ClientState</string>
             <string name="Source"><![CDATA[-- ClientState: копія даних гравця на клієнті + запити до сервера.
@@ -2523,7 +3818,446 @@ return ClientState
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="27">
+        <Item class="ModuleScript" referent="35">
+          <Properties>
+            <string name="Name">CombatUI</string>
+            <string name="Source"><![CDATA[-- CombatUI: інтерфейс бою — поточна ціль, смуга здоров'я боса з попередженням
+-- про атаку, кнопки 🎯 / ✖ / 🏠, цифри шкоди та снаряди героїв.
+
+local Debris = game:GetService("Debris")
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local RunService = game:GetService("RunService")
+local TweenService = game:GetService("TweenService")
+
+local Shared = ReplicatedStorage:WaitForChild("Shared")
+local Config = Shared:WaitForChild("Config")
+local CombatConfig = require(Config:WaitForChild("CombatConfig"))
+local HeroConfig = require(Config:WaitForChild("HeroConfig"))
+local GameMath = require(Shared:WaitForChild("GameMath"))
+local Remotes = require(Shared:WaitForChild("Remotes"))
+
+local Client = script.Parent
+local UIKit = require(Client:WaitForChild("UIKit"))
+local ClientState = require(Client:WaitForChild("ClientState"))
+local EnemyRegistry = require(Client:WaitForChild("EnemyRegistry"))
+local FollowerController = require(Client:WaitForChild("FollowerController"))
+
+local player = Players.LocalPlayer
+
+local CombatUI = {}
+
+local ui: { [string]: any } = {}
+
+local function makeBar(gui, name, width, color)
+	local frame = UIKit.Create("Frame", {
+		Name = name,
+		AnchorPoint = Vector2.new(0.5, 0),
+		Position = UDim2.new(0.5, 0, 0, 68),
+		Size = UDim2.fromOffset(width, 50),
+		BackgroundColor3 = UIKit.Colors.Background,
+		BackgroundTransparency = 0.15,
+		Visible = false,
+		Parent = gui,
+	})
+	UIKit.Corner(frame, 12)
+	UIKit.Stroke(frame, color, 2)
+	local scale = UIKit.AddScale(frame)
+	local title = UIKit.Label({
+		Position = UDim2.fromOffset(10, 2),
+		Size = UDim2.new(1, -20, 0, 22),
+		Font = UIKit.Font,
+		TextSize = 18,
+		TextColor3 = color,
+		Parent = frame,
+	})
+	local back = UIKit.Create("Frame", {
+		Position = UDim2.fromOffset(10, 27),
+		Size = UDim2.new(1, -20, 0, 16),
+		BackgroundColor3 = Color3.fromRGB(40, 25, 35),
+		Parent = frame,
+	})
+	UIKit.Corner(back, 6)
+	local fill = UIKit.Create("Frame", {
+		Size = UDim2.fromScale(1, 1),
+		BackgroundColor3 = color,
+		Parent = back,
+	})
+	UIKit.Corner(fill, 6)
+	local value = UIKit.Label({
+		Size = UDim2.fromScale(1, 1),
+		TextSize = 13,
+		TextStrokeTransparency = 0.4,
+		Parent = back,
+	})
+	return { frame = frame, title = title, fill = fill, value = value, scale = scale }
+end
+
+local function setBar(bar, model)
+	local health = model:GetAttribute("Health") or 0
+	local maxHealth = model:GetAttribute("MaxHealth") or 1
+	bar.fill.Size = UDim2.fromScale(math.clamp(health / maxHealth, 0, 1), 1)
+	bar.value.Text = GameMath.FormatNumber(math.ceil(health)) .. " / " .. GameMath.FormatNumber(maxHealth)
+end
+
+local function findBoss(world)
+	for _, model in EnemyRegistry.All() do
+		if model.Parent and model:GetAttribute("IsBoss") and model:GetAttribute("World") == world then
+			return model
+		end
+	end
+	return nil
+end
+
+local function distanceToModel(model)
+	local character = player.Character
+	local root = character and character:FindFirstChild("HumanoidRootPart")
+	if not root then
+		return math.huge
+	end
+	return (root.Position - model:GetPivot().Position).Magnitude
+end
+
+-- Оновлення щокадру: дешеві операції з атрибутами
+local function update()
+	local world = player:GetAttribute("World") or "Lobby"
+	local inWorld = world ~= "Lobby"
+	ui.buttons.Visible = inWorld
+
+	-- Смуга боса
+	local boss = if inWorld then findBoss(world) else nil
+	local bossVisible = boss ~= nil and distanceToModel(boss) < 140
+	ui.boss.frame.Visible = bossVisible
+	if bossVisible then
+		local attack = boss:GetAttribute("Attack")
+		if attack and attack ~= "" then
+			ui.boss.title.Text = "⚠️ " .. attack .. "! Вийди з червоного кола!"
+			ui.boss.title.TextColor3 = UIKit.Colors.Danger
+		else
+			ui.boss.title.Text = "👹 " .. (boss:GetAttribute("EnemyName") or "Boss")
+			ui.boss.title.TextColor3 = UIKit.Colors.Gold
+		end
+		setBar(ui.boss, boss)
+	end
+
+	-- Поточна ціль (бос уже показаний окремо)
+	local target = EnemyRegistry.Get(player:GetAttribute("TargetId"))
+	local showTarget = target ~= nil and target ~= boss
+	ui.target.frame.Visible = showTarget
+	-- Смуги стоять під верхньою панеллю валют (з урахуванням масштабу екрана)
+	local scale = ui.boss.scale.Scale
+	local top = 8 + 60 * scale
+	ui.boss.frame.Position = UDim2.new(0.5, 0, 0, top)
+	ui.target.frame.Position = UDim2.new(0.5, 0, 0, if bossVisible then top + 56 * scale else top)
+	if showTarget then
+		local outOfRange = distanceToModel(target) > CombatConfig.AttackRange
+		ui.target.title.Text = "🎯 " .. (target:GetAttribute("EnemyName") or "?") .. (if outOfRange then "  — підійди ближче!" else "")
+		setBar(ui.target, target)
+	end
+end
+
+local function popDamage(enemyModel, damage, own)
+	local hitbox = enemyModel:FindFirstChild("Hitbox")
+	if not hitbox then
+		return
+	end
+	local billboard = Instance.new("BillboardGui")
+	billboard.Size = UDim2.fromOffset(90, 34)
+	billboard.StudsOffsetWorldSpace = Vector3.new(math.random(-20, 20) / 10, hitbox.Size.Y / 2, 0)
+	billboard.AlwaysOnTop = true
+	billboard.MaxDistance = 100
+	billboard.Adornee = hitbox
+	local label = UIKit.Label({
+		Size = UDim2.fromScale(1, 1),
+		Font = UIKit.Font,
+		TextScaled = true,
+		TextColor3 = if own then UIKit.Colors.Gold else Color3.fromRGB(220, 220, 220),
+		TextStrokeTransparency = 0.2,
+		Text = GameMath.FormatNumber(damage),
+		Parent = billboard,
+	})
+	billboard.Parent = hitbox
+	TweenService:Create(billboard, TweenInfo.new(0.7), { StudsOffsetWorldSpace = billboard.StudsOffsetWorldSpace + Vector3.new(0, 3, 0) }):Play()
+	TweenService:Create(label, TweenInfo.new(0.7), { TextTransparency = 1, TextStrokeTransparency = 1 }):Play()
+	Debris:AddItem(billboard, 0.75)
+end
+
+local function shootProjectile(fromModel, enemyModel, color)
+	local origin = fromModel:GetPivot().Position + Vector3.new(0, 3, 0)
+	local hitbox = enemyModel:FindFirstChild("Hitbox")
+	local destination = if hitbox then hitbox.Position else enemyModel:GetPivot().Position
+	local orb = Instance.new("Part")
+	orb.Shape = Enum.PartType.Ball
+	orb.Size = Vector3.new(0.9, 0.9, 0.9)
+	orb.Material = Enum.Material.Neon
+	orb.Color = color
+	orb.Anchored = true
+	orb.CanCollide = false
+	orb.CanQuery = false
+	orb.CanTouch = false
+	orb.CFrame = CFrame.new(origin)
+	orb.Parent = workspace
+	TweenService:Create(orb, TweenInfo.new(0.18, Enum.EasingStyle.Linear), { CFrame = CFrame.new(destination) }):Play()
+	Debris:AddItem(orb, 0.2)
+end
+
+local function onCombatFx(events)
+	local effects = ClientState.GetSetting("effects") or ClientState.Data == nil
+	for _, event in events do
+		local userId, slot, enemyId, damage = event[1], event[2], event[3], event[4]
+		local enemyModel = EnemyRegistry.Get(enemyId)
+		if enemyModel and distanceToModel(enemyModel) < 150 then
+			local own = userId == player.UserId
+			if effects then
+				local follower = FollowerController.GetModel(userId, slot)
+				if follower then
+					local heroDef = HeroConfig.Heroes[follower:GetAttribute("HeroId") or ""]
+					local color = if heroDef then HeroConfig.ElementColors[heroDef.element] else UIKit.Colors.Accent2
+					shootProjectile(follower, enemyModel, color or UIKit.Colors.Accent2)
+				end
+			end
+			-- Цифри шкоди: свої завжди, чужі — лише з увімкненими ефектами
+			if own or effects then
+				popDamage(enemyModel, damage, own)
+			end
+		end
+	end
+end
+
+local function request(action)
+	local result = ClientState.Request("CombatAction", action)
+	UIKit.Toast(result.message or "", if result.ok then "info" else "error")
+end
+
+local function buildButtons(gui)
+	local column = UIKit.Create("Frame", {
+		Name = "CombatButtons",
+		AnchorPoint = Vector2.new(1, 0.5),
+		Position = UDim2.new(1, -10, 0.5, 0),
+		Size = UDim2.fromOffset(150, 220),
+		BackgroundTransparency = 1,
+		Visible = false,
+		Parent = gui,
+	})
+	UIKit.AddScale(column)
+	UIKit.Create("UIListLayout", { Padding = UDim.new(0, 10), SortOrder = Enum.SortOrder.LayoutOrder, Parent = column })
+	UIKit.Button({ LayoutOrder = 1, Size = UDim2.fromOffset(150, 64), BackgroundColor3 = UIKit.Colors.Danger, Text = "🎯 Target", TextSize = 22, Parent = column }, function()
+		request("TargetNearest")
+	end)
+	UIKit.Button({ LayoutOrder = 2, Size = UDim2.fromOffset(150, 56), BackgroundColor3 = UIKit.Colors.PanelLight, Text = "✖ Stop", TextSize = 20, Parent = column }, function()
+		request("Clear")
+	end)
+	UIKit.Button({ LayoutOrder = 3, Size = UDim2.fromOffset(150, 56), BackgroundColor3 = UIKit.Colors.Accent, Text = "🏠 Lobby", TextSize = 20, Parent = column }, function()
+		local result = ClientState.Request("Travel", "Lobby")
+		UIKit.Toast(result.message or "", if result.ok then "success" else "error")
+	end)
+	ui.buttons = column
+end
+
+function CombatUI.Init(gui)
+	ui.boss = makeBar(gui, "BossBar", 520, UIKit.Colors.Gold)
+	ui.target = makeBar(gui, "TargetBar", 380, UIKit.Colors.Danger)
+	buildButtons(gui)
+	RunService.Heartbeat:Connect(update)
+	Remotes.Get("CombatFx").OnClientEvent:Connect(onCombatFx)
+end
+
+return CombatUI
+]]></string>
+          </Properties>
+        </Item>
+        <Item class="ModuleScript" referent="36">
+          <Properties>
+            <string name="Name">EnemyRegistry</string>
+            <string name="Source"><![CDATA[-- EnemyRegistry: швидкий пошук моделі ворога за EnemyId на клієнті.
+-- Сервер позначає всіх ворогів тегом "Enemy" (CollectionService).
+
+local CollectionService = game:GetService("CollectionService")
+
+local EnemyRegistry = {}
+
+local TAG = "Enemy" -- той самий тег, що EnemyService.TAG на сервері
+local byId = {}
+
+local function add(model)
+	local id = model:GetAttribute("EnemyId")
+	if id then
+		byId[id] = model
+	end
+end
+
+local function remove(model)
+	local id = model:GetAttribute("EnemyId")
+	if id and byId[id] == model then
+		byId[id] = nil
+	end
+end
+
+function EnemyRegistry.Get(enemyId)
+	local model = enemyId and byId[enemyId]
+	if model and model.Parent then
+		return model
+	end
+	return nil
+end
+
+-- Усі вороги (наприклад, щоб знайти боса поточного світу).
+function EnemyRegistry.All()
+	return byId
+end
+
+function EnemyRegistry.Init()
+	CollectionService:GetInstanceAddedSignal(TAG):Connect(add)
+	CollectionService:GetInstanceRemovedSignal(TAG):Connect(remove)
+	for _, model in CollectionService:GetTagged(TAG) do
+		add(model)
+	end
+end
+
+return EnemyRegistry
+]]></string>
+          </Properties>
+        </Item>
+        <Item class="ModuleScript" referent="37">
+          <Properties>
+            <string name="Name">FollowerController</string>
+            <string name="Source"><![CDATA[-- FollowerController: герої бойової команди йдуть за своїм гравцем.
+-- Моделі будує кожен клієнт сам (за атрибутом гравця "TeamData"), тому рух
+-- плавний і не навантажує мережу. Сервер від цього нічого не "вірить" —
+-- шкоду все одно рахує тільки він.
+
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local RunService = game:GetService("RunService")
+
+local Shared = ReplicatedStorage:WaitForChild("Shared")
+local Config = Shared:WaitForChild("Config")
+local CombatConfig = require(Config:WaitForChild("CombatConfig"))
+local HeroConfig = require(Config:WaitForChild("HeroConfig"))
+local GameMath = require(Shared:WaitForChild("GameMath"))
+local HeroModelBuilder = require(Shared:WaitForChild("HeroModelBuilder"))
+
+local Client = script.Parent
+local EnemyRegistry = require(Client:WaitForChild("EnemyRegistry"))
+
+local FollowerController = {}
+
+local followers = {} -- [Player] = { key = string, models = { [slot] = Model }, positions = {} }
+local folder = nil
+
+local function clear(entry)
+	for _, model in entry.models do
+		model:Destroy()
+	end
+	entry.models = {}
+	entry.positions = {}
+end
+
+local function rebuild(player)
+	local entry = followers[player]
+	if not entry then
+		entry = { key = nil, models = {}, positions = {} }
+		followers[player] = entry
+	end
+	local teamData = player:GetAttribute("TeamData") or ""
+	if teamData == entry.key then
+		return
+	end
+	entry.key = teamData
+	clear(entry)
+
+	local slot = 0
+	for token in string.gmatch(teamData .. ";", "([^;]*);") do
+		slot += 1
+		local heroId, level = string.match(token, "^([%w_]+):(%d+)$")
+		local heroDef = heroId and HeroConfig.Heroes[heroId]
+		if heroDef and slot <= CombatConfig.TeamSize then
+			local heroLevel = tonumber(level) or 1
+			local damage = GameMath.GetHeroDamage(heroDef, heroLevel)
+			local model = HeroModelBuilder.Build(heroDef, heroLevel, "⚔️ " .. GameMath.FormatNumber(math.floor(damage)))
+			model.Name = ("%s_%d"):format(player.Name, slot)
+			model:SetAttribute("HeroId", heroDef.id)
+			model:ScaleTo(CombatConfig.FollowerScale)
+			model.Parent = folder
+			entry.models[slot] = model
+		end
+	end
+end
+
+local function watchPlayer(player)
+	rebuild(player)
+	player:GetAttributeChangedSignal("TeamData"):Connect(function()
+		rebuild(player)
+	end)
+end
+
+-- Модель героя-супутника (для ефектів атаки).
+function FollowerController.GetModel(userId, slot)
+	local player = Players:GetPlayerByUserId(userId)
+	local entry = player and followers[player]
+	return entry and entry.models[slot]
+end
+
+local function update(dt)
+	local alpha = 1 - math.exp(-8 * dt)
+	local time = os.clock()
+	for player, entry in followers do
+		local character = player.Character
+		local root = character and character:FindFirstChild("HumanoidRootPart")
+		local humanoid = character and character:FindFirstChildOfClass("Humanoid")
+		if root and humanoid and next(entry.models) then
+			local groundY = root.Position.Y - humanoid.HipHeight - root.Size.Y / 2
+			local base = CFrame.new(root.Position.X, groundY, root.Position.Z) * root.CFrame.Rotation
+			local target = EnemyRegistry.Get(player:GetAttribute("TargetId"))
+			local targetPosition = target and target:GetPivot().Position
+
+			for slot, model in entry.models do
+				local offset = CombatConfig.FollowerOffsets[slot] or Vector3.zero
+				local bob = math.sin(time * 3 + slot) * 0.25 + 0.3
+				local desired = (base * CFrame.new(offset)).Position + Vector3.new(0, bob, 0)
+				local current = entry.positions[slot]
+				if not current or (current - desired).Magnitude > 60 then
+					current = desired -- телепорт або перша поява
+				else
+					current = current:Lerp(desired, alpha)
+				end
+				entry.positions[slot] = current
+
+				-- Дивимось на ціль, а без цілі — туди ж, куди гравець
+				local lookPoint = if targetPosition then targetPosition else current + root.CFrame.LookVector * 10
+				lookPoint = Vector3.new(lookPoint.X, current.Y, lookPoint.Z)
+				if (lookPoint - current).Magnitude > 0.1 then
+					model:PivotTo(CFrame.lookAt(current, lookPoint))
+				end
+			end
+		end
+	end
+end
+
+function FollowerController.Init()
+	folder = Instance.new("Folder")
+	folder.Name = "LocalFollowers"
+	folder.Parent = workspace
+
+	Players.PlayerAdded:Connect(watchPlayer)
+	Players.PlayerRemoving:Connect(function(player)
+		local entry = followers[player]
+		if entry then
+			clear(entry)
+			followers[player] = nil
+		end
+	end)
+	for _, player in Players:GetPlayers() do
+		watchPlayer(player)
+	end
+	RunService.RenderStepped:Connect(update)
+end
+
+return FollowerController
+]]></string>
+          </Properties>
+        </Item>
+        <Item class="ModuleScript" referent="38">
           <Properties>
             <string name="Name">Hud</string>
             <string name="Source"><![CDATA[-- Hud: верхня панель валют, нижнє меню кнопок, підказки навчання
@@ -2533,6 +4267,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Shared = ReplicatedStorage:WaitForChild("Shared")
 local GameMath = require(Shared:WaitForChild("GameMath"))
+local CombatConfig = require(Shared:WaitForChild("Config"):WaitForChild("CombatConfig"))
 
 local Client = script.Parent
 local UIKit = require(Client:WaitForChild("UIKit"))
@@ -2687,18 +4422,31 @@ local function buildTutorialHint(gui)
 	UIKit.Corner(hint, 12)
 	UIKit.AddScale(hint)
 
+	local function teamIsEmpty(data)
+		for i = 1, CombatConfig.TeamSize do
+			if data.team[i] ~= "" then
+				return false
+			end
+		end
+		return true
+	end
+
 	updateHint = function()
 		local data = ClientState.Data
-		if not data or data.tutorial.completed then
-			hint.Visible = false
-			return
+		local text = nil
+		if not data then
+			text = nil
+		elseif not data.tutorial.freeRollUsed then
+			text = "👉 Натисни 🎲 Roll і зроби перший БЕЗКОШТОВНИЙ кидок!"
+		elseif not data.tutorial.completed then
+			text = "👉 Відкрий 🎒 Inventory, вибери героя і натисни Place"
+		elseif teamIsEmpty(data) and data.totalRolls >= 5 and data.stats.enemiesDefeated == 0 then
+			text = "⚔️ Збери команду в Team і вирушай у 🌍 Worlds → Ninja Village"
 		end
-		if not data.tutorial.freeRollUsed then
-			hint.Text = "👉 Натисни 🎲 Roll і зроби перший БЕЗКОШТОВНИЙ кидок!"
-		else
-			hint.Text = "👉 Відкрий 🎒 Inventory, вибери героя і натисни Place"
+		if text then
+			hint.Text = text
 		end
-		hint.Visible = not anyPanelOpen()
+		hint.Visible = text ~= nil and not anyPanelOpen()
 	end
 	ClientState.OnDataChanged(function()
 		updateHint()
@@ -2707,9 +4455,7 @@ end
 
 -- Вікна, які з'являться на наступних етапах
 local COMING_SOON = {
-	Team = "Команда з 3 героїв, що б'ються поруч із тобою.\nЗ'явиться на етапі 2 разом з першим світом.",
-	Quests = "Завдання з нагородами в Coins і Crystals.\nЗ'являться на етапі 3.",
-	Worlds = "Ninja Village • Pirate Island • Demon Night City\nMagic Academy • Sky Arena\n\nПерший світ відкриється на етапі 2.",
+	Quests = "Завдання з нагородами в Coins і Crystals,\nколекція героїв і відкриття зон.\nЗ'являться на етапі 3.",
 }
 
 local function buildComingSoon(gui)
@@ -2738,7 +4484,7 @@ return Hud
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="28">
+        <Item class="ModuleScript" referent="39">
           <Properties>
             <string name="Name">InventoryUI</string>
             <string name="Source"><![CDATA[-- InventoryUI: сітка героїв, сортування, Equip Best і дії з вибраним героєм
@@ -2826,7 +4572,7 @@ local function countDuplicates(data, uid, heroId)
 	local count = 0
 	local placed = getPlacedSet(data)
 	for otherUid, other in data.heroes do
-		if otherUid ~= uid and other.id == heroId and not other.locked and not placed[otherUid] then
+		if otherUid ~= uid and other.id == heroId and not other.locked and not placed[otherUid] and not GameMath.IsInTeam(data, otherUid) then
 			count += 1
 		end
 	end
@@ -2882,6 +4628,7 @@ local function makeCard(entry, placed, order)
 	})
 	local icons = (HeroConfig.ElementIcons[entry.def.element] or "")
 		.. (if placed[entry.uid] then " 🏠" else "")
+		.. (if GameMath.IsInTeam(ClientState.Data, entry.uid) then " ⚔️" else "")
 		.. (if entry.hero.locked then " 🔒" else "")
 	UIKit.Label({
 		Position = UDim2.fromOffset(4, 66),
@@ -2930,7 +4677,7 @@ local function refreshDetails(data, placed)
 	local duplicates = countDuplicates(data, selectedUid, hero.id)
 	ui.mergeButton.Text = ("⬆️ Merge (%d)"):format(duplicates)
 	ui.mergeButton.BackgroundColor3 = if duplicates > 0 and hero.level < rarityInfo.maxLevel then UIKit.Colors.Accent else UIKit.Colors.Disabled
-	local canSell = not hero.locked and not isPlaced
+	local canSell = not hero.locked and not isPlaced and not GameMath.IsInTeam(data, selectedUid)
 	ui.sellButton.Text = "💰 Sell " .. GameMath.FormatNumber(GameMath.GetSellPrice(heroDef, hero.level))
 	ui.sellButton.BackgroundColor3 = if canSell then UIKit.Colors.Gold:Lerp(UIKit.Colors.Danger, 0.3) else UIKit.Colors.Disabled
 end
@@ -3110,7 +4857,7 @@ return InventoryUI
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="29">
+        <Item class="ModuleScript" referent="40">
           <Properties>
             <string name="Name">RollUI</string>
             <string name="Source"><![CDATA[-- RollUI: вікно кубиків (вибір кубика, шанси, гарантія), кнопки Roll / Auto / Skip
@@ -3650,7 +5397,7 @@ return RollUI
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="30">
+        <Item class="ModuleScript" referent="41">
           <Properties>
             <string name="Name">SettingsUI</string>
             <string name="Source"><![CDATA[-- SettingsUI: перемикачі звуку, ефектів і пропуску анімацій.
@@ -3731,7 +5478,269 @@ return SettingsUI
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="31">
+        <Item class="ModuleScript" referent="42">
+          <Properties>
+            <string name="Name">TeamUI</string>
+            <string name="Source"><![CDATA[-- TeamUI: вікно бойової команди. Зверху 3 слоти, нижче — усі герої за шкодою.
+-- Дотик по герою: додати в команду / прибрати. Герой з бази переходить у команду сам.
+
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+local Shared = ReplicatedStorage:WaitForChild("Shared")
+local Config = Shared:WaitForChild("Config")
+local CombatConfig = require(Config:WaitForChild("CombatConfig"))
+local HeroConfig = require(Config:WaitForChild("HeroConfig"))
+local RarityConfig = require(Config:WaitForChild("RarityConfig"))
+local GameMath = require(Shared:WaitForChild("GameMath"))
+
+local Client = script.Parent
+local UIKit = require(Client:WaitForChild("UIKit"))
+local ClientState = require(Client:WaitForChild("ClientState"))
+local Hud = require(Client:WaitForChild("Hud"))
+
+local TeamUI = {}
+
+local ui: { [string]: any } = {}
+local dirty = true
+local busy = false
+
+local function request(action, uid)
+	if busy then
+		return
+	end
+	busy = true
+	local result = ClientState.Request("TeamAction", action, uid)
+	busy = false
+	UIKit.Toast(result.message or "", if result.ok then "success" else "error")
+end
+
+local function heroLine(heroDef, hero)
+	return ("Lv %d • ⚔️ %s/s"):format(hero.level, GameMath.FormatNumber(math.floor(GameMath.GetHeroDps(heroDef, hero.level))))
+end
+
+local function refreshSlots(data)
+	for slot = 1, CombatConfig.TeamSize do
+		local card = ui.slots[slot]
+		local uid = data.team[slot]
+		local hero = uid ~= "" and data.heroes[uid]
+		local heroDef = hero and HeroConfig.Heroes[hero.id]
+		if heroDef then
+			local color = RarityConfig.GetColor(heroDef.rarity)
+			card.BackgroundColor3 = color:Lerp(UIKit.Colors.Background, 0.55)
+			card.Stroke.Color = color
+			card.Title.Text = heroDef.name
+			card.Title.TextColor3 = color
+			card.Info.Text = heroLine(heroDef, hero) .. "\n✦ " .. heroDef.ability.name .. "   (натисни, щоб прибрати)"
+		else
+			card.BackgroundColor3 = UIKit.Colors.Background
+			card.Stroke.Color = UIKit.Colors.Disabled
+			card.Title.Text = ("Слот %d"):format(slot)
+			card.Title.TextColor3 = UIKit.Colors.SubText
+			card.Info.Text = "Порожньо — вибери героя нижче"
+		end
+	end
+	ui.dps.Text = "⚔️ Шкода команди: " .. GameMath.FormatNumber(math.floor(GameMath.GetTeamDps(data))) .. "/s"
+end
+
+local function refreshGrid(data)
+	for _, child in ui.grid:GetChildren() do
+		if child:IsA("GuiButton") then
+			child:Destroy()
+		end
+	end
+	local list = {}
+	for uid, hero in data.heroes do
+		local heroDef = HeroConfig.Heroes[hero.id]
+		if heroDef then
+			table.insert(list, { uid = uid, hero = hero, def = heroDef, dps = GameMath.GetHeroDps(heroDef, hero.level) })
+		end
+	end
+	table.sort(list, function(a, b)
+		if a.dps ~= b.dps then
+			return a.dps > b.dps
+		end
+		return a.uid < b.uid
+	end)
+	for order, entry in list do
+		local inTeam = GameMath.IsInTeam(data, entry.uid)
+		local onBase = GameMath.IsOnBase(data, entry.uid)
+		local color = RarityConfig.GetColor(entry.def.rarity)
+		local card = UIKit.Create("TextButton", {
+			Name = entry.uid,
+			LayoutOrder = order,
+			BackgroundColor3 = color:Lerp(UIKit.Colors.Background, if inTeam then 0.3 else 0.6),
+			Text = "",
+			Parent = ui.grid,
+		})
+		UIKit.Corner(card, 10)
+		UIKit.Stroke(card, if inTeam then Color3.new(1, 1, 1) else color, if inTeam then 3 else 2)
+		UIKit.Label({
+			Position = UDim2.fromOffset(4, 4),
+			Size = UDim2.new(1, -8, 0, 38),
+			Font = UIKit.Font,
+			TextSize = 15,
+			TextColor3 = color,
+			Text = entry.def.name,
+			Parent = card,
+		})
+		UIKit.Label({
+			Position = UDim2.fromOffset(4, 44),
+			Size = UDim2.new(1, -8, 0, 20),
+			TextSize = 13,
+			Text = heroLine(entry.def, entry.hero),
+			Parent = card,
+		})
+		UIKit.Label({
+			Position = UDim2.fromOffset(4, 66),
+			Size = UDim2.new(1, -8, 0, 22),
+			TextSize = 15,
+			Text = (HeroConfig.ElementIcons[entry.def.element] or "") .. (if inTeam then " ⚔️ у команді" elseif onBase then " 🏠 на базі" else ""),
+			Parent = card,
+		})
+		card.Activated:Connect(function()
+			request(if inTeam then "Remove" else "Add", entry.uid)
+		end)
+	end
+end
+
+local function refresh()
+	local data = ClientState.Data
+	if not data then
+		return
+	end
+	if not ui.panel.Visible then
+		dirty = true
+		return
+	end
+	dirty = false
+	refreshSlots(data)
+	refreshGrid(data)
+end
+
+function TeamUI.Init(gui)
+	local panel, content = UIKit.Panel(gui, "Team", "⚔️ Team")
+	ui.panel = panel
+	Hud.RegisterPanel("Team", panel)
+	panel:GetPropertyChangedSignal("Visible"):Connect(function()
+		if panel.Visible and dirty then
+			refresh()
+		end
+	end)
+
+	-- 3 слоти команди
+	local slotsRow = UIKit.Create("Frame", { Size = UDim2.new(1, 0, 0, 96), BackgroundTransparency = 1, Parent = content })
+	UIKit.Create("UIListLayout", {
+		FillDirection = Enum.FillDirection.Horizontal,
+		Padding = UDim.new(0, 10),
+		SortOrder = Enum.SortOrder.LayoutOrder,
+		Parent = slotsRow,
+	})
+	ui.slots = {}
+	for slot = 1, CombatConfig.TeamSize do
+		local card = UIKit.Create("TextButton", {
+			LayoutOrder = slot,
+			Size = UDim2.new(1 / CombatConfig.TeamSize, -7, 1, 0),
+			BackgroundColor3 = UIKit.Colors.Background,
+			Text = "",
+			Parent = slotsRow,
+		})
+		UIKit.Corner(card, 12)
+		UIKit.Stroke(card, UIKit.Colors.Disabled, 2).Name = "Stroke"
+		UIKit.Label({
+			Name = "Title",
+			Position = UDim2.fromOffset(8, 4),
+			Size = UDim2.new(1, -16, 0, 30),
+			Font = UIKit.Font,
+			TextSize = 19,
+			Parent = card,
+		})
+		UIKit.Label({
+			Name = "Info",
+			Position = UDim2.fromOffset(8, 36),
+			Size = UDim2.new(1, -16, 1, -40),
+			TextSize = 13,
+			TextColor3 = UIKit.Colors.SubText,
+			Parent = card,
+		})
+		card.Activated:Connect(function()
+			local data = ClientState.Data
+			local uid = data and data.team[slot]
+			if uid and uid ~= "" then
+				request("Remove", uid)
+			end
+		end)
+		ui.slots[slot] = card
+	end
+
+	-- Рядок керування
+	ui.dps = UIKit.Label({
+		Position = UDim2.fromOffset(0, 104),
+		Size = UDim2.new(1, -330, 0, 40),
+		Font = UIKit.Font,
+		TextSize = 19,
+		TextColor3 = UIKit.Colors.Gold,
+		TextXAlignment = Enum.TextXAlignment.Left,
+		Parent = content,
+	})
+	UIKit.Button({
+		AnchorPoint = Vector2.new(1, 0),
+		Position = UDim2.new(1, -140, 0, 104),
+		Size = UDim2.fromOffset(180, 40),
+		BackgroundColor3 = UIKit.Colors.Success,
+		TextSize = 18,
+		Text = "⭐ Best Team",
+		Parent = content,
+	}, function()
+		request("Best")
+	end)
+	UIKit.Button({
+		AnchorPoint = Vector2.new(1, 0),
+		Position = UDim2.new(1, 0, 0, 104),
+		Size = UDim2.fromOffset(130, 40),
+		BackgroundColor3 = UIKit.Colors.PanelLight,
+		TextSize = 18,
+		Text = "✖ Clear",
+		Parent = content,
+	}, function()
+		request("Clear")
+	end)
+
+	-- Усі герої
+	ui.grid = UIKit.Create("ScrollingFrame", {
+		Position = UDim2.fromOffset(0, 152),
+		Size = UDim2.new(1, 0, 1, -152),
+		BackgroundColor3 = UIKit.Colors.Background,
+		BackgroundTransparency = 0.4,
+		BorderSizePixel = 0,
+		ScrollBarThickness = 8,
+		CanvasSize = UDim2.new(),
+		AutomaticCanvasSize = Enum.AutomaticSize.Y,
+		ScrollingDirection = Enum.ScrollingDirection.Y,
+		Parent = content,
+	})
+	UIKit.Corner(ui.grid, 12)
+	UIKit.Create("UIGridLayout", {
+		CellSize = UDim2.fromOffset(112, 92),
+		CellPadding = UDim2.fromOffset(8, 8),
+		SortOrder = Enum.SortOrder.LayoutOrder,
+		Parent = ui.grid,
+	})
+	UIKit.Create("UIPadding", {
+		PaddingTop = UDim.new(0, 8),
+		PaddingLeft = UDim.new(0, 8),
+		PaddingRight = UDim.new(0, 8),
+		PaddingBottom = UDim.new(0, 8),
+		Parent = ui.grid,
+	})
+
+	ClientState.OnDataChanged(refresh)
+end
+
+return TeamUI
+]]></string>
+          </Properties>
+        </Item>
+        <Item class="ModuleScript" referent="43">
           <Properties>
             <string name="Name">UIKit</string>
             <string name="Source"><![CDATA[-- UIKit: кольори, шрифти й готові елементи інтерфейсу.
@@ -4013,7 +6022,7 @@ return UIKit
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="32">
+        <Item class="ModuleScript" referent="44">
           <Properties>
             <string name="Name">UpgradesUI</string>
             <string name="Source"><![CDATA[-- UpgradesUI: покупка нових слотів бази та покращення доходу.
@@ -4131,7 +6140,7 @@ return UpgradesUI
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="33">
+        <Item class="ModuleScript" referent="45">
           <Properties>
             <string name="Name">WorldEffects</string>
             <string name="Source"><![CDATA[-- WorldEffects: локально вмикає/вимикає аури героїв за налаштуванням "Ефекти".
@@ -4177,8 +6186,117 @@ return WorldEffects
 ]]></string>
           </Properties>
         </Item>
+        <Item class="ModuleScript" referent="46">
+          <Properties>
+            <string name="Name">WorldsUI</string>
+            <string name="Source"><![CDATA[-- WorldsUI: список світів і кнопки подорожі. Переносить гравця сервер.
+
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+local Shared = ReplicatedStorage:WaitForChild("Shared")
+local WorldConfig = require(Shared:WaitForChild("Config"):WaitForChild("WorldConfig"))
+
+local Client = script.Parent
+local UIKit = require(Client:WaitForChild("UIKit"))
+local ClientState = require(Client:WaitForChild("ClientState"))
+local Hud = require(Client:WaitForChild("Hud"))
+
+local player = Players.LocalPlayer
+
+local WorldsUI = {}
+
+local rows = {} -- [worldId] = { frame, button }
+
+local function travel(worldId, panel)
+	local result = ClientState.Request("Travel", worldId)
+	UIKit.Toast(result.message or "", if result.ok then "success" else "error")
+	if result.ok then
+		panel.Visible = false
+	end
+end
+
+local function refresh()
+	local current = player:GetAttribute("World") or "Lobby"
+	for worldId, row in rows do
+		local here = worldId == current
+		row.stroke.Color = if here then Color3.new(1, 1, 1) else row.color
+		row.stroke.Thickness = if here then 3 else 2
+		if row.available then
+			row.button.Text = if here then "📍 Ти тут" else "▶ Travel"
+			row.button.BackgroundColor3 = if here then UIKit.Colors.Disabled else UIKit.Colors.Success
+		end
+	end
+end
+
+local function addRow(content, order, worldId, title, subtitle, color, available, panel)
+	local frame = UIKit.Create("Frame", {
+		LayoutOrder = order,
+		Size = UDim2.new(1, 0, 0, 58),
+		BackgroundColor3 = color:Lerp(UIKit.Colors.Background, 0.75),
+		Parent = content,
+	})
+	UIKit.Corner(frame, 12)
+	local stroke = UIKit.Stroke(frame, color, 2)
+	UIKit.Label({
+		Position = UDim2.fromOffset(14, 2),
+		Size = UDim2.new(1, -200, 0, 30),
+		Font = UIKit.Font,
+		TextSize = 22,
+		TextColor3 = color:Lerp(Color3.new(1, 1, 1), 0.3),
+		TextXAlignment = Enum.TextXAlignment.Left,
+		Text = title,
+		Parent = frame,
+	})
+	UIKit.Label({
+		Position = UDim2.fromOffset(14, 31),
+		Size = UDim2.new(1, -200, 0, 22),
+		TextSize = 14,
+		TextColor3 = UIKit.Colors.SubText,
+		TextXAlignment = Enum.TextXAlignment.Left,
+		TextTruncate = Enum.TextTruncate.AtEnd,
+		Text = subtitle,
+		Parent = frame,
+	})
+	local button = UIKit.Button({
+		AnchorPoint = Vector2.new(1, 0.5),
+		Position = UDim2.new(1, -10, 0.5, 0),
+		Size = UDim2.fromOffset(170, 44),
+		BackgroundColor3 = if available then UIKit.Colors.Success else UIKit.Colors.Disabled,
+		Text = if available then "▶ Travel" else "🔒 Скоро",
+		TextSize = 19,
+		Parent = frame,
+	}, function()
+		if available then
+			travel(worldId, panel)
+		else
+			UIKit.Toast("Цей світ відкриється в наступних оновленнях", "info")
+		end
+	end)
+	rows[worldId] = { stroke = stroke, button = button, color = color, available = available }
+end
+
+function WorldsUI.Init(gui)
+	local panel, content = UIKit.Panel(gui, "Worlds", "🌍 Worlds")
+	Hud.RegisterPanel("Worlds", panel)
+	UIKit.Create("UIListLayout", { Padding = UDim.new(0, 6), SortOrder = Enum.SortOrder.LayoutOrder, Parent = content })
+
+	addRow(content, 0, "Lobby", "🏠 Lobby", "Твоя база та кубики", UIKit.Colors.Accent, true, panel)
+	for index, worldId in WorldConfig.Order do
+		local world = WorldConfig.Worlds[worldId]
+		addRow(content, index, worldId, world.displayName .. " — " .. world.localName, world.description, world.color, world.available, panel)
+	end
+
+	refresh()
+	player:GetAttributeChangedSignal("World"):Connect(refresh)
+end
+
+return WorldsUI
+]]></string>
+          </Properties>
+        </Item>
       </Item>
-      <Item class="LocalScript" referent="34">
+      <Item class="LocalScript" referent="47">
         <Properties>
           <string name="Name">ClientMain</string>
           <string name="Source"><![CDATA[-- ClientMain: точка входу клієнта. Будує інтерфейс і підключає модулі.
@@ -4197,6 +6315,11 @@ local InventoryUI = require(Client:WaitForChild("InventoryUI"))
 local UpgradesUI = require(Client:WaitForChild("UpgradesUI"))
 local SettingsUI = require(Client:WaitForChild("SettingsUI"))
 local WorldEffects = require(Client:WaitForChild("WorldEffects"))
+local EnemyRegistry = require(Client:WaitForChild("EnemyRegistry"))
+local FollowerController = require(Client:WaitForChild("FollowerController"))
+local TeamUI = require(Client:WaitForChild("TeamUI"))
+local WorldsUI = require(Client:WaitForChild("WorldsUI"))
+local CombatUI = require(Client:WaitForChild("CombatUI"))
 
 local gui = UIKit.CreateScreenGui()
 
@@ -4205,6 +6328,11 @@ RollUI.Init(gui)
 InventoryUI.Init(gui)
 UpgradesUI.Init(gui)
 SettingsUI.Init(gui)
+TeamUI.Init(gui)
+WorldsUI.Init(gui)
+EnemyRegistry.Init()
+FollowerController.Init()
+CombatUI.Init(gui)
 WorldEffects.Init()
 
 Remotes.Get("Notify").OnClientEvent:Connect(function(text, kind)
