@@ -1,0 +1,157 @@
+-- HeroModelBuilder: будує просту модель героя з Part (без платних моделей).
+-- Модель будується навколо точки (0,0,0) — це "ноги" героя,
+-- тому її легко поставити на слот через model:PivotTo(...).
+
+local CollectionService = game:GetService("CollectionService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+local Shared = ReplicatedStorage:WaitForChild("Shared")
+local HeroConfig = require(Shared.Config.HeroConfig)
+local RarityConfig = require(Shared.Config.RarityConfig)
+local GameMath = require(Shared.GameMath)
+
+local HeroModelBuilder = {}
+
+-- Тег для клієнта: ефекти з цим тегом вимикаються в налаштуваннях.
+HeroModelBuilder.AURA_TAG = "HeroAura"
+
+local function addPart(model, name, size, cframe, color, material, shape)
+	local part = Instance.new("Part")
+	part.Name = name
+	part.Size = size
+	part.CFrame = cframe
+	part.Color = color
+	part.Material = material or Enum.Material.SmoothPlastic
+	part.Shape = shape or Enum.PartType.Block
+	part.Anchored = true
+	part.CanCollide = false
+	part.CanTouch = false
+	part.TopSurface = Enum.SurfaceType.Smooth
+	part.BottomSurface = Enum.SurfaceType.Smooth
+	part.Parent = model
+	return part
+end
+
+-- Зброя / аксесуар залежно від класу героя.
+local ACCESSORIES = {
+	Ninja = function(model, s, accent, top)
+		addPart(model, "Scarf", Vector3.new(2.3, 0.45, 1.4) * s, CFrame.new(0, top - 0.2 * s, 0), accent, Enum.Material.Neon)
+		addPart(model, "ScarfTail", Vector3.new(0.5, 1.6, 0.15) * s, CFrame.new(0.6 * s, top - 1.1 * s, 0.75 * s) * CFrame.Angles(0.3, 0, 0), accent, Enum.Material.Neon)
+		addPart(model, "Kunai", Vector3.new(0.2, 1.2, 0.2) * s, CFrame.new(1.45 * s, top - 1.8 * s, -0.3 * s) * CFrame.Angles(0, 0, 0.4), Color3.fromRGB(180, 180, 190), Enum.Material.Metal)
+	end,
+	Swordsman = function(model, s, accent, top)
+		addPart(model, "Hilt", Vector3.new(0.3, 0.9, 0.3) * s, CFrame.new(1.5 * s, top - 2.2 * s, -0.4 * s), Color3.fromRGB(50, 40, 40))
+		addPart(model, "Blade", Vector3.new(0.18, 4, 0.5) * s, CFrame.new(1.5 * s, top + 0.25 * s, -0.4 * s), accent, Enum.Material.Neon)
+	end,
+	["Demon Hunter"] = function(model, s, accent, top)
+		addPart(model, "Blade", Vector3.new(0.18, 3.6, 0.45) * s, CFrame.new(-1.5 * s, top - 1 * s, -0.3 * s) * CFrame.Angles(0, 0, -0.25), accent, Enum.Material.Neon)
+		addPart(model, "Lantern", Vector3.new(0.6, 0.6, 0.6) * s, CFrame.new(1.5 * s, top - 2.4 * s, -0.3 * s), accent, Enum.Material.Neon, Enum.PartType.Ball)
+	end,
+	Pirate = function(model, s, accent, top)
+		addPart(model, "HatBrim", Vector3.new(2.6, 0.2, 2.2) * s, CFrame.new(0, top + 1.8 * s, 0), Color3.fromRGB(30, 25, 25))
+		addPart(model, "HatTop", Vector3.new(1.7, 0.7, 1.5) * s, CFrame.new(0, top + 2.25 * s, 0), Color3.fromRGB(30, 25, 25))
+		addPart(model, "Cutlass", Vector3.new(0.18, 2.6, 0.5) * s, CFrame.new(1.5 * s, top - 1.6 * s, -0.4 * s) * CFrame.Angles(0, 0, 0.2), accent, Enum.Material.Metal)
+	end,
+	Mage = function(model, s, accent, top)
+		addPart(model, "Staff", Vector3.new(0.25, 5, 0.25) * s, CFrame.new(1.5 * s, top - 1.5 * s, -0.3 * s), Color3.fromRGB(110, 70, 40), Enum.Material.Wood)
+		addPart(model, "Orb", Vector3.new(0.9, 0.9, 0.9) * s, CFrame.new(1.5 * s, top + 1.2 * s, -0.3 * s), accent, Enum.Material.Neon, Enum.PartType.Ball)
+	end,
+	["Space Warrior"] = function(model, s, accent, top)
+		addPart(model, "ShoulderL", Vector3.new(0.9, 0.5, 1.4) * s, CFrame.new(-1.4 * s, top - 0.15 * s, 0), accent, Enum.Material.Neon)
+		addPart(model, "ShoulderR", Vector3.new(0.9, 0.5, 1.4) * s, CFrame.new(1.4 * s, top - 0.15 * s, 0), accent, Enum.Material.Neon)
+		addPart(model, "Visor", Vector3.new(1.4, 0.35, 0.3) * s, CFrame.new(0, top + 0.85 * s, -0.75 * s), accent, Enum.Material.Neon)
+	end,
+}
+
+local function addNameplate(model, head, heroDef, level, income)
+	local billboard = Instance.new("BillboardGui")
+	billboard.Name = "Nameplate"
+	billboard.Size = UDim2.fromOffset(220, 56)
+	billboard.StudsOffset = Vector3.new(0, 3, 0)
+	billboard.MaxDistance = 90
+	billboard.Adornee = head
+	billboard.Parent = model
+
+	local nameLabel = Instance.new("TextLabel")
+	nameLabel.Size = UDim2.new(1, 0, 0.55, 0)
+	nameLabel.BackgroundTransparency = 1
+	nameLabel.Font = Enum.Font.FredokaOne
+	nameLabel.TextScaled = true
+	nameLabel.Text = heroDef.name
+	nameLabel.TextColor3 = RarityConfig.GetColor(heroDef.rarity)
+	nameLabel.TextStrokeTransparency = 0.3
+	nameLabel.Parent = billboard
+
+	local infoLabel = Instance.new("TextLabel")
+	infoLabel.Position = UDim2.fromScale(0, 0.55)
+	infoLabel.Size = UDim2.new(1, 0, 0.45, 0)
+	infoLabel.BackgroundTransparency = 1
+	infoLabel.Font = Enum.Font.GothamBold
+	infoLabel.TextScaled = true
+	infoLabel.Text = ("%s • Lv %d • +%s/s"):format(heroDef.rarity, level, GameMath.FormatNumber(income))
+	infoLabel.TextColor3 = Color3.new(1, 1, 1)
+	infoLabel.TextStrokeTransparency = 0.4
+	infoLabel.Parent = billboard
+end
+
+local function addAura(model, torso, rarity)
+	local info = RarityConfig.Info[rarity]
+	if info.aura then
+		local emitter = Instance.new("ParticleEmitter")
+		emitter.Name = "Aura"
+		emitter.Color = ColorSequence.new(info.color)
+		emitter.LightEmission = 1
+		emitter.Size = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0.7), NumberSequenceKeypoint.new(1, 0) })
+		emitter.Transparency = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0.2), NumberSequenceKeypoint.new(1, 1) })
+		emitter.Lifetime = NumberRange.new(0.8, 1.4)
+		emitter.Speed = NumberRange.new(1, 3)
+		emitter.SpreadAngle = Vector2.new(180, 180)
+		emitter.Acceleration = Vector3.new(0, 3, 0)
+		emitter.Rate = 8 * info.rank
+		emitter.Parent = torso
+		CollectionService:AddTag(emitter, HeroModelBuilder.AURA_TAG)
+	end
+	if info.light then
+		local light = Instance.new("PointLight")
+		light.Name = "AuraLight"
+		light.Color = info.color
+		light.Range = 12
+		light.Brightness = 2
+		light.Parent = torso
+		CollectionService:AddTag(light, HeroModelBuilder.AURA_TAG)
+	end
+end
+
+function HeroModelBuilder.Build(heroDef, level, income)
+	local model = Instance.new("Model")
+	model.Name = heroDef.id
+
+	local s = heroDef.look.height or 1
+	local accent = HeroConfig.ElementColors[heroDef.element] or Color3.new(1, 1, 1)
+	local legHeight = 2 * s
+	local torsoHeight = 2.2 * s
+	local shoulder = legHeight + torsoHeight -- висота плечей
+
+	addPart(model, "Legs", Vector3.new(1.8, legHeight, 1) * Vector3.new(s, 1, s), CFrame.new(0, legHeight / 2, 0), heroDef.look.body:Lerp(Color3.new(0, 0, 0), 0.35))
+	local torso = addPart(model, "Torso", Vector3.new(2.2 * s, torsoHeight, 1.2 * s), CFrame.new(0, legHeight + torsoHeight / 2, 0), heroDef.look.body)
+	addPart(model, "Belt", Vector3.new(2.3 * s, 0.3 * s, 1.3 * s), CFrame.new(0, legHeight + 0.2 * s, 0), accent, Enum.Material.Neon)
+	local head = addPart(model, "Head", Vector3.new(1.7, 1.7, 1.7) * s, CFrame.new(0, shoulder + 0.85 * s, 0), heroDef.look.skin, Enum.Material.SmoothPlastic, Enum.PartType.Ball)
+	addPart(model, "Hair", Vector3.new(1.85 * s, 0.7 * s, 1.85 * s), CFrame.new(0, shoulder + 1.45 * s, 0.1 * s), heroDef.look.hair)
+	-- Очі дивляться в бік -Z (до гравця, що стоїть перед базою)
+	addPart(model, "EyeL", Vector3.new(0.25, 0.35, 0.1) * s, CFrame.new(-0.35 * s, shoulder + 0.95 * s, -0.8 * s), Color3.fromRGB(30, 30, 40))
+	addPart(model, "EyeR", Vector3.new(0.25, 0.35, 0.1) * s, CFrame.new(0.35 * s, shoulder + 0.95 * s, -0.8 * s), Color3.fromRGB(30, 30, 40))
+
+	local accessory = ACCESSORIES[heroDef.archetype]
+	if accessory then
+		accessory(model, s, accent, shoulder)
+	end
+
+	addNameplate(model, head, heroDef, level, income)
+	addAura(model, torso, heroDef.rarity)
+
+	model.PrimaryPart = torso
+	model.WorldPivot = CFrame.new() -- точка опори = ноги
+	return model
+end
+
+return HeroModelBuilder
